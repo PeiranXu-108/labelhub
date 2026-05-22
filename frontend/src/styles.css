@@ -90,6 +90,90 @@ body {
   margin-bottom: 24px;
 }
 
+.schema-renderer,
+.template-designer {
+  display: grid;
+  gap: 20px;
+}
+
+.schema-renderer-fields,
+.field-list,
+.palette-buttons {
+  display: grid;
+  gap: 12px;
+}
+
+.schema-field,
+.designer-panel,
+.designer-canvas {
+  background: #ffffff;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.schema-control {
+  display: grid;
+  gap: 8px;
+  color: #26324a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.show-item-value {
+  width: 100%;
+  min-height: 48px;
+  margin: 8px 0 0;
+  padding: 12px;
+  overflow: auto;
+  color: #172033;
+  white-space: pre-wrap;
+  background: #f5f7fb;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+}
+
+.field-error {
+  margin-top: 8px;
+  color: #c03434;
+  font-size: 13px;
+}
+
+.designer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.designer-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: start;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  color: #172033;
+  text-align: left;
+  background: #f8fafd;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.field-row.active,
+.field-row:focus-visible {
+  border-color: #1f5eff;
+  outline: none;
+}
+
 @media (max-width: 680px) {
   .app-header {
     height: auto;
@@ -113,5 +197,9 @@ body {
   .workspace-panel,
   .form-panel {
     padding: 24px;
+  }
+
+  .designer-grid {
+    grid-template-columns: 1fr;
   }
 }
