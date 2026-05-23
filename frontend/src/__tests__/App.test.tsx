@@ -1,10 +1,23 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 
 describe("App route placeholders", () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the default app shell without crashing", () => {
     render(
       <MemoryRouter
@@ -23,7 +36,7 @@ describe("App route placeholders", () => {
     ["/owner/tasks", "Owner tasks"],
     ["/labeler/tasks", "Labeler tasks"],
     ["/review/queue", "Review queue"],
-  ])("renders %s placeholder heading", (path, heading) => {
+  ])("renders %s placeholder heading", async (path, heading) => {
     render(
       <MemoryRouter
         initialEntries={[path]}
@@ -33,6 +46,6 @@ describe("App route placeholders", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
   });
 });

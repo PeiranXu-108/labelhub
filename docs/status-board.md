@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Worker export implementation is approved. Owner frontend implementation is ready to dispatch.
+Owner frontend implementation is approved. Labeler/reviewer frontend implementation is ready to dispatch.
 
 ## Active Agents
 
@@ -16,8 +16,8 @@ Worker export implementation is approved. Owner frontend implementation is ready
 | Template Agent | `docs/tasks/03-template-schema-agent.md` | complete | `docs/handoffs/2026-05-23-task03-template-schema-handoff.md` | approved |
 | AI Review Agent | `docs/tasks/04-ai-review-langgraph-agent.md` | complete | `docs/handoffs/2026-05-23-task04-ai-review-langgraph-handoff.md` | approved |
 | Worker Export Agent | `docs/tasks/05-worker-export-agent.md` | complete | `docs/handoffs/2026-05-23-task05-worker-export-handoff.md` | approved |
-| Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | ready to dispatch | none | approved to start |
-| Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | not started | none | waiting |
+| Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | complete | `docs/handoffs/2026-05-24-task06-owner-frontend-handoff.md` | approved |
+| Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | ready to dispatch | none | approved to start |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | not started | none | waiting |
 
 ## Frozen Contracts
@@ -75,8 +75,8 @@ Worker export implementation is approved. Owner frontend implementation is ready
 | 03 Template Schema | Template Agent | complete | Task 01, Task 02 | Approved; template draft/publish APIs, immutable versions, server-side validation, renderer contract, and OpenAPI snapshot verified. |
 | 04 AI Review LangGraph | AI Review Agent | complete | Task 02 skeleton, Task 03 schema | Approved; LangGraph graph, LangChain structured output, idempotency, fallback, worker entrypoint, and handoff verified. |
 | 05 Worker Export | Worker Export Agent | complete | Task 02 models, Task 04 review outputs | Approved; export APIs, worker entrypoint, storage, JSON/JSONL/CSV/XLSX writers, permissions, OpenAPI, and handoff verified. |
-| 06 Owner Frontend | Owner Frontend Agent | ready to dispatch | Task 01, API contracts, Task 03 templates, Task 05 exports | Owner console; must consume OpenAPI contracts and preserve shared renderer/export API shapes. |
-| 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | not started | Task 01, API contracts, renderer | Labeler and reviewer surfaces. |
+| 06 Owner Frontend | Owner Frontend Agent | complete | Task 01, API contracts, Task 03 templates, Task 05 exports | Approved; owner task console, dataset import, template workspace, review config, dashboard, export center, handoff, and authenticated export download verified. |
+| 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | ready to dispatch | Task 01, API contracts, renderer | Labeler and reviewer surfaces. |
 | 08 QA Docs Deploy | QA Docs Deploy Agent | not started | first vertical slice | E2E and docs. |
 
 ## Integration Risks
@@ -96,6 +96,9 @@ Worker export implementation is approved. Owner frontend implementation is ready
 - Live LLM provider configuration remains open before production/live AI calls; Task04 tests used mocked/injected model calls only.
 - Task05 formal handoff is present and export API/storage/permission contracts are documented.
 - `celery[redis]==5.4.0` is declared in `backend/pyproject.toml`, but the current local virtualenv still lacks `celery`; install backend dependencies before running the real Celery worker command.
+- Task06 formal handoff is present and owner frontend routes/API consumption/browser validation notes are documented.
+- Task06 export download now goes through the authenticated frontend API helper path; keep this bearer-token/base-URL behavior for downstream export UI reuse.
+- No owner dashboard endpoint currently exposes submission status counts or AI decision counts; if those aggregates are required for MVP, define a backend API contract before a frontend agent invents local derived semantics.
 
 ## Latest Verification
 
@@ -162,7 +165,20 @@ Worker export implementation is approved. Owner frontend implementation is ready
 - Task 05 verification: `cd frontend && npm test -- --run` passed, 8 tests.
 - Task 05 verification: `cd frontend && npm run build` passed.
 - Task 05 approval note written to `docs/reviews/2026-05-23-task05-worker-export-final-review.md`.
+- Task 06 review found no formal handoff under `docs/handoffs/`.
+- Task 06 verification: `cd frontend && npm test -- --run` passed, 5 files and 13 tests.
+- Task 06 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 06 verification: `git diff --check` passed.
+- Task 06 verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 06 review note written to `docs/reviews/2026-05-24-task06-owner-frontend-review.md`.
+- Task 06 final handoff reviewed from `docs/handoffs/2026-05-24-task06-owner-frontend-handoff.md`.
+- Task 06 final verification: `cd frontend && npm test -- --run` passed, 5 files and 14 tests.
+- Task 06 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 06 final verification: `git diff --check` passed.
+- Task 06 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 06 final verification: handoff required sections were found with `rg`.
+- Task 06 final approval note written to `docs/reviews/2026-05-24-task06-owner-frontend-final-review.md`.
 
 ## Next Recommended Action
 
-Dispatch the Owner Frontend Agent for Task 06. Require it to consume existing OpenAPI/template/export contracts, avoid inventing endpoint shapes, and preserve shared renderer/export API boundaries in its handoff.
+Dispatch the Labeler/Reviewer Frontend Agent for Task 07. Require it to consume the existing OpenAPI/template/submission contracts, reuse `SchemaRenderer`, and avoid changing workflow state outside backend APIs.

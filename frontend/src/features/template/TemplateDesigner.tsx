@@ -1,5 +1,5 @@
 import { Button, Input, Segmented, Typography } from "antd";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SchemaRenderer } from "../schema-renderer";
 import type { TemplateField, TemplateFieldType, TemplateSchemaDocument } from "../schema-renderer";
@@ -40,6 +40,14 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
     () => schema.fields.find((field) => field.id === selectedFieldId) ?? null,
     [schema.fields, selectedFieldId],
   );
+
+  useEffect(() => {
+    if (!initialSchema) {
+      return;
+    }
+    setSchema(initialSchema);
+    setSelectedFieldId(initialSchema.fields[0]?.id ?? null);
+  }, [initialSchema]);
 
   function commit(nextSchema: TemplateSchemaDocument) {
     setSchema(nextSchema);

@@ -3,7 +3,8 @@ import { Link, Navigate, Route, Routes } from "react-router-dom";
 
 import { LabelerTasksPage } from "./routes/LabelerTasksPage";
 import { LoginPage } from "./routes/LoginPage";
-import { OwnerTasksPage } from "./routes/OwnerTasksPage";
+import { OwnerTaskDetailRoute } from "./routes/owner/OwnerTaskDetailRoute";
+import { OwnerTasksRoute } from "./routes/owner/OwnerTasksRoute";
 import { ReviewQueuePage } from "./routes/ReviewQueuePage";
 
 const navigationItems = [
@@ -45,7 +46,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/owner/tasks" element={<OwnerTasksPage />} />
+          <Route path="/owner/tasks" element={<OwnerTasksRoute />} />
+          <Route path="/owner/tasks/:taskId" element={<OwnerTaskDetailRoute />} />
           <Route path="/labeler/tasks" element={<LabelerTasksPage />} />
           <Route path="/review/queue" element={<ReviewQueuePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

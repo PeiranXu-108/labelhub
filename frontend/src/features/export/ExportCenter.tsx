@@ -1,0 +1,169 @@
+import { Alert, Button, Checkbox, Input, Radio, Space, Table, Tag, Typography } from "antd";
+import { useEffect, useState } from "react";
+
+import { createExportJob, downloadExportJob, listExportJobs } from "../owner/api";
+import type { ExportFormat, ExportJobRead } from "../owner/types";
+
+type ExportCenterProps = {
+  taskId: string;
+  jobs?: ExportJobRead[];
+  onJobsChanged?: (jobs: ExportJobRead[]) => void;
+};
+
+const defaultMapping = JSON.stringify(
+  {
+    "item.external_id": "external_id",
+    "item.payload.text": "text",
+    "answers.sentiment": "label",
+  },
+  null,
+  2,
+);
+
+export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps) {
+  const [format, setFormat] = useState<ExportFormat>("csv");
+  const [mappingText, setMappingText] = useState(defaultMapping);
+  const [includeReviewMetadata, setIncludeReviewMetadata] = useState(true);
+  const [localJobs, setLocalJobs] = useState<ExportJobRead[]>(jobs ?? []);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (jobs) {
+      setLocalJobs(jobs);
+      return;
+    }
+    setLoading(true);
+    listExportJobs(taskId)
+      .then(setLocalJobs)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load export jobs."))
+      .finally(() => setLoading(false));
+  }, [jobs, taskId]);
+
+  async function handleCreate() {
+    let fieldMapping: Record<string, string>;
+    try {
+      const parsed = JSON.parse(mappingText || "{}") as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setError("Field mapping must be a JSON object.");
+        return;
+      }
+      fieldMapping = Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Field mapping must be valid JSON.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const created = await createExportJob(taskId, {
+        format,
+        field_mapping: fieldMapping,
+        include_review_metadata: includeReviewMetadata,
+      });
+      const nextJobs = [created, ...localJobs];
+      setLocalJobs(nextJobs);
+      onJobsChanged?.(nextJobs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create export job.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDownload(record: ExportJobRead) {
+    setDownloadingId(record.id);
+    setError(null);
+    try {
+      const file = await downloadExportJob(record.id);
+      const objectUrl = URL.createObjectURL(file.blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = file.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download export.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  return (
+    <section className="ops-card" aria-labelledby="export-center-heading">
+      <Typography.Title id="export-center-heading" level={3}>
+        Export center
+      </Typography.Title>
+      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
+      <div className="form-grid-2">
+        <label className="schema-control">
+          <span>Export format</span>
+          <Radio.Group
+            optionType="button"
+            options={[
+              { label: "CSV", value: "csv" },
+              { label: "JSON", value: "json" },
+              { label: "JSONL", value: "jsonl" },
+              { label: "XLSX", value: "xlsx" },
+            ]}
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+          />
+        </label>
+        <Checkbox checked={includeReviewMetadata} onChange={(event) => setIncludeReviewMetadata(event.target.checked)}>
+          Include review metadata
+        </Checkbox>
+      </div>
+      <label className="schema-control">
+        <span>Field mapping JSON</span>
+        <Input.TextArea rows={7} value={mappingText} onChange={(event) => setMappingText(event.target.value)} />
+      </label>
+      <Space className="section-actions">
+        <Button loading={submitting} type="primary" onClick={handleCreate}>
+          Create export
+        </Button>
+      </Space>
+      <Table
+        columns={[
+          { title: "Format", dataIndex: "format", key: "format" },
+          { title: "Status", dataIndex: "status", key: "status", render: (status) => <Tag>{status}</Tag> },
+          {
+            title: "Created",
+            dataIndex: "created_at",
+            key: "created_at",
+            render: (value) => new Date(value).toLocaleString(),
+          },
+          {
+            title: "Download",
+            key: "download",
+            render: (_: unknown, record: ExportJobRead) =>
+              record.status === "succeeded" ? (
+                <Button
+                  loading={downloadingId === record.id}
+                  size="small"
+                  type="link"
+                  onClick={() => void handleDownload(record)}
+                >
+                  Download
+                </Button>
+              ) : (
+                <Typography.Text type="secondary">{record.error_message || "Not ready"}</Typography.Text>
+              ),
+          },
+        ]}
+        dataSource={localJobs}
+        loading={loading}
+        pagination={false}
+        rowKey="id"
+        size="small"
+      />
+    </section>
+  );
+}
