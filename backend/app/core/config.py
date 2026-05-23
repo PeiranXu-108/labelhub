@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://labelhub:labelhub@localhost:5432/labelhub"
     )
     redis_url: str = "redis://localhost:6379/0"
+    export_storage_path: str = "storage/exports"
     cors_origins: list[str] = ["http://localhost:5173"]
     jwt_secret_key: str = "change-me-in-env"
     jwt_algorithm: str = "HS256"

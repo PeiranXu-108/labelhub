@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.audit import router as audit_router
+from app.api.routes.exports import router as exports_router
 from app.api.routes.health import router as health_router
 from app.api.routes.labeler import router as labeler_router
 from app.api.routes.review import router as review_router
@@ -30,4 +31,5 @@ app.include_router(tasks_router)
 app.include_router(templates_router)
 app.include_router(labeler_router)
 app.include_router(review_router)
+app.include_router(exports_router)
 app.include_router(audit_router)

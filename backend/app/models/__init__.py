@@ -240,5 +240,7 @@ class ExportJob(TimestampMixin, Base):
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     format: Mapped[ExportFormat] = mapped_column(enum_column(ExportFormat), nullable=False)
     field_mapping: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    include_review_metadata: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     file_path: Mapped[str | None] = mapped_column(String(1024))
+    error_message: Mapped[str | None] = mapped_column(Text)
