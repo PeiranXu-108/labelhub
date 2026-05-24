@@ -173,6 +173,72 @@ body {
   margin-bottom: 24px;
 }
 
+.filter-row,
+.workbench-grid,
+.review-detail-grid,
+.ai-review-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.filter-row {
+  grid-template-columns: minmax(240px, 1fr) minmax(160px, 220px);
+  align-items: end;
+}
+
+.review-filters {
+  grid-template-columns: minmax(180px, 220px) minmax(180px, 1fr) minmax(160px, 200px) minmax(180px, 260px);
+}
+
+.workbench-grid,
+.review-detail-grid {
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+}
+
+.ai-review-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.json-panel {
+  width: 100%;
+  max-height: 420px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: #172033;
+  white-space: pre-wrap;
+  background: #f5f7fb;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+}
+
+.native-filter,
+.score-filter {
+  display: grid;
+  gap: 8px;
+  color: #26324a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.native-filter select {
+  min-height: 32px;
+  padding: 4px 11px;
+  color: #172033;
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+}
+
+.disabled-filter {
+  opacity: 0.62;
+}
+
+.modal-stack {
+  width: 100%;
+}
+
 .schema-renderer,
 .template-designer {
   display: grid;
@@ -288,7 +354,12 @@ body {
   .form-grid-2,
   .form-grid-3,
   .metric-grid,
-  .dashboard-tables {
+  .dashboard-tables,
+  .filter-row,
+  .review-filters,
+  .workbench-grid,
+  .review-detail-grid,
+  .ai-review-grid {
     grid-template-columns: 1fr;
   }
 }

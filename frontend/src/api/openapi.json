@@ -988,27 +988,123 @@
         ],
         "summary": "Review Queue",
         "operationId": "review_queue_review_queue_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SubmissionStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "ai_decision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AIReviewDecision"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Decision"
+            }
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Score"
+            }
+          },
+          {
+            "name": "max_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Score"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SubmissionRead"
-                  },
                   "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewQueueItemRead"
+                  },
                   "title": "Response Review Queue Review Queue Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/review/submissions/{submission_id}": {
@@ -1440,6 +1536,83 @@
   },
   "components": {
     "schemas": {
+      "AIReviewDecision": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "return",
+          "human_review"
+        ],
+        "title": "AIReviewDecision"
+      },
+      "AIReviewRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/AIReviewDecision"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "structured_response": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Structured Response"
+          },
+          "prompt_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Snapshot"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submission_id",
+          "decision",
+          "overall_score",
+          "status",
+          "structured_response",
+          "prompt_snapshot",
+          "model_name",
+          "created_at"
+        ],
+        "title": "AIReviewRead"
+      },
       "AssignmentDetailRead": {
         "properties": {
           "id": {
@@ -1487,6 +1660,19 @@
           },
           "task": {
             "$ref": "#/components/schemas/TaskRead"
+          },
+          "template_schema": {
+            "$ref": "#/components/schemas/TemplateSchemaRead"
+          },
+          "latest_human_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanReviewRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1500,7 +1686,9 @@
           "expires_at",
           "item",
           "submission",
-          "task"
+          "task",
+          "template_schema",
+          "latest_human_review"
         ],
         "title": "AssignmentDetailRead"
       },
@@ -1881,6 +2069,58 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HumanReviewRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "review_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Review Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submission_id",
+          "reviewer_id",
+          "decision",
+          "reason",
+          "review_metadata",
+          "created_at"
+        ],
+        "title": "HumanReviewRead"
       },
       "ItemImportEntry": {
         "properties": {
@@ -2398,6 +2638,44 @@
         "type": "object",
         "title": "ReviewConfigUpsert"
       },
+      "ReviewQueueItemRead": {
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/SubmissionRead"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRead"
+          },
+          "latest_ai_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIReviewRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_human_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanReviewRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "submission",
+          "task",
+          "latest_ai_review",
+          "latest_human_review"
+        ],
+        "title": "ReviewQueueItemRead"
+      },
       "ReviewSubmissionDetail": {
         "properties": {
           "submission": {
@@ -2408,13 +2686,49 @@
           },
           "item": {
             "$ref": "#/components/schemas/TaskItemRead"
+          },
+          "template_schema": {
+            "$ref": "#/components/schemas/TemplateSchemaRead"
+          },
+          "ai_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/AIReviewRead"
+            },
+            "type": "array",
+            "title": "Ai Reviews"
+          },
+          "human_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/HumanReviewRead"
+            },
+            "type": "array",
+            "title": "Human Reviews"
+          },
+          "audit_logs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogRead"
+            },
+            "type": "array",
+            "title": "Audit Logs"
+          },
+          "previous_attempts": {
+            "items": {
+              "$ref": "#/components/schemas/SubmissionAttemptRead"
+            },
+            "type": "array",
+            "title": "Previous Attempts"
           }
         },
         "type": "object",
         "required": [
           "submission",
           "task",
-          "item"
+          "item",
+          "template_schema",
+          "ai_reviews",
+          "human_reviews",
+          "audit_logs",
+          "previous_attempts"
         ],
         "title": "ReviewSubmissionDetail"
       },
@@ -2523,6 +2837,57 @@
           "source"
         ],
         "title": "ShowItemField"
+      },
+      "SubmissionAttemptRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "template_schema_id": {
+            "type": "string",
+            "title": "Template Schema Id"
+          },
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version"
+          },
+          "answer_payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Answer Payload"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submission_id",
+          "attempt",
+          "template_schema_id",
+          "schema_version",
+          "answer_payload",
+          "submitted_at",
+          "created_at"
+        ],
+        "title": "SubmissionAttemptRead"
       },
       "SubmissionRead": {
         "properties": {

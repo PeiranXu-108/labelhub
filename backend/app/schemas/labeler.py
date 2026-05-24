@@ -2,8 +2,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.review import HumanReviewRead
 from app.schemas.submission import SubmissionRead
 from app.schemas.task import TaskItemRead, TaskRead
+from app.schemas.template import TemplateSchemaRead
 
 
 class AssignmentRead(BaseModel):
@@ -25,3 +27,5 @@ class ClaimRead(AssignmentRead):
 
 class AssignmentDetailRead(ClaimRead):
     task: TaskRead
+    template_schema: TemplateSchemaRead
+    latest_human_review: HumanReviewRead | None

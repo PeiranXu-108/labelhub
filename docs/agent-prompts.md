@@ -23,7 +23,8 @@ Every implementation agent must read:
 4. Run Backend Workflow Agent and Template Schema Agent after Task 01 approval.
 5. Start AI Review Agent and Worker Export Agent after Backend Workflow creates the required models/service skeleton.
 6. Start frontend agents after API contracts/routes are stable enough to consume.
-7. Start QA Docs Deploy Agent after the first end-to-end vertical slice exists.
+7. If Supervisor marks Task07 as an integration risk for reviewer/template API gaps, start Review Integration Contracts Agent before QA.
+8. Start QA Docs Deploy Agent after the first end-to-end vertical slice exists and Task09 is approved if dispatched.
 
 ## Recommended Call Order
 
@@ -40,8 +41,10 @@ Every implementation agent must read:
 9. Owner Frontend Agent
 10. Labeler/Reviewer Frontend Agent
 11. Supervisor review of Tasks 06 and 07
-12. QA Docs Deploy Agent
-13. Final Supervisor integration review
+12. Review Integration Contracts Agent if Task07 reviewer/template API gaps are MVP requirements
+13. Supervisor review of Task09
+14. QA Docs Deploy Agent
+15. Final Supervisor integration review
 ```
 
 Parallelizable groups:
@@ -49,12 +52,14 @@ Parallelizable groups:
 - After Task 01 approval: Tasks 02 and 03 can run in parallel, but must coordinate `TemplateSchema` model fields.
 - After Task 02 model skeleton exists: Tasks 04 and 05 can run in parallel.
 - After API contracts are stable: Tasks 06 and 07 can run in parallel.
+- After Task07 integration-risk review: Task09 must run before Task08 if the missing reviewer/template contracts are required for MVP.
 
 Do not parallelize:
 
 - Supervisor review with code-writing agents that are changing the same contract.
 - Backend Workflow Agent and AI Review Agent before `WorkflowService` exists.
 - Frontend agents before route/API contracts are visible.
+- QA Docs Deploy Agent before Task09 approval when Task09 has been dispatched.
 
 ---
 
@@ -606,6 +611,68 @@ End with the Agent Handoff format from docs/agent-coordination.md, including:
 
 ---
 
+## Prompt 09: Review Integration Contracts Agent
+
+```text
+You are the Review Integration Contracts Agent for LabelHub.
+
+Workspace:
+/Users/xupeiran/labelhub
+
+Your task file:
+docs/tasks/09-review-integration-contracts-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/09-review-integration-contracts-agent.md
+5. docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md
+6. docs/reviews/2026-05-24-task07-labeler-reviewer-frontend-final-review.md
+7. Task 02, Task 03, and Task 04 handoffs
+
+Mission:
+Close the Task07 integration gaps by adding backend read contracts and minimal frontend consumers for an auditable reviewer/labeler MVP.
+
+You own:
+- backend schemas/routes/services/tests listed in docs/tasks/09-review-integration-contracts-agent.md
+- frontend labeler/reviewer consumers listed in docs/tasks/09-review-integration-contracts-agent.md
+- generated frontend/src/api/openapi.json only via backend OpenAPI export
+
+Hard constraints:
+- Backend language remains Python.
+- API framework remains FastAPI.
+- Do not modify WorkflowService transition rules unless Supervisor explicitly approves.
+- Do not modify LangGraph/AI review execution logic.
+- Do not mutate published template schemas.
+- AI review data exposed to frontend must be structured persisted data, not parsed free-form text.
+- Audit and human review data must come from persisted backend records.
+- Do not make frontend reviewer filters active unless they are backed by backend query parameters.
+
+Deliver:
+- frozen template snapshot in labeler assignment and reviewer detail responses
+- labeler-safe latest return reason
+- review queue response with latest AI/human review summaries and server-backed filters
+- reviewer detail response with AI reviews, human reviews, audit logs, template snapshot, and previous attempts
+- submitted attempt-history persistence
+- frontend updates consuming the new contracts
+- regenerated OpenAPI snapshot
+- backend and frontend regression tests
+
+Verification:
+Run the commands listed in docs/tasks/09-review-integration-contracts-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format from docs/agent-coordination.md, including:
+- final route list and response shape changes
+- migration name and attempt-history behavior
+- OpenAPI regeneration result
+- backend/frontend tests and build results
+- any route still relying on mutable current template instead of submission snapshot
+- downstream impacts for Task08
+```
+
+---
+
 ## Final Integration Prompt For Supervisor
 
 Use this after all implementation agents report complete.
@@ -652,4 +719,3 @@ Return:
 4. verification evidence
 5. recommended next action
 ```
-

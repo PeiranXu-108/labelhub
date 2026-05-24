@@ -176,6 +176,30 @@ class Submission(TimestampMixin, Base):
     template_schema: Mapped[TemplateSchema] = relationship(back_populates="submissions")
     ai_reviews: Mapped[list["AIReview"]] = relationship(back_populates="submission")
     human_reviews: Mapped[list["HumanReview"]] = relationship(back_populates="submission")
+    attempt_snapshots: Mapped[list["SubmissionAttempt"]] = relationship(
+        back_populates="submission", cascade="all, delete-orphan"
+    )
+
+
+class SubmissionAttempt(Base):
+    __tablename__ = "submission_attempts"
+    __table_args__ = (
+        UniqueConstraint("submission_id", "attempt", name="uq_submission_attempts_submission_attempt"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id"), nullable=False, index=True)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    template_schema_id: Mapped[str] = mapped_column(ForeignKey("template_schemas.id"), nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    answer_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    submission: Mapped[Submission] = relationship(back_populates="attempt_snapshots")
+    template_schema: Mapped[TemplateSchema] = relationship()
 
 
 class AIReview(Base):

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskStatus, UserRole
-from app.models import Assignment, Submission, Task
+from app.models import Assignment, HumanReview, Submission, Task, TemplateSchema
 from app.schemas.labeler import AssignmentDetailRead, ClaimRead
 from app.schemas.submission import DraftSaveRequest, SubmissionRead, SubmitRequest
 from app.schemas.task import TaskRead
@@ -21,6 +21,8 @@ def _actor_context(actor: Actor) -> ActorContext:
 
 def _raise_workflow_error(exc: WorkflowError) -> None:
     status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") or exc.code == "NO_AVAILABLE_ITEMS" else status.HTTP_400_BAD_REQUEST
+    if exc.code == "PERMISSION_DENIED":
+        status_code = status.HTTP_403_FORBIDDEN
     raise api_error(exc.code, exc.message, status_code)
 
 
@@ -54,11 +56,31 @@ def get_assignment(
     assignment_id: str,
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_role(UserRole.LABELER)),
-) -> Assignment:
+) -> dict:
     try:
         assignment = SubmissionService(db).get_owned_assignment(assignment_id, _actor_context(actor))
-        assignment.task = db.get(Task, assignment.task_id)
-        return assignment
+        submission = assignment.submission
+        template_schema = db.get(TemplateSchema, submission.template_schema_id)
+        latest_human_review = db.scalar(
+            select(HumanReview)
+            .where(HumanReview.submission_id == submission.id)
+            .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
+            .limit(1)
+        )
+        return {
+            "id": assignment.id,
+            "task_id": assignment.task_id,
+            "item_id": assignment.item_id,
+            "labeler_id": assignment.labeler_id,
+            "status": assignment.status,
+            "claimed_at": assignment.claimed_at,
+            "expires_at": assignment.expires_at,
+            "item": assignment.item,
+            "submission": submission,
+            "task": db.get(Task, assignment.task_id),
+            "template_schema": template_schema,
+            "latest_human_review": latest_human_review,
+        }
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

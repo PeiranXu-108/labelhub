@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
-from app.domain.enums import SubmissionStatus, UserRole
-from app.models import Submission
-from app.schemas.review import BatchReviewRequest, ReviewActionRequest, ReviewSubmissionDetail
+from app.domain.enums import AIReviewDecision, SubmissionStatus, UserRole
+from app.models import AIReview, AuditLog, HumanReview, Submission, SubmissionAttempt
+from app.schemas.review import (
+    BatchReviewRequest,
+    ReviewActionRequest,
+    ReviewQueueItemRead,
+    ReviewSubmissionDetail,
+)
 from app.schemas.submission import SubmissionRead
 from app.services.submissions import SubmissionService
 from app.services.workflow import ActorContext, WorkflowError
@@ -25,26 +30,57 @@ def _raise_workflow_error(exc: WorkflowError) -> None:
     raise api_error(exc.code, exc.message, status_code)
 
 
-@router.get("/queue", response_model=list[SubmissionRead])
+@router.get("/queue", response_model=list[ReviewQueueItemRead])
 def review_queue(
+    task_id: str | None = None,
+    status_filter: SubmissionStatus | None = Query(default=None, alias="status"),
+    ai_decision: AIReviewDecision | None = None,
+    min_score: int | None = Query(default=None, ge=0, le=100),
+    max_score: int | None = Query(default=None, ge=0, le=100),
     db: Session = Depends(get_db),
     _actor: Actor = Depends(require_role(UserRole.REVIEWER)),
-) -> list[Submission]:
-    return list(
-        db.scalars(
-            select(Submission)
-            .where(
-                Submission.status.in_(
-                    [
-                        SubmissionStatus.AI_PASSED,
-                        SubmissionStatus.NEEDS_HUMAN_REVIEW,
-                        SubmissionStatus.HUMAN_REVIEWING,
-                    ]
-                )
+) -> list[dict]:
+    query = select(Submission)
+    if task_id:
+        query = query.where(Submission.task_id == task_id)
+    if status_filter is not None:
+        query = query.where(Submission.status == status_filter)
+    else:
+        query = query.where(
+            Submission.status.in_(
+                [
+                    SubmissionStatus.AI_PASSED,
+                    SubmissionStatus.NEEDS_HUMAN_REVIEW,
+                    SubmissionStatus.HUMAN_REVIEWING,
+                ]
             )
-            .order_by(Submission.updated_at.desc())
         )
-    )
+    submissions = list(db.scalars(query.order_by(Submission.updated_at.desc())))
+
+    items: list[dict] = []
+    for submission in submissions:
+        latest_ai_review = _latest_ai_review(db, submission.id)
+        if ai_decision is not None and (
+            latest_ai_review is None or latest_ai_review.decision != ai_decision
+        ):
+            continue
+        if min_score is not None and (
+            latest_ai_review is None or latest_ai_review.overall_score < min_score
+        ):
+            continue
+        if max_score is not None and (
+            latest_ai_review is None or latest_ai_review.overall_score > max_score
+        ):
+            continue
+        items.append(
+            {
+                "submission": submission,
+                "task": submission.task,
+                "latest_ai_review": latest_ai_review,
+                "latest_human_review": _latest_human_review(db, submission.id),
+            }
+        )
+    return items
 
 
 @router.get("/submissions/{submission_id}", response_model=ReviewSubmissionDetail)
@@ -56,7 +92,47 @@ def get_submission_detail(
     submission = db.get(Submission, submission_id)
     if submission is None:
         raise api_error("SUBMISSION_NOT_FOUND", "Submission was not found", status.HTTP_404_NOT_FOUND)
-    return {"submission": submission, "task": submission.task, "item": submission.item}
+    ai_reviews = list(
+        db.scalars(
+            select(AIReview)
+            .where(AIReview.submission_id == submission.id)
+            .order_by(AIReview.created_at.desc(), AIReview.id.desc())
+        )
+    )
+    human_reviews = list(
+        db.scalars(
+            select(HumanReview)
+            .where(HumanReview.submission_id == submission.id)
+            .order_by(HumanReview.created_at.asc(), HumanReview.id.asc())
+        )
+    )
+    audit_logs = list(
+        db.scalars(
+            select(AuditLog)
+            .where(AuditLog.entity_type == "submission", AuditLog.entity_id == submission.id)
+            .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
+        )
+    )
+    previous_attempts = list(
+        db.scalars(
+            select(SubmissionAttempt)
+            .where(
+                SubmissionAttempt.submission_id == submission.id,
+                SubmissionAttempt.attempt < submission.attempt,
+            )
+            .order_by(SubmissionAttempt.attempt.asc(), SubmissionAttempt.created_at.asc())
+        )
+    )
+    return {
+        "submission": submission,
+        "task": submission.task,
+        "item": submission.item,
+        "template_schema": submission.template_schema,
+        "ai_reviews": ai_reviews,
+        "human_reviews": human_reviews,
+        "audit_logs": audit_logs,
+        "previous_attempts": previous_attempts,
+    }
 
 
 @router.post("/submissions/{submission_id}/approve", response_model=SubmissionRead)
@@ -114,3 +190,21 @@ def batch_review(
         except WorkflowError as exc:
             _raise_workflow_error(exc)
     return updated
+
+
+def _latest_ai_review(db: Session, submission_id: str) -> AIReview | None:
+    return db.scalar(
+        select(AIReview)
+        .where(AIReview.submission_id == submission_id)
+        .order_by(AIReview.created_at.desc(), AIReview.id.desc())
+        .limit(1)
+    )
+
+
+def _latest_human_review(db: Session, submission_id: str) -> HumanReview | None:
+    return db.scalar(
+        select(HumanReview)
+        .where(HumanReview.submission_id == submission_id)
+        .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
+        .limit(1)
+    )

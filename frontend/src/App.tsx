@@ -1,11 +1,13 @@
 import { Layout, Typography } from "antd";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 
-import { LabelerTasksPage } from "./routes/LabelerTasksPage";
 import { LoginPage } from "./routes/LoginPage";
+import { LabelerAssignmentRoute } from "./routes/labeler/LabelerAssignmentRoute";
+import { LabelerTasksRoute } from "./routes/labeler/LabelerTasksRoute";
 import { OwnerTaskDetailRoute } from "./routes/owner/OwnerTaskDetailRoute";
 import { OwnerTasksRoute } from "./routes/owner/OwnerTasksRoute";
-import { ReviewQueuePage } from "./routes/ReviewQueuePage";
+import { ReviewQueueRoute } from "./routes/review/ReviewQueueRoute";
+import { ReviewSubmissionRoute } from "./routes/review/ReviewSubmissionRoute";
 
 const navigationItems = [
   { path: "/owner/tasks", label: "Owner" },
@@ -48,8 +50,10 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/owner/tasks" element={<OwnerTasksRoute />} />
           <Route path="/owner/tasks/:taskId" element={<OwnerTaskDetailRoute />} />
-          <Route path="/labeler/tasks" element={<LabelerTasksPage />} />
-          <Route path="/review/queue" element={<ReviewQueuePage />} />
+          <Route path="/labeler/tasks" element={<LabelerTasksRoute />} />
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+          <Route path="/review/queue" element={<ReviewQueueRoute />} />
+          <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout.Content>

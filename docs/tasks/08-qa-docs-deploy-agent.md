@@ -9,6 +9,7 @@ This agent owns cross-module validation, docs, E2E smoke tests, Docker Compose r
 ## Dependencies
 
 - First vertical slice from tasks 01-07.
+- Task 09 Review Integration Contracts if Supervisor dispatched it to close reviewer/template API gaps.
 
 ## Owned Areas
 
@@ -63,6 +64,7 @@ download export
 - [ ] Run frontend build/tests.
 - [ ] Run E2E smoke test.
 - [ ] Record known limitations.
+- [ ] Confirm Task09 is approved or explicitly marked out of MVP scope before documenting reviewer/template gaps as limitations.
 
 ## Required Verification Commands
 
@@ -89,4 +91,3 @@ Report:
 - known limitations
 - demo script location
 - unresolved blockers requiring user decision
-

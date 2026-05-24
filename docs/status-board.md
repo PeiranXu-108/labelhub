@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Owner frontend implementation is approved. Labeler/reviewer frontend implementation is ready to dispatch.
+Task09 review integration contracts are approved. QA Docs Deploy is ready to dispatch for full end-to-end validation and documentation.
 
 ## Active Agents
 
@@ -17,8 +17,9 @@ Owner frontend implementation is approved. Labeler/reviewer frontend implementat
 | AI Review Agent | `docs/tasks/04-ai-review-langgraph-agent.md` | complete | `docs/handoffs/2026-05-23-task04-ai-review-langgraph-handoff.md` | approved |
 | Worker Export Agent | `docs/tasks/05-worker-export-agent.md` | complete | `docs/handoffs/2026-05-23-task05-worker-export-handoff.md` | approved |
 | Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | complete | `docs/handoffs/2026-05-24-task06-owner-frontend-handoff.md` | approved |
-| Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | ready to dispatch | none | approved to start |
-| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | not started | none | waiting |
+| Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | frontend complete | `docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md` | integration risk |
+| Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | complete | `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md` | approved |
+| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | ready to dispatch | none | approved to start |
 
 ## Frozen Contracts
 
@@ -64,6 +65,8 @@ Owner frontend implementation is approved. Labeler/reviewer frontend implementat
 | AI auto-return behavior | allowed by thresholds | yes if product policy changes | defaulted |
 | Data retention/privacy policy | not defined | yes before handling sensitive uploaded datasets | open |
 | Template multi-tab/group layout | later enhancement | yes if required for MVP | defaulted |
+| Versioned template snapshot reads for assignments/submissions | implement in Task09 | no | decided: required for MVP |
+| Reviewer detail AI metadata, human review comments, previous attempts, and AI score filters | implement in Task09 | no | decided: required for MVP |
 
 ## Task Status
 
@@ -76,8 +79,9 @@ Owner frontend implementation is approved. Labeler/reviewer frontend implementat
 | 04 AI Review LangGraph | AI Review Agent | complete | Task 02 skeleton, Task 03 schema | Approved; LangGraph graph, LangChain structured output, idempotency, fallback, worker entrypoint, and handoff verified. |
 | 05 Worker Export | Worker Export Agent | complete | Task 02 models, Task 04 review outputs | Approved; export APIs, worker entrypoint, storage, JSON/JSONL/CSV/XLSX writers, permissions, OpenAPI, and handoff verified. |
 | 06 Owner Frontend | Owner Frontend Agent | complete | Task 01, API contracts, Task 03 templates, Task 05 exports | Approved; owner task console, dataset import, template workspace, review config, dashboard, export center, handoff, and authenticated export download verified. |
-| 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | ready to dispatch | Task 01, API contracts, renderer | Labeler and reviewer surfaces. |
-| 08 QA Docs Deploy | QA Docs Deploy Agent | not started | first vertical slice | E2E and docs. |
+| 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | frontend complete / integration risk | Task 01, API contracts, renderer | Audit timeline fix verified; remaining risk is missing backend contracts for historical template snapshots and richer reviewer metadata/filter UX. |
+| 09 Review Integration Contracts | Review Integration Contracts Agent | complete | Tasks 02, 03, 04, 07 | Approved; frozen template snapshots, reviewer AI/human/audit detail, previous attempts, server-backed filters, OpenAPI, migration, tests, and handoff verified. |
+| 08 QA Docs Deploy | QA Docs Deploy Agent | ready to dispatch | first vertical slice, Task09 approved | E2E and docs; include Task09 reviewer/template contract coverage. |
 
 ## Integration Risks
 
@@ -99,6 +103,11 @@ Owner frontend implementation is approved. Labeler/reviewer frontend implementat
 - Task06 formal handoff is present and owner frontend routes/API consumption/browser validation notes are documented.
 - Task06 export download now goes through the authenticated frontend API helper path; keep this bearer-token/base-URL behavior for downstream export UI reuse.
 - No owner dashboard endpoint currently exposes submission status counts or AI decision counts; if those aggregates are required for MVP, define a backend API contract before a frontend agent invents local derived semantics.
+- Task07 formal handoff is present and labeler/reviewer routes/API consumption/autosave/browser validation notes are documented.
+- Task07 reviewer return now refreshes persisted backend audit logs; frontend-fabricated audit timeline entries were removed and regression-tested.
+- Task09 closes the current backend/API gaps for versioned template snapshot reads, AI review metadata, human review comments, previous attempts, and server-backed AI score/decision filters.
+- Task09 handoff separates owned changes from pre-existing mixed working-tree changes; downstream QA should preserve that file ownership context when reporting failures.
+- QA Docs Deploy may now start full E2E coverage and should include Task09 reviewer/template contract scenarios.
 
 ## Latest Verification
 
@@ -178,7 +187,52 @@ Owner frontend implementation is approved. Labeler/reviewer frontend implementat
 - Task 06 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
 - Task 06 final verification: handoff required sections were found with `rg`.
 - Task 06 final approval note written to `docs/reviews/2026-05-24-task06-owner-frontend-final-review.md`.
+- Task 07 handoff reviewed from `docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md`.
+- Task 07 verification: `cd frontend && npm test -- --run src/features/labeler/LabelerWorkspace.test.tsx src/features/reviewer/ReviewerWorkspace.test.tsx` passed, 2 files and 6 tests, with React Router future-flag warnings.
+- Task 07 verification: `cd frontend && npm test -- --run` passed, 7 files and 20 tests, with React Router future-flag warnings.
+- Task 07 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 07 verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 07 verification: `git diff --check` passed.
+- Task 07 review note written to `docs/reviews/2026-05-24-task07-labeler-reviewer-frontend-review.md`.
+- Task 07 final handoff re-reviewed from `docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md`.
+- Task 07 final verification: `cd frontend && npm test -- --run src/features/reviewer/ReviewerWorkspace.test.tsx` passed, 1 file and 4 tests, with React Router future-flag warnings.
+- Task 07 final verification: `cd frontend && npm test -- --run src/features/labeler/LabelerWorkspace.test.tsx src/features/reviewer/ReviewerWorkspace.test.tsx` passed, 2 files and 7 tests, with React Router future-flag warnings.
+- Task 07 final verification: `cd frontend && npm test -- --run` passed, 7 files and 21 tests, with React Router future-flag warnings.
+- Task 07 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 07 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 07 final verification: `git diff --check` passed.
+- Task 07 final verification: handoff required sections were found with `rg`.
+- Task 07 final review note written to `docs/reviews/2026-05-24-task07-labeler-reviewer-frontend-final-review.md`.
+- Task 09 task file written to `docs/tasks/09-review-integration-contracts-agent.md`.
+- Agent coordination updated to insert Task09 before Task08 when Task07 backend/API gaps are MVP requirements.
+- Agent prompts updated with Prompt 09 for the Review Integration Contracts Agent.
+- Task 08 dependency updated to wait for Task09 if dispatched.
+- Task 09 review found no formal handoff under `docs/handoffs/`.
+- Task 09 verification: `cd backend && ./.venv313/bin/pytest tests/test_labeler_api.py tests/test_review_api.py tests/test_review_integration_contracts.py -q` passed, 8 tests, 1 existing Pydantic alias warning.
+- Task 09 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 40 tests, 1 existing Pydantic alias warning.
+- Task 09 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed.
+- Task 09 verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 09 verification: `cd frontend && npm test -- --run src/features/labeler/LabelerWorkspace.test.tsx src/features/reviewer/ReviewerWorkspace.test.tsx` passed, 2 files and 8 tests, with React Router future-flag warnings.
+- Task 09 verification: `cd frontend && npm test -- --run` passed, 7 files and 22 tests, with React Router future-flag warnings.
+- Task 09 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 09 verification: `docker compose config` passed.
+- Task 09 verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task09_review.sqlite ./.venv313/bin/alembic upgrade head` passed, including revision `20260524_0002`.
+- Task 09 verification: `git diff --check` passed.
+- Task 09 review note written to `docs/reviews/2026-05-24-task09-review-integration-contracts-review.md`.
+- Task 09 final handoff reviewed from `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md`.
+- Task 09 final verification: handoff required sections were found with `rg`.
+- Task 09 final verification: `cd backend && ./.venv313/bin/pytest tests/test_labeler_api.py tests/test_review_api.py tests/test_review_integration_contracts.py -q` passed, 8 tests, 1 existing Pydantic alias warning.
+- Task 09 final verification: `cd backend && ./.venv313/bin/pytest -q` passed, 40 tests, 1 existing Pydantic alias warning.
+- Task 09 final verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed.
+- Task 09 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 09 final verification: `cd frontend && npm test -- --run src/features/labeler/LabelerWorkspace.test.tsx src/features/reviewer/ReviewerWorkspace.test.tsx` passed, 2 files and 8 tests, with React Router future-flag warnings.
+- Task 09 final verification: `cd frontend && npm test -- --run` passed, 7 files and 22 tests, with React Router future-flag warnings.
+- Task 09 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 09 final verification: `docker compose config` passed.
+- Task 09 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task09_rereview.sqlite ./.venv313/bin/alembic upgrade head` passed, including revision `20260524_0002`.
+- Task 09 final verification: `git diff --check` passed.
+- Task 09 final approval note written to `docs/reviews/2026-05-24-task09-review-integration-contracts-final-review.md`.
 
 ## Next Recommended Action
 
-Dispatch the Labeler/Reviewer Frontend Agent for Task 07. Require it to consume the existing OpenAPI/template/submission contracts, reuse `SchemaRenderer`, and avoid changing workflow state outside backend APIs.
+Dispatch QA Docs Deploy Agent for Task08. Require it to cover Task09 reviewer/labeler contracts in E2E and docs: frozen template snapshots, labeler returned reason, reviewer queue filters, AI/human/audit detail, previous attempts, migrations, and generated OpenAPI.

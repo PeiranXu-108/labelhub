@@ -36,7 +36,8 @@ The system must preserve these non-negotiable boundaries:
 | Worker Export Agent | `docs/tasks/05-worker-export-agent.md` | Celery worker, export jobs, file writers | After Backend models |
 | Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | Owner console, task management, template designer, export UI | After API contracts |
 | Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | Labeler workbench, review queue, submission detail | After API contracts |
-| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | E2E tests, README, API docs, Docker Compose, demo script | After first vertical slice |
+| Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | Reviewer/labeler backend read contracts and minimal frontend consumers | After Task 07 integration-risk review |
+| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | E2E tests, README, API docs, Docker Compose, demo script | After first vertical slice and Task 09 if dispatched |
 
 ## Recommended Execution Order
 
@@ -45,7 +46,8 @@ The system must preserve these non-negotiable boundaries:
 3. Backend Workflow Agent and Template Agent proceed in parallel after contracts are stable.
 4. AI Review Agent and Worker Export Agent proceed after core backend models exist.
 5. Frontend agents proceed after OpenAPI/API contracts are available.
-6. QA Docs Deploy Agent starts smoke tests once the first vertical slice works.
+6. Review Integration Contracts Agent runs if Supervisor flags Task07 reviewer/template API gaps as MVP requirements.
+7. QA Docs Deploy Agent starts smoke tests once the first vertical slice works and Task09 integration contracts are approved if dispatched.
 
 ## Shared Files and Conflict Rules
 
@@ -57,6 +59,8 @@ High-conflict files owned by one agent at a time:
 - `backend/app/agent/*`: AI Review Agent only.
 - `frontend/src/api/*`: Foundation owns generation/setup; frontend agents may consume but not manually fork contracts.
 - `docs/status-board.md`: Supervisor only.
+- Task09 may update `backend/app/schemas/template.py` only to reuse existing read schemas or imports. It must not change `TemplateDocument`, field discriminators, or published schema semantics without Supervisor approval.
+- Task09 may update Task07 frontend consumers only where needed to consume its new backend contracts.
 
 If another agent needs a change in an owned file, they must write a request in their handoff summary and stop rather than making an opportunistic edit.
 
@@ -124,4 +128,3 @@ An agent task is complete only when:
 - API/schema changes are reflected in contracts.
 - The handoff summary is complete.
 - Supervisor has approved the work.
-

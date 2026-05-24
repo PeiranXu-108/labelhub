@@ -4,7 +4,16 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.domain.enums import SubmissionAction, SubmissionStatus, TaskStatus
-from app.models import Assignment, AuditLog, HumanReview, Submission, Task, TaskItem, TemplateSchema
+from app.models import (
+    Assignment,
+    AuditLog,
+    HumanReview,
+    Submission,
+    SubmissionAttempt,
+    Task,
+    TaskItem,
+    TemplateSchema,
+)
 from app.schemas.template import SubmissionValidationError
 from app.services.templates import TemplateService
 from app.services.workflow import ActorContext, WorkflowError, WorkflowService
@@ -117,6 +126,18 @@ class SubmissionService:
         submission.answer_payload = answer_payload
         submission = self.workflow.transition_submission(
             submission.id, SubmissionAction.SUBMIT, actor
+        )
+        if submission.submitted_at is None:
+            raise WorkflowError("SUBMISSION_TIMESTAMP_MISSING", "Submitted submission has no timestamp")
+        self.db.add(
+            SubmissionAttempt(
+                submission_id=submission.id,
+                attempt=submission.attempt,
+                template_schema_id=submission.template_schema_id,
+                schema_version=submission.schema_version,
+                answer_payload=answer_payload,
+                submitted_at=submission.submitted_at,
+            )
         )
         assignment.status = "submitted"
         self.db.commit()
