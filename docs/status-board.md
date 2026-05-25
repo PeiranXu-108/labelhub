@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Task09 review integration contracts are approved. QA Docs Deploy is ready to dispatch for full end-to-end validation and documentation.
+Task08 QA Docs Deploy is approved. All implementation tasks are complete; the project is ready for final Supervisor integration review.
 
 ## Active Agents
 
@@ -19,7 +19,7 @@ Task09 review integration contracts are approved. QA Docs Deploy is ready to dis
 | Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | complete | `docs/handoffs/2026-05-24-task06-owner-frontend-handoff.md` | approved |
 | Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | frontend complete | `docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md` | integration risk |
 | Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | complete | `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md` | approved |
-| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | ready to dispatch | none | approved to start |
+| QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | complete | `docs/handoffs/2026-05-25-task08-qa-docs-deploy-handoff.md` | approved |
 
 ## Frozen Contracts
 
@@ -81,7 +81,7 @@ Task09 review integration contracts are approved. QA Docs Deploy is ready to dis
 | 06 Owner Frontend | Owner Frontend Agent | complete | Task 01, API contracts, Task 03 templates, Task 05 exports | Approved; owner task console, dataset import, template workspace, review config, dashboard, export center, handoff, and authenticated export download verified. |
 | 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | frontend complete / integration risk | Task 01, API contracts, renderer | Audit timeline fix verified; remaining risk is missing backend contracts for historical template snapshots and richer reviewer metadata/filter UX. |
 | 09 Review Integration Contracts | Review Integration Contracts Agent | complete | Tasks 02, 03, 04, 07 | Approved; frozen template snapshots, reviewer AI/human/audit detail, previous attempts, server-backed filters, OpenAPI, migration, tests, and handoff verified. |
-| 08 QA Docs Deploy | QA Docs Deploy Agent | ready to dispatch | first vertical slice, Task09 approved | E2E and docs; include Task09 reviewer/template contract coverage. |
+| 08 QA Docs Deploy | QA Docs Deploy Agent | complete | first vertical slice, Task09 approved | Approved; docs, local E2E smoke, Docker config validation, deployment notes, demo script, known limitations, and handoff verified. |
 
 ## Integration Risks
 
@@ -108,6 +108,8 @@ Task09 review integration contracts are approved. QA Docs Deploy is ready to dis
 - Task09 closes the current backend/API gaps for versioned template snapshot reads, AI review metadata, human review comments, previous attempts, and server-backed AI score/decision filters.
 - Task09 handoff separates owned changes from pre-existing mixed working-tree changes; downstream QA should preserve that file ownership context when reporting failures.
 - QA Docs Deploy may now start full E2E coverage and should include Task09 reviewer/template contract scenarios.
+- Task08 local E2E passes with backend/frontend/export-storage env aligned, and `README.md` plus `docs/deployment.md` now document the same `LABELHUB_EXPORT_STORAGE_PATH` for backend startup and Playwright helper commands.
+- Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
 
 ## Latest Verification
 
@@ -232,7 +234,30 @@ Task09 review integration contracts are approved. QA Docs Deploy is ready to dis
 - Task 09 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task09_rereview.sqlite ./.venv313/bin/alembic upgrade head` passed, including revision `20260524_0002`.
 - Task 09 final verification: `git diff --check` passed.
 - Task 09 final approval note written to `docs/reviews/2026-05-24-task09-review-integration-contracts-final-review.md`.
+- Task 08 handoff reviewed from `docs/handoffs/2026-05-24-task08-qa-docs-deploy-handoff.md`.
+- Task 08 verification: handoff required sections were found with `rg`.
+- Task 08 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 40 tests, 1 existing Pydantic alias warning.
+- Task 08 verification: `cd frontend && npm test -- --run` passed, 7 files and 22 tests, with React Router future-flag warnings.
+- Task 08 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 08 verification: `docker compose config` passed and includes `api`, `frontend`, `worker`, `postgres`, and `redis`.
+- Task 08 verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 08 verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task08_supervisor.sqlite ./.venv313/bin/alembic upgrade head` passed, through `20260524_0002`.
+- Task 08 verification: local backend/frontend startup passed after port-binding escalation.
+- Task 08 verification: `cd frontend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task08_supervisor.sqlite LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_task08_supervisor_exports BACKEND_URL=http://127.0.0.1:18000 FRONTEND_URL=http://127.0.0.1:5173 npm run e2e` passed, 1 Playwright test.
+- Task 08 verification: `git diff --check` passed.
+- Task 08 review note written to `docs/reviews/2026-05-25-task08-qa-docs-deploy-review.md`.
+- Task 08 review-fix handoff reviewed from `docs/handoffs/2026-05-25-task08-qa-docs-deploy-handoff.md`.
+- Task 08 final verification: `cd backend && ./.venv313/bin/pytest -q` passed, 40 tests, 1 existing Pydantic alias warning.
+- Task 08 final verification: `cd frontend && npm test -- --run` passed, 7 files and 22 tests, with React Router future-flag warnings.
+- Task 08 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 08 final verification: `docker compose config` passed and includes `api`, `frontend`, `worker`, `postgres`, and `redis`.
+- Task 08 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 08 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task08_final_review.sqlite LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_task08_final_review_exports ./.venv313/bin/alembic upgrade head` passed, through `20260524_0002`.
+- Task 08 final verification: documented local backend/frontend startup passed after port-binding escalation.
+- Task 08 final verification: `cd frontend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task08_final_review.sqlite LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_task08_final_review_exports BACKEND_URL=http://127.0.0.1:8000 FRONTEND_URL=http://127.0.0.1:5173 npm run e2e` passed, 1 Playwright test.
+- Task 08 final verification: `git diff --check` passed.
+- Task 08 final approval note written to `docs/reviews/2026-05-25-task08-qa-docs-deploy-final-review.md`.
 
 ## Next Recommended Action
 
-Dispatch QA Docs Deploy Agent for Task08. Require it to cover Task09 reviewer/labeler contracts in E2E and docs: frozen template snapshots, labeler returned reason, reviewer queue filters, AI/human/audit detail, previous attempts, migrations, and generated OpenAPI.
+Proceed to final Supervisor integration review. Decide whether to require full `docker compose up --build` runtime validation before external handoff; current Task08 evidence is Docker config validation plus local SQLite runtime E2E.

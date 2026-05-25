@@ -2,6 +2,9 @@ services:
   api:
     build:
       context: ./backend
+    command: >
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
       LABELHUB_ENVIRONMENT: docker
       LABELHUB_DATABASE_URL: postgresql+psycopg://labelhub:labelhub@postgres:5432/labelhub
@@ -13,9 +16,24 @@ services:
       - postgres
       - redis
 
+  worker:
+    build:
+      context: ./backend
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
+    environment:
+      LABELHUB_ENVIRONMENT: docker
+      LABELHUB_DATABASE_URL: postgresql+psycopg://labelhub:labelhub@postgres:5432/labelhub
+      LABELHUB_REDIS_URL: redis://redis:6379/0
+      LABELHUB_JWT_SECRET_KEY: docker-dev-secret
+    depends_on:
+      - postgres
+      - redis
+
   frontend:
     build:
       context: ./frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "5173:5173"
     depends_on:
