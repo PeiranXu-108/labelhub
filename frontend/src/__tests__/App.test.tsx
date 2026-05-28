@@ -1,17 +1,48 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 
-describe("App route placeholders", () => {
+const ownerUser = {
+  id: "owner-login",
+  email: "owner@example.com",
+  name: "Owner",
+  role: "owner",
+};
+
+const labelerUser = {
+  id: "labeler-login",
+  email: "labeler@example.com",
+  name: "Labeler",
+  role: "labeler",
+};
+
+const reviewerUser = {
+  id: "reviewer-login",
+  email: "reviewer@example.com",
+  name: "Reviewer",
+  role: "reviewer",
+};
+
+function renderApp(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+function mockJson(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+describe("App auth routes", () => {
   beforeEach(() => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -19,33 +50,96 @@ describe("App route placeholders", () => {
   });
 
   it("renders the default app shell without crashing", () => {
-    render(
-      <MemoryRouter
-        initialEntries={["/"]}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp("/");
 
     expect(screen.getByRole("heading", { name: "LabelHub" })).toBeInTheDocument();
   });
 
+  it("redirects protected routes to login when no token is stored", async () => {
+    renderApp("/owner/tasks");
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
   it.each([
-    ["/login", "Sign in"],
-    ["/owner/tasks", "Owner tasks"],
-    ["/labeler/tasks", "Labeler tasks"],
-    ["/review/queue", "Review queue"],
-  ])("renders %s placeholder heading", async (path, heading) => {
-    render(
-      <MemoryRouter
-        initialEntries={[path]}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
-        <App />
-      </MemoryRouter>,
-    );
+    [ownerUser, "/tasks", "Owner tasks"],
+    [labelerUser, "/labeler/tasks", "Labeler tasks"],
+    [reviewerUser, "/review/queue", "Review queue"],
+  ])("logs in %s and redirects to the role home", async (user, expectedListPath, heading) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/auth/login")) {
+        expect(init?.method).toBe("POST");
+        return mockJson({ access_token: `${user.role}-token`, token_type: "bearer", user });
+      }
+      if (url.endsWith(expectedListPath)) {
+        expect((init?.headers as Record<string, string>).Authorization).toBe(`Bearer ${user.role}-token`);
+        return mockJson([]);
+      }
+      return mockJson({ detail: { message: `Unexpected request: ${url}` } }, 500);
+    });
+    renderApp("/login");
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: user.email } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "LabelHubPassword123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(localStorage.getItem("labelhub.accessToken")).toBe(`${user.role}-token`);
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("shows invalid credential errors without storing a token", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      mockJson({ detail: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } }, 401),
+    );
+    renderApp("/login");
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "owner@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "bad-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Invalid email or password")).toBeInTheDocument();
+    expect(localStorage.getItem("labelhub.accessToken")).toBeNull();
+  });
+
+  it("uses /auth/me for stored tokens and redirects mismatched roles to their own route", async () => {
+    localStorage.setItem("labelhub.accessToken", "labeler-token");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me")) {
+        expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer labeler-token");
+        return mockJson(labelerUser);
+      }
+      if (url.endsWith("/labeler/tasks")) {
+        return mockJson([]);
+      }
+      return mockJson({ detail: { message: `Unexpected request: ${url}` } }, 500);
+    });
+
+    renderApp("/owner/tasks");
+
+    expect(await screen.findByRole("heading", { name: "Labeler tasks" })).toBeInTheDocument();
+  });
+
+  it("logs out by clearing the stored token and returning to login", async () => {
+    localStorage.setItem("labelhub.accessToken", "owner-token");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me")) {
+        return mockJson(ownerUser);
+      }
+      if (url.endsWith("/tasks")) {
+        return mockJson([]);
+      }
+      return mockJson({ detail: { message: `Unexpected request: ${url}` } }, 500);
+    });
+    renderApp("/owner/tasks");
+
+    expect(await screen.findByRole("heading", { name: "Owner tasks" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+
+    await waitFor(() => expect(localStorage.getItem("labelhub.accessToken")).toBeNull());
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 });

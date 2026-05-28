@@ -64,10 +64,25 @@ body {
   background: #eef3ff;
 }
 
+.auth-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #4b5873;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .page-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   padding: 40px 0;
+}
+
+.auth-loading {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
 }
 
 .intro-panel,

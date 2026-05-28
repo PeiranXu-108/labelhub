@@ -14,6 +14,12 @@ Start the MVP stack:
 docker compose up --build
 ```
 
+Seed the deterministic demo login users after the API migrations have run:
+
+```bash
+docker compose exec api python scripts/seed_e2e_data.py demo-users
+```
+
 Task08 currently records Docker deployment as config-validated only. Do not treat full Compose runtime startup as verified until `docker compose up --build` has been run and its result is recorded in a handoff or review.
 
 Services:
@@ -46,6 +52,14 @@ LABELHUB_REDIS_URL=redis://localhost:6379/0
 LABELHUB_JWT_SECRET_KEY=replace-with-a-local-secret
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+Seed local demo users with:
+
+```bash
+cd backend && ./.venv313/bin/python scripts/seed_e2e_data.py demo-users
+```
+
+Demo credentials are `owner@example.com` / `LabelHubOwner123!`, `labeler@example.com` / `LabelHubLabeler123!`, and `reviewer@example.com` / `LabelHubReviewer123!`.
 
 Required before live AI calls:
 
@@ -100,6 +114,7 @@ npm run e2e
 
 - Replace `LABELHUB_JWT_SECRET_KEY` with a managed secret.
 - Use a persistent export storage mount or object storage adapter before storing valuable data.
-- Configure real auth before exposing the app to non-demo users.
+- Replace demo credentials and define production identity policy before exposing the app to non-demo users.
+- MVP auth intentionally excludes self-registration, password reset, OAuth, SSO, refresh tokens, and production account lifecycle policy.
 - Configure `LLM_API_KEY` and provider settings before live AI review.
 - Define data retention/privacy policy before handling sensitive datasets.

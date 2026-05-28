@@ -1,4 +1,4 @@
-import { apiRequest } from "../owner/api";
+import { apiRequest } from "../auth/http";
 import type { TaskRead } from "../owner/types";
 import type { AnswerPayload } from "../schema-renderer";
 import type { AssignmentDetailRead, AssignmentLoadResult, ClaimRead, SubmissionRead } from "./types";

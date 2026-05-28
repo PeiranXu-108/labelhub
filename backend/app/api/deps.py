@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -27,6 +28,14 @@ def get_current_actor(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> Actor:
+    user = get_current_user(credentials, db)
+    return Actor(user_id=user.id, role=user.role)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
     if credentials is None:
         raise api_error("UNAUTHENTICATED", "Missing bearer token", status.HTTP_401_UNAUTHORIZED)
 
@@ -50,21 +59,13 @@ def get_current_actor(
     except ValueError as exc:
         raise api_error("UNAUTHENTICATED", "Token role is not supported", status.HTTP_401_UNAUTHORIZED) from exc
 
-    user = db.get(User, subject)
+    user = db.scalar(select(User).where(User.id == subject))
     if user is None:
-        user = User(
-            id=subject,
-            email=payload.get("email") or f"user-{subject}@local.labelhub",
-            name=payload.get("name") or role.value,
-            role=role,
-        )
-        db.add(user)
-        db.flush()
-    elif user.role != role:
-        user.role = role
-        db.flush()
+        raise api_error("UNAUTHENTICATED", "Token subject is not a persisted user", status.HTTP_401_UNAUTHORIZED)
+    if user.role != role:
+        raise api_error("UNAUTHENTICATED", "Token role does not match persisted user", status.HTTP_401_UNAUTHORIZED)
 
-    return Actor(user_id=subject, role=role)
+    return user
 
 
 def require_role(*roles: UserRole):

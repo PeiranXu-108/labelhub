@@ -137,7 +137,7 @@ def test_assignment_detail_returns_frozen_template_and_latest_return_reason(
     )
     other_labeler = client.get(
         f"/labeler/assignments/{assignment['id']}",
-        headers=auth_headers(UserRole.LABELER),
+        headers=auth_headers(UserRole.LABELER, user_id="other-labeler"),
     )
 
     assert response.status_code == 200

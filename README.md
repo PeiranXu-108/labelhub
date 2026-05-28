@@ -27,6 +27,7 @@ python -m venv .venv313
 source .venv313/bin/activate
 pip install ".[test]"
 alembic upgrade head
+python scripts/seed_e2e_data.py demo-users
 uvicorn app.main:app --reload
 ```
 
@@ -48,7 +49,13 @@ VITE_API_BASE_URL=http://localhost:8000 npm run dev
 
 Open `http://localhost:5173`.
 
-Current MVP auth uses bearer tokens with role claims. The `/login` route is a disabled placeholder; use `backend/scripts/seed_e2e_data.py tokens` for demo/test role tokens until a real login endpoint is added.
+MVP auth uses persisted demo users plus JWT bearer tokens. Seed the demo users with `backend/scripts/seed_e2e_data.py demo-users`, then sign in at `/login` with:
+
+- Owner: `owner@example.com` / `LabelHubOwner123!`
+- Labeler: `labeler@example.com` / `LabelHubLabeler123!`
+- Reviewer: `reviewer@example.com` / `LabelHubReviewer123!`
+
+Business routes still enforce role permissions on the backend. The legacy `backend/scripts/seed_e2e_data.py tokens` helper remains for API/E2E helpers, but it now seeds matching persisted users before printing tokens.
 
 ## Verification
 
@@ -90,6 +97,8 @@ FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
 ```
 
+The Playwright smoke test signs into the frontend through `/login` for the role-route checks.
+
 ## Docker Compose
 
 Task08 has config-validated Docker Compose with `docker compose config`; full `docker compose up --build` runtime startup is not yet recorded as verified.
@@ -107,6 +116,12 @@ Services:
 - Redis: `localhost:6379`
 
 The API container runs `alembic upgrade head` before starting Uvicorn. The frontend receives `VITE_API_BASE_URL=http://localhost:8000`.
+
+Seed demo users in the running API container before using `/login`:
+
+```bash
+docker compose exec api python scripts/seed_e2e_data.py demo-users
+```
 
 ## Documentation
 

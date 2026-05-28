@@ -1,4 +1,4 @@
-import { expect, request, test } from "@playwright/test";
+import { expect, request, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,13 @@ const frontendUrl = process.env.FRONTEND_URL ?? "http://127.0.0.1:5173";
 type RoleName = "owner" | "labeler" | "reviewer";
 
 type TokenPayload = {
-  tokens: Record<RoleName, { subject: string; token: string }>;
+  tokens: Record<RoleName, { subject: string; email: string; token: string }>;
+};
+
+const demoPasswords: Record<RoleName, string> = {
+  owner: "LabelHubOwner123!",
+  labeler: "LabelHubLabeler123!",
+  reviewer: "LabelHubReviewer123!",
 };
 
 function runSeedCommand(args: string[]) {
@@ -21,6 +27,21 @@ function runSeedCommand(args: string[]) {
     encoding: "utf-8",
     env: process.env,
   });
+}
+
+async function loginViaUi(
+  page: Page,
+  role: RoleName,
+  tokens: TokenPayload,
+  heading: RegExp,
+) {
+  await page.goto(frontendUrl);
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto(`${frontendUrl}/login`);
+  await page.getByLabel("Email").fill(tokens.tokens[role].email);
+  await page.getByLabel("Password").fill(demoPasswords[role]);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: heading })).toBeVisible();
 }
 
 async function apiContext(role: RoleName, tokens: TokenPayload) {
@@ -212,20 +233,13 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
   });
 
   await test.step("frontend role routes render against the running API", async () => {
-    await page.goto(frontendUrl);
-    await page.evaluate((token) => window.localStorage.setItem("labelhub.accessToken", token), tokens.tokens.owner.token);
-    await page.goto(`${frontendUrl}/owner/tasks`);
-    await expect(page.getByRole("heading", { name: /Owner Tasks/i })).toBeVisible();
+    await loginViaUi(page, "owner", tokens, /Owner Tasks/i);
     await expect(page.getByText(created.task.name)).toBeVisible();
 
-    await page.evaluate((token) => window.localStorage.setItem("labelhub.accessToken", token), tokens.tokens.labeler.token);
-    await page.goto(`${frontendUrl}/labeler/tasks`);
-    await expect(page.getByRole("heading", { name: /Labeler Tasks/i })).toBeVisible();
+    await loginViaUi(page, "labeler", tokens, /Labeler Tasks/i);
     await expect(page.getByText(created.task.name).first()).toBeVisible();
 
-    await page.evaluate((token) => window.localStorage.setItem("labelhub.accessToken", token), tokens.tokens.reviewer.token);
-    await page.goto(`${frontendUrl}/review/queue`);
-    await expect(page.getByRole("heading", { name: /Review Queue/i })).toBeVisible();
+    await loginViaUi(page, "reviewer", tokens, /Review Queue/i);
   });
 
   await ownerApi.dispose();

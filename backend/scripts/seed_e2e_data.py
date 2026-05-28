@@ -6,20 +6,41 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from sqlalchemy import select
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agent.schemas import AIReviewResult
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.domain.enums import UserRole
+from app.models import User
 from app.services.ai_review import AIReviewService
 from app.services.exports import ExportService
 
 
-ROLE_SUBJECTS = {
-    "owner": "e2e-owner",
-    "labeler": "e2e-labeler",
-    "reviewer": "e2e-reviewer",
+DEMO_USERS = {
+    "owner": {
+        "id": "e2e-owner",
+        "email": "owner@example.com",
+        "name": "Demo Owner",
+        "password": "LabelHubOwner123!",
+        "role": UserRole.OWNER,
+    },
+    "labeler": {
+        "id": "e2e-labeler",
+        "email": "labeler@example.com",
+        "name": "Demo Labeler",
+        "password": "LabelHubLabeler123!",
+        "role": UserRole.LABELER,
+    },
+    "reviewer": {
+        "id": "e2e-reviewer",
+        "email": "reviewer@example.com",
+        "name": "Demo Reviewer",
+        "password": "LabelHubReviewer123!",
+        "role": UserRole.REVIEWER,
+    },
 }
 
 
@@ -41,13 +62,40 @@ class StaticPassReviewModel:
         ).model_dump(mode="json")
 
 
+def seed_demo_users() -> dict[str, dict[str, str]]:
+    seeded: dict[str, dict[str, str]] = {}
+    with SessionLocal() as db:
+        for role_name, spec in DEMO_USERS.items():
+            user = db.get(User, spec["id"]) or db.scalar(
+                select(User).where(User.email == spec["email"])
+            )
+            if user is None:
+                user = User(id=spec["id"])
+            user.email = spec["email"]
+            user.name = spec["name"]
+            user.role = spec["role"]
+            user.password_hash = hash_password(spec["password"])
+            db.add(user)
+            seeded[role_name] = {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role.value,
+                "password": spec["password"],
+            }
+        db.commit()
+    return seeded
+
+
 def build_tokens() -> dict[str, dict[str, str]]:
+    users = seed_demo_users()
     return {
         role: {
-            "subject": subject,
-            "token": create_access_token(subject=subject, claims={"role": role}),
+            "subject": user["id"],
+            "email": user["email"],
+            "token": create_access_token(subject=user["id"], claims={"role": role}),
         }
-        for role, subject in ROLE_SUBJECTS.items()
+        for role, user in users.items()
     }
 
 
@@ -83,7 +131,8 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("tokens", help="Print deterministic owner/labeler/reviewer JWTs.")
+    subparsers.add_parser("demo-users", help="Create deterministic owner/labeler/reviewer demo users.")
+    subparsers.add_parser("tokens", help="Seed demo users and print deterministic owner/labeler/reviewer JWTs.")
 
     ai_parser = subparsers.add_parser("ai-review", help="Run a deterministic passing AI review.")
     ai_parser.add_argument("submission_id")
@@ -93,7 +142,9 @@ def main() -> None:
     export_parser.add_argument("--storage-root")
 
     args = parser.parse_args()
-    if args.command == "tokens":
+    if args.command == "demo-users":
+        payload = {"users": seed_demo_users()}
+    elif args.command == "tokens":
         payload = {"tokens": build_tokens()}
     elif args.command == "ai-review":
         payload = {"ai_review": run_ai_review(args.submission_id)}

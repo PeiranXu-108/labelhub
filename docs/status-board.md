@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Task08 QA Docs Deploy is approved. All implementation tasks are complete; the project is ready for final Supervisor integration review.
+Task10 Auth Login is approved. The project is ready for final Supervisor integration review; decide separately whether full Docker runtime validation is required before external handoff.
 
 ## Active Agents
 
@@ -20,6 +20,7 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 | Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | frontend complete | `docs/handoffs/2026-05-24-task07-labeler-reviewer-frontend-handoff.md` | integration risk |
 | Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | complete | `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md` | approved |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | complete | `docs/handoffs/2026-05-25-task08-qa-docs-deploy-handoff.md` | approved |
+| Auth Login Agent | `docs/tasks/10-auth-login-agent.md` | complete | `docs/handoffs/2026-05-28-task10-auth-login-handoff.md` | approved |
 
 ## Frozen Contracts
 
@@ -35,6 +36,9 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 - Mutating API endpoints must append audit logs.
 - Foundation API contract: `GET /health` returns `{ "status": "ok" }`.
 - Foundation generated OpenAPI snapshot path: `frontend/src/api/openapi.json`.
+- Auth API contract for Task10: `POST /auth/login` and `GET /auth/me`.
+- Frontend auth token storage key remains `labelhub.accessToken`.
+- Task10 auth scope is JWT username/password MVP with explicit demo-user seeding and no self-registration.
 - Foundation enum source of truth: `backend/app/domain/enums.py`.
 - Task 02 API contract is reflected in `frontend/src/api/openapi.json`.
 - Task and submission workflow state changes must use `WorkflowService`.
@@ -59,6 +63,7 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 | --- | --- | --- | --- |
 | LLM provider | OpenAI-compatible environment config | yes before live AI calls | open |
 | Auth mode | JWT username/password MVP | no | defaulted |
+| Login implementation scope | username/password JWT, explicit demo users, no self-registration | no | decided for Task10 |
 | Deployment target | Docker Compose | no | defaulted |
 | Database | PostgreSQL | no | defaulted |
 | Label assignment mode | manual claim from marketplace | no | defaulted |
@@ -82,6 +87,7 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 | 07 Labeler Reviewer Frontend | Labeler/Reviewer Frontend Agent | frontend complete / integration risk | Task 01, API contracts, renderer | Audit timeline fix verified; remaining risk is missing backend contracts for historical template snapshots and richer reviewer metadata/filter UX. |
 | 09 Review Integration Contracts | Review Integration Contracts Agent | complete | Tasks 02, 03, 04, 07 | Approved; frozen template snapshots, reviewer AI/human/audit detail, previous attempts, server-backed filters, OpenAPI, migration, tests, and handoff verified. |
 | 08 QA Docs Deploy | QA Docs Deploy Agent | complete | first vertical slice, Task09 approved | Approved; docs, local E2E smoke, Docker config validation, deployment notes, demo script, known limitations, and handoff verified. |
+| 10 Auth Login | Auth Login Agent | complete | Tasks 02, 06, 07, 08 | Approved; real JWT username/password login, persisted demo users, fail-closed bearer auth, route guards, logout, docs, OpenAPI, tests, migration, and login smoke verified. |
 
 ## Integration Risks
 
@@ -110,6 +116,8 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 - QA Docs Deploy may now start full E2E coverage and should include Task09 reviewer/template contract scenarios.
 - Task08 local E2E passes with backend/frontend/export-storage env aligned, and `README.md` plus `docs/deployment.md` now document the same `LABELHUB_EXPORT_STORAGE_PATH` for backend startup and Playwright helper commands.
 - Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
+- Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
+- Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
 
 ## Latest Verification
 
@@ -257,7 +265,32 @@ Task08 QA Docs Deploy is approved. All implementation tasks are complete; the pr
 - Task 08 final verification: `cd frontend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task08_final_review.sqlite LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_task08_final_review_exports BACKEND_URL=http://127.0.0.1:8000 FRONTEND_URL=http://127.0.0.1:5173 npm run e2e` passed, 1 Playwright test.
 - Task 08 final verification: `git diff --check` passed.
 - Task 08 final approval note written to `docs/reviews/2026-05-25-task08-qa-docs-deploy-final-review.md`.
+- Task 10 task file written to `docs/tasks/10-auth-login-agent.md`.
+- Agent coordination updated to add Auth Login Agent after Task08 when the placeholder login limitation must be closed before final integration review.
+- Agent prompts updated with Prompt 10 for the Auth Login Agent.
+- Task 10 handoff reviewed from `docs/handoffs/2026-05-28-task10-auth-login-handoff.md`.
+- Task 10 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 46 tests, 1 existing Pydantic alias warning.
+- Task 10 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed.
+- Task 10 verification: `python -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-openapi-check-task10-supervisor.json` passed.
+- Task 10 verification: `cd frontend && npm test -- --run` passed, 7 files and 25 tests, with existing React Router future-flag warnings.
+- Task 10 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 10 verification: `docker compose config >/tmp/labelhub-compose-task10-supervisor.yaml` passed.
+- Task 10 verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task10_supervisor.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260528_0003`.
+- Task 10 verification: login-specific Playwright smoke passed against local backend/frontend using `e2e/auth-login.spec.ts --project=chromium`.
+- Task 10 verification: `git diff --check` passed.
+- Task 10 review note written to `docs/reviews/2026-05-29-task10-auth-login-review.md`.
+- Task 10 revision cleanup confirmed: no `.gitignore` diff, no `.understand-anything/`, and no `frontend/test-results/` artifacts remain.
+- Task 10 final verification: `git diff --check` passed.
+- Task 10 final verification: `cd backend && ./.venv313/bin/pytest -q` passed, 46 tests, 1 existing Pydantic alias warning.
+- Task 10 final verification: `python -m json.tool frontend/src/api/openapi.json` passed.
+- Task 10 final verification: `cd frontend && npm test -- --run` passed, 7 files and 25 tests, with existing React Router future-flag warnings.
+- Task 10 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 10 final verification: `docker compose config` passed.
+- Task 10 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task10_revise_review.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260528_0003`.
+- Task 10 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task10_revise_e2e.sqlite ./.venv313/bin/python scripts/seed_e2e_data.py demo-users` passed.
+- Task 10 final verification: `cd frontend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task10_revise_e2e.sqlite LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_task10_revise_e2e_exports BACKEND_URL=http://127.0.0.1:18010 FRONTEND_URL=http://127.0.0.1:5173 npx playwright test e2e/auth-login.spec.ts --project=chromium` passed, 1 Chromium login smoke.
+- Task 10 final approval note written to `docs/reviews/2026-05-29-task10-auth-login-final-review.md`.
 
 ## Next Recommended Action
 
-Proceed to final Supervisor integration review. Decide whether to require full `docker compose up --build` runtime validation before external handoff; current Task08 evidence is Docker config validation plus local SQLite runtime E2E.
+Proceed to final Supervisor integration review. Decide whether to require full `docker compose up --build` runtime validation before external handoff; current evidence is Docker config validation plus local SQLite runtime E2E and Task10 login smoke.

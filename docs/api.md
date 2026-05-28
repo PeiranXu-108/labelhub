@@ -2,11 +2,18 @@
 
 Source of truth: FastAPI live OpenAPI at `/openapi.json`; generated frontend snapshot at `frontend/src/api/openapi.json`.
 
-Authentication: all business routes use JWT bearer auth. Tokens must include `sub` and `role`, where role is one of `owner`, `labeler`, `reviewer`, or `ai_agent`.
+Authentication: `/auth/login` accepts persisted demo/application users and returns a JWT bearer token. All business routes use JWT bearer auth. Tokens must include `sub` and `role`, where role is one of `owner`, `labeler`, `reviewer`, or `ai_agent`; the token subject must match a persisted user and the token role must match that user.
 
 ## Health
 
 - `GET /health`: returns `{ "status": "ok" }`.
+
+## Auth APIs
+
+- `POST /auth/login`: body `{ "email": string, "password": string }`; returns `{ "access_token": string, "token_type": "bearer", "user": { "id": string, "email": string, "name": string, "role": "owner" | "labeler" | "reviewer" | "ai_agent" } }`.
+- `GET /auth/me`: requires bearer auth; returns the persisted current user summary.
+
+Invalid credentials return `401` with `INVALID_CREDENTIALS`. Missing, invalid, unknown-subject, or role-mismatched bearer tokens return `401` and do not create users implicitly.
 
 ## Owner Task APIs
 

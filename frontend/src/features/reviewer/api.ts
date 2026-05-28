@@ -1,4 +1,4 @@
-import { apiRequest } from "../owner/api";
+import { apiRequest } from "../auth/http";
 import type { SubmissionRead } from "../labeler/types";
 import type {
   AuditLogRead,

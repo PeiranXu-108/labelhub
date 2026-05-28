@@ -37,6 +37,7 @@ The system must preserve these non-negotiable boundaries:
 | Owner Frontend Agent | `docs/tasks/06-frontend-owner-agent.md` | Owner console, task management, template designer, export UI | After API contracts |
 | Labeler/Reviewer Frontend Agent | `docs/tasks/07-frontend-labeler-reviewer-agent.md` | Labeler workbench, review queue, submission detail | After API contracts |
 | Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | Reviewer/labeler backend read contracts and minimal frontend consumers | After Task 07 integration-risk review |
+| Auth Login Agent | `docs/tasks/10-auth-login-agent.md` | Real username/password login, auth routes, frontend route guards, demo user seed flow | After Task 08 approval if placeholder login must be closed before final review |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | E2E tests, README, API docs, Docker Compose, demo script | After first vertical slice and Task 09 if dispatched |
 
 ## Recommended Execution Order
@@ -48,6 +49,7 @@ The system must preserve these non-negotiable boundaries:
 5. Frontend agents proceed after OpenAPI/API contracts are available.
 6. Review Integration Contracts Agent runs if Supervisor flags Task07 reviewer/template API gaps as MVP requirements.
 7. QA Docs Deploy Agent starts smoke tests once the first vertical slice works and Task09 integration contracts are approved if dispatched.
+8. Auth Login Agent runs after QA if the remaining placeholder `/login` limitation must be closed before final integration review.
 
 ## Shared Files and Conflict Rules
 
@@ -61,6 +63,8 @@ High-conflict files owned by one agent at a time:
 - `docs/status-board.md`: Supervisor only.
 - Task09 may update `backend/app/schemas/template.py` only to reuse existing read schemas or imports. It must not change `TemplateDocument`, field discriminators, or published schema semantics without Supervisor approval.
 - Task09 may update Task07 frontend consumers only where needed to consume its new backend contracts.
+- Task10 may update auth dependencies, user password persistence, login UI, route guards, seed/demo scripts, OpenAPI, and docs. It must not change workflow, template, AI review, export, or reviewer business semantics.
+- Task10 must keep JWT username/password as the MVP auth mode, must not add self-registration without Supervisor approval, and must not silently create real application users from arbitrary bearer tokens.
 
 If another agent needs a change in an owned file, they must write a request in their handoff summary and stop rather than making an opportunistic edit.
 
