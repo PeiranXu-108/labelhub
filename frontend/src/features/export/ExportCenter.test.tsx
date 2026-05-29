@@ -31,7 +31,7 @@ describe("ExportCenter", () => {
 
     render(<ExportCenter taskId="task-1" />);
 
-    fireEvent.change(screen.getByLabelText("Field mapping JSON"), {
+    fireEvent.change(screen.getByLabelText("字段映射 JSON"), {
       target: {
         value: JSON.stringify({
           "item.payload.text": "text",
@@ -39,8 +39,8 @@ describe("ExportCenter", () => {
         }),
       },
     });
-    fireEvent.click(screen.getByLabelText("Include review metadata"));
-    fireEvent.click(screen.getByRole("button", { name: "Create export" }));
+    fireEvent.click(screen.getByLabelText("包含审核元数据"));
+    fireEvent.click(screen.getByRole("button", { name: "创建导出" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -98,7 +98,7 @@ describe("ExportCenter", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    fireEvent.click(screen.getByRole("button", { name: /下\s*载/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

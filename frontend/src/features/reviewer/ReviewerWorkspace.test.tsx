@@ -201,24 +201,26 @@ describe("reviewer workspace", () => {
     );
 
     const table = await screen.findByRole("table");
-    expect(within(table).getByText("needs_human_review")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "ai_passed" } });
+    expect(within(table).getByText("待人工审核")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("状态"), { target: { value: "ai_passed" } });
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/review/queue?status=ai_passed"),
         expect.objectContaining({ method: "GET" }),
       ),
     );
-    fireEvent.change(screen.getByLabelText("AI decision"), { target: { value: "human_review" } });
+    fireEvent.change(screen.getByLabelText("AI 决策"), { target: { value: "human_review" } });
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("ai_decision=human_review"),
         expect.objectContaining({ method: "GET" }),
       ),
     );
-    fireEvent.click(await screen.findByRole("button", { name: /^approve$/i }));
+    const submissionRow = within(table).getByText("sub-1").closest("tr");
+    expect(submissionRow).not.toBeNull();
+    fireEvent.click(within(submissionRow as HTMLTableRowElement).getByRole("button", { name: /批\s*准/ }));
 
-    await waitFor(() => expect(screen.getByText("approved")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("已批准")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/review/submissions/sub-1/approve"),
       expect.objectContaining({ method: "POST" }),
@@ -240,11 +242,11 @@ describe("reviewer workspace", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /^return$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /退\s*回/ }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^return$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /退\s*回/ }));
 
-    expect(await screen.findByText("Return reason is required")).toBeInTheDocument();
+    expect(await screen.findByText("必须填写退回原因")).toBeInTheDocument();
   });
 
   it("refreshes persisted audit after return without fabricating a local timeline event", async () => {
@@ -265,14 +267,14 @@ describe("reviewer workspace", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /^return$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /退\s*回/ }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Return reason"), {
+    fireEvent.change(within(dialog).getByLabelText("退回原因"), {
       target: { value: "Needs clearer evidence." },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^return$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /退\s*回/ }));
 
-    await waitFor(() => expect(screen.getByText("returned")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("已退回")).toBeInTheDocument());
     expect(
       fetchMock.mock.calls.filter(([input]) =>
         String(input).endsWith("/review/submissions/sub-1"),
@@ -299,10 +301,10 @@ describe("reviewer workspace", () => {
     expect(await screen.findByText("Grade the submitted annotation.")).toBeInTheDocument();
     expect(screen.getByText("gpt-test")).toBeInTheDocument();
     expect(screen.getByText("Needs clearer evidence.")).toBeInTheDocument();
-    expect(screen.getByText(/Frozen template version 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/Attempt 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/冻结模板版本 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/第 1 次尝试/i)).toBeInTheDocument();
     expect(screen.getByText(/negative/i)).toBeInTheDocument();
-    expect(screen.getByText("submit")).toBeInTheDocument();
+    expect(screen.getAllByText("提交").length).toBeGreaterThan(0);
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
   });
 
@@ -321,9 +323,9 @@ describe("reviewer workspace", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
-    expect(screen.getByText("AI decision")).toBeInTheDocument();
+    expect(await screen.findByText("Agent 工作流")).toBeInTheDocument();
+    expect(screen.getByText("AI 决策")).toBeInTheDocument();
     expect(screen.getByText("Needs human confirmation.")).toBeInTheDocument();
-    expect(screen.getAllByText(/human_review/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/需人工审核|待人工审核/).length).toBeGreaterThan(0);
   });
 });

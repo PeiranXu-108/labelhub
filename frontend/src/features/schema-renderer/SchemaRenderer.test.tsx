@@ -53,13 +53,13 @@ describe("SchemaRenderer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getByRole("button", { name: /提\s*交/ }));
 
-    expect(screen.getByText("Sentiment is required")).toBeInTheDocument();
+    expect(screen.getByText("请填写Sentiment")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByLabelText("Positive"));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    fireEvent.click(screen.getByRole("button", { name: /提\s*交/ }));
 
     expect(onSubmit).toHaveBeenCalledWith({ sentiment: "positive" });
   });

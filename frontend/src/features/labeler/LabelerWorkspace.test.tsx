@@ -159,9 +159,9 @@ describe("labeler workspace", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /claim/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /认\s*领/ }));
 
-    expect(await screen.findByRole("heading", { name: "Assignment workbench" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "标注工作台" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/labeler/tasks/task-1/claim"),
       expect.objectContaining({ method: "POST" }),
@@ -223,9 +223,9 @@ describe("labeler workspace", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /^submit$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /提\s*交/ }));
 
-    expect(await screen.findByText("Sentiment is required")).toBeInTheDocument();
+    expect(await screen.findByText("请填写Sentiment")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(
       expect.stringContaining("/labeler/assignments/assignment-1/submit"),
       expect.anything(),
@@ -288,8 +288,8 @@ describe("labeler workspace", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
-    expect(screen.getByText("Queued")).toBeInTheDocument();
-    expect(screen.getByText("AI review job queued.")).toBeInTheDocument();
+    expect(await screen.findByText("Agent 工作流")).toBeInTheDocument();
+    expect(screen.getByText("已排队")).toBeInTheDocument();
+    expect(screen.getByText("AI 审核任务已排队。")).toBeInTheDocument();
   });
 });

@@ -67,8 +67,8 @@ describe("owner console", () => {
     );
 
     expect(await screen.findByText("Sentiment QA")).toBeInTheDocument();
-    expect(screen.getByText("draft")).toBeInTheDocument();
-    expect(screen.getByText("manual")).toBeInTheDocument();
+    expect(screen.getByText("草稿")).toBeInTheDocument();
+    expect(screen.getByText("手动分配")).toBeInTheDocument();
   });
 
   it("submits the create task payload expected by the backend contract", async () => {
@@ -85,11 +85,11 @@ describe("owner console", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "New task" }));
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New task" } });
-    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Import review rows" } });
-    fireEvent.change(screen.getByLabelText("Quota per labeler"), { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    fireEvent.click(await screen.findByRole("button", { name: /新\s*建\s*任\s*务/ }));
+    fireEvent.change(screen.getByLabelText("名称"), { target: { value: "New task" } });
+    fireEvent.change(screen.getByLabelText("描述"), { target: { value: "Import review rows" } });
+    fireEvent.change(screen.getByLabelText("每位标注员配额"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /创\s*建\s*任\s*务/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -123,7 +123,7 @@ describe("owner console", () => {
     );
 
     const row = await screen.findByRole("row", { name: /Sentiment QA/i });
-    fireEvent.click(within(row).getByRole("button", { name: "Publish" }));
+    fireEvent.click(within(row).getByRole("button", { name: /发\s*布/ }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -169,12 +169,12 @@ describe("owner console", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("tab", { name: "Review config" }));
-    const criteria = await screen.findByLabelText("Scoring criteria JSON");
+    fireEvent.click(await screen.findByRole("tab", { name: "审核配置" }));
+    const criteria = await screen.findByLabelText("评分标准 JSON");
     fireEvent.change(criteria, { target: { value: "{\"name\":\"not array\"}" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save review config" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存审核配置" }));
 
-    expect(await screen.findByText("Criteria must be a JSON array.")).toBeInTheDocument();
+    expect(await screen.findByText("评分标准必须是 JSON 数组。")).toBeInTheDocument();
   });
 
   it("renders owner agent workflow summary on the task dashboard", async () => {
@@ -199,9 +199,9 @@ describe("owner console", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
-    expect(screen.getByText("Pending agent work")).toBeInTheDocument();
-    expect(screen.getByText("AI decisions")).toBeInTheDocument();
+    expect(await screen.findByText("Agent 工作流")).toBeInTheDocument();
+    expect(screen.getByText("待处理 Agent 工作")).toBeInTheDocument();
+    expect(screen.getAllByText("AI 决策").length).toBeGreaterThan(0);
     expect(screen.getByText(/deepseek-chat/i)).toBeInTheDocument();
     expect(screen.queryByText(/not exposed by the current owner API contract/i)).not.toBeInTheDocument();
   });

@@ -8,14 +8,14 @@ describe("TemplateDesigner", () => {
     const onChange = vi.fn();
     render(<TemplateDesigner onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Add text field" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加单行文本字段" }));
 
-    expect(screen.getByText("Text field")).toBeInTheDocument();
+    expect(screen.getByText("单行文本字段")).toBeInTheDocument();
     expect(screen.getByText("text_1")).toBeInTheDocument();
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         fields: expect.arrayContaining([
-          expect.objectContaining({ id: "text_1", type: "text", label: "Text field" }),
+          expect.objectContaining({ id: "text_1", type: "text", label: "单行文本字段" }),
         ]),
       }),
     );

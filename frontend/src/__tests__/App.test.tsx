@@ -58,13 +58,13 @@ describe("App auth routes", () => {
   it("redirects protected routes to login when no token is stored", async () => {
     renderApp("/owner/tasks");
 
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
   });
 
   it.each([
-    [ownerUser, "/tasks", "Owner tasks"],
-    [labelerUser, "/labeler/tasks", "Labeler tasks"],
-    [reviewerUser, "/review/queue", "Review queue"],
+    [ownerUser, "/tasks", "负责人任务"],
+    [labelerUser, "/labeler/tasks", "标注任务"],
+    [reviewerUser, "/review/queue", "审核队列"],
   ])("logs in %s and redirects to the role home", async (user, expectedListPath, heading) => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
@@ -80,9 +80,9 @@ describe("App auth routes", () => {
     });
     renderApp("/login");
 
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: user.email } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "LabelHubPassword123!" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: user.email } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "LabelHubPassword123!" } });
+    fireEvent.click(screen.getByRole("button", { name: /登\s*录/ }));
 
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
     expect(localStorage.getItem("labelhub.accessToken")).toBe(`${user.role}-token`);
@@ -95,9 +95,9 @@ describe("App auth routes", () => {
     );
     renderApp("/login");
 
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "owner@example.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "bad-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "owner@example.com" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "bad-password" } });
+    fireEvent.click(screen.getByRole("button", { name: /登\s*录/ }));
 
     expect(await screen.findByText("Invalid email or password")).toBeInTheDocument();
     expect(localStorage.getItem("labelhub.accessToken")).toBeNull();
@@ -119,7 +119,7 @@ describe("App auth routes", () => {
 
     renderApp("/owner/tasks");
 
-    expect(await screen.findByRole("heading", { name: "Labeler tasks" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "标注任务" })).toBeInTheDocument();
   });
 
   it("logs out by clearing the stored token and returning to login", async () => {
@@ -136,10 +136,10 @@ describe("App auth routes", () => {
     });
     renderApp("/owner/tasks");
 
-    expect(await screen.findByRole("heading", { name: "Owner tasks" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    expect(await screen.findByRole("heading", { name: "负责人任务" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "退出登录" }));
 
     await waitFor(() => expect(localStorage.getItem("labelhub.accessToken")).toBeNull());
-    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
   });
 });
