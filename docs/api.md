@@ -28,6 +28,7 @@ Invalid credentials return `401` with `INVALID_CREDENTIALS`. Missing, invalid, u
 - `GET /tasks/{task_id}/items`: owner or reviewer lists task items.
 - `GET /tasks/{task_id}/review-config`: owner or reviewer reads AI review config.
 - `PUT /tasks/{task_id}/review-config`: owner upserts review config.
+- `GET /tasks/{task_id}/agent-workflow`: owner or reviewer reads task-level agent workflow status counts, AI decision counts, pending/failed counts, and recent submission workflows.
 
 ## Template APIs
 
@@ -42,6 +43,7 @@ Published template schemas are immutable. Submissions store `template_schema_id`
 - `GET /labeler/tasks`: labeler lists published marketplace tasks.
 - `POST /labeler/tasks/{task_id}/claim`: labeler claims the next available item.
 - `GET /labeler/assignments/{assignment_id}`: labeler reads assignment detail, frozen template snapshot, current submission, task, item, and latest human return reason.
+- `GET /labeler/assignments/{assignment_id}/agent-workflow`: labeler reads the agent workflow for their own assignment.
 - `PUT /labeler/assignments/{assignment_id}/draft`: labeler saves draft answers with `{ "answer_payload": ... }`.
 - `POST /labeler/assignments/{assignment_id}/submit`: labeler submits required answers with `{ "answer_payload": ... }`.
 - `GET /labeler/submissions`: labeler lists own submissions.
@@ -51,7 +53,7 @@ Backend submission validation rejects unknown fields, invalid option values, and
 ## Review APIs
 
 - `GET /review/queue`: reviewer lists reviewable submissions. Filters: `task_id`, `status`, `ai_decision`, `min_score`, `max_score`.
-- `GET /review/submissions/{submission_id}`: reviewer reads submission, task, item, frozen template schema, AI reviews, human reviews, audit logs, and previous attempts.
+- `GET /review/submissions/{submission_id}`: reviewer reads submission, task, item, frozen template schema, agent workflow, AI reviews, human reviews, audit logs, and previous attempts.
 - `POST /review/submissions/{submission_id}/approve`: reviewer approves a reviewable submission.
 - `POST /review/submissions/{submission_id}/return`: reviewer returns a submission with `{ "reason": "..." }`.
 - `POST /review/submissions/batch`: reviewer batch approves or returns submissions.

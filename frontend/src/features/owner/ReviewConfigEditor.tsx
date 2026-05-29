@@ -87,12 +87,6 @@ export function ReviewConfigEditor({ taskId, config, onSaved }: ReviewConfigEdit
           </Form.Item>
         </div>
         <div className="form-grid-3">
-          <Form.Item label="Model name" name="model_name">
-            <Input />
-          </Form.Item>
-          <Form.Item label="Temperature" name="temperature">
-            <InputNumber max={2} min={0} step={0.1} style={{ width: "100%" }} />
-          </Form.Item>
           <Form.Item label="Max retries" name="max_retries">
             <InputNumber max={10} min={0} precision={0} style={{ width: "100%" }} />
           </Form.Item>

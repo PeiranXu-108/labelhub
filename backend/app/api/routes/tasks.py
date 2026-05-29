@@ -6,6 +6,7 @@ from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskAction, UserRole
 from app.models import AuditLog, ReviewConfig, Task, TaskItem
+from app.schemas.agent_workflow import TaskAgentWorkflowSummaryRead
 from app.schemas.task import (
     ItemImportRequest,
     ReviewConfigRead,
@@ -16,6 +17,7 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.tasks import TaskService
+from app.services.agent_workflow import AgentWorkflowService
 from app.services.workflow import ActorContext, WorkflowError, WorkflowService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -57,6 +59,18 @@ def get_task(
     if task is None:
         raise api_error("TASK_NOT_FOUND", "Task was not found", status.HTTP_404_NOT_FOUND)
     return task
+
+
+@router.get("/{task_id}/agent-workflow", response_model=TaskAgentWorkflowSummaryRead)
+def get_task_agent_workflow(
+    task_id: str,
+    db: Session = Depends(get_db),
+    _actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
+) -> TaskAgentWorkflowSummaryRead:
+    task = db.get(Task, task_id)
+    if task is None:
+        raise api_error("TASK_NOT_FOUND", "Task was not found", status.HTTP_404_NOT_FOUND)
+    return AgentWorkflowService(db).task_summary(task)
 
 
 @router.patch("/{task_id}", response_model=TaskRead)

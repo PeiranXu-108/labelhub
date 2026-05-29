@@ -1,4 +1,5 @@
 import { apiRequest } from "../auth/http";
+import type { AgentWorkflowRead } from "../agent-workflow/types";
 import type { TaskRead } from "../owner/types";
 import type { AnswerPayload } from "../schema-renderer";
 import type { AssignmentDetailRead, AssignmentLoadResult, ClaimRead, SubmissionRead } from "./types";
@@ -15,9 +16,16 @@ export function getAssignment(assignmentId: string) {
   return apiRequest<AssignmentDetailRead>(`/labeler/assignments/${assignmentId}`);
 }
 
+export function getAssignmentAgentWorkflow(assignmentId: string) {
+  return apiRequest<AgentWorkflowRead>(`/labeler/assignments/${assignmentId}/agent-workflow`);
+}
+
 export async function getAssignmentWithTemplate(assignmentId: string): Promise<AssignmentLoadResult> {
-  const assignment = await getAssignment(assignmentId);
-  return { assignment, template: assignment.template_schema };
+  const [assignment, agentWorkflow] = await Promise.all([
+    getAssignment(assignmentId),
+    getAssignmentAgentWorkflow(assignmentId).catch(() => null),
+  ]);
+  return { assignment, template: assignment.template_schema, agentWorkflow };
 }
 
 export function saveAssignmentDraft(assignmentId: string, answerPayload: AnswerPayload) {

@@ -146,7 +146,7 @@ class ReviewConfig(TimestampMixin, Base):
     pass_threshold: Mapped[int] = mapped_column(Integer, default=80, nullable=False)
     return_threshold: Mapped[int] = mapped_column(Integer, default=40, nullable=False)
     manual_review_threshold: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
-    model_name: Mapped[str] = mapped_column(String(255), default="gpt-4.1-mini", nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), default="deepseek-chat", nullable=False)
     temperature: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     max_retries: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
 

@@ -90,6 +90,33 @@ const assignmentDetail = {
   latest_human_review: null,
 };
 
+const agentWorkflow = {
+  submission_id: "sub-1",
+  assignment_id: "assignment-1",
+  task_id: "task-1",
+  current_status: "submitted",
+  steps: [
+    {
+      key: "submitted",
+      label: "Submitted",
+      status: "complete",
+      timestamp: "2026-05-23T00:00:00Z",
+      actor_role: "labeler",
+      summary: "Labeler submitted answers.",
+      metadata: {},
+    },
+    {
+      key: "queued",
+      label: "Queued",
+      status: "active",
+      timestamp: "2026-05-23T00:00:00Z",
+      actor_role: "system",
+      summary: "AI review job queued.",
+      metadata: {},
+    },
+  ],
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -236,5 +263,33 @@ describe("labeler workspace", () => {
     );
 
     expect(await screen.findByText(/Please cite the exact customer sentiment\./)).toBeInTheDocument();
+  });
+
+  it("shows the agent workflow progress for the assignment", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse({
+          ...assignmentDetail,
+          submission: { ...submission, status: "submitted", submitted_at: "2026-05-23T00:00:00Z" },
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/agent-workflow")) {
+        return jsonResponse(agentWorkflow);
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
+    expect(screen.getByText("Queued")).toBeInTheDocument();
+    expect(screen.getByText("AI review job queued.")).toBeInTheDocument();
   });
 });

@@ -73,7 +73,7 @@ cd backend
 ./.venv313/bin/python scripts/seed_e2e_data.py ai-review <submission_id>
 ```
 
-For live AI review, configure `LLM_API_KEY` and related provider settings, then run the Celery worker.
+For live AI review, configure `LABELHUB_LLM_API_KEY` in `.env` and run the Celery worker. Labeler submission now enqueues `ai_review.run_ai_review` automatically; the helper above is only for deterministic demos without live LLM credentials.
 
 Talk track: AI review is a system actor. Structured review output, score, model metadata, prompt snapshot, and workflow transition metadata are persisted.
 

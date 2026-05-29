@@ -104,6 +104,41 @@ const detail = {
   task,
   item,
   template_schema: template,
+  agent_workflow: {
+    submission_id: "sub-1",
+    assignment_id: "assignment-1",
+    task_id: "task-1",
+    current_status: "needs_human_review",
+    steps: [
+      {
+        key: "submitted",
+        label: "Submitted",
+        status: "complete",
+        timestamp: "2026-05-23T00:00:00Z",
+        actor_role: "labeler",
+        summary: "Labeler submitted answers.",
+        metadata: {},
+      },
+      {
+        key: "ai_decision",
+        label: "AI decision",
+        status: "complete",
+        timestamp: "2026-05-23T00:01:00Z",
+        actor_role: "ai_agent",
+        summary: "Needs human confirmation.",
+        metadata: { decision: "human_review", overall_score: 72, model_name: "deepseek-chat" },
+      },
+      {
+        key: "human_review",
+        label: "Human review",
+        status: "active",
+        timestamp: null,
+        actor_role: null,
+        summary: "Waiting for reviewer action.",
+        metadata: {},
+      },
+    ],
+  },
   ai_reviews: [aiReview],
   human_reviews: [humanReview],
   audit_logs: [audit],
@@ -269,5 +304,26 @@ describe("reviewer workspace", () => {
     expect(screen.getByText(/negative/i)).toBeInTheDocument();
     expect(screen.getByText("submit")).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
+  });
+
+  it("renders the agent workflow timeline on reviewer detail", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/submissions/sub-1")) return jsonResponse(detail);
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/submissions/sub-1"]}>
+        <Routes>
+          <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
+    expect(screen.getByText("AI decision")).toBeInTheDocument();
+    expect(screen.getByText("Needs human confirmation.")).toBeInTheDocument();
+    expect(screen.getAllByText(/human_review/).length).toBeGreaterThan(0);
   });
 });

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         env_prefix="LABELHUB_",
         extra="ignore",

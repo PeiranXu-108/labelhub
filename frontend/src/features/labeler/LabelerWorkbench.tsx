@@ -2,9 +2,11 @@ import { Alert, Button, Descriptions, Result, Skeleton, Space, Tag, Typography }
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
+import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
 import type { AnswerPayload } from "../schema-renderer";
-import { getAssignmentWithTemplate, saveAssignmentDraft, submitAssignment } from "./api";
+import { getAssignmentAgentWorkflow, getAssignmentWithTemplate, saveAssignmentDraft, submitAssignment } from "./api";
 import type { AssignmentDetailRead, SubmissionRead } from "./types";
 import type { TemplateSchemaRead } from "../owner/types";
 
@@ -21,6 +23,7 @@ export function LabelerWorkbench() {
   const [assignment, setAssignment] = useState<AssignmentDetailRead | null>(null);
   const [template, setTemplate] = useState<TemplateSchemaRead | null>(null);
   const [submission, setSubmission] = useState<SubmissionRead | null>(null);
+  const [agentWorkflow, setAgentWorkflow] = useState<AgentWorkflowRead | null>(null);
   const [answers, setAnswers] = useState<AnswerPayload>({});
   const latestAnswers = useRef<AnswerPayload>({});
   const editedRef = useRef(false);
@@ -42,6 +45,7 @@ export function LabelerWorkbench() {
       setAssignment(result.assignment);
       setTemplate(result.template);
       setSubmission(result.assignment.submission);
+      setAgentWorkflow(result.agentWorkflow);
       setAnswers(result.assignment.submission.answer_payload ?? {});
       latestAnswers.current = result.assignment.submission.answer_payload ?? {};
       editedRef.current = false;
@@ -100,6 +104,7 @@ export function LabelerWorkbench() {
     try {
       const saved = await submitAssignment(assignmentId, nextAnswers);
       setSubmission(saved);
+      setAgentWorkflow(await getAssignmentAgentWorkflow(assignmentId).catch(() => null));
       setAnswers(saved.answer_payload);
       latestAnswers.current = saved.answer_payload;
       editedRef.current = false;
@@ -187,6 +192,8 @@ export function LabelerWorkbench() {
           </Tag>
         </Descriptions.Item>
       </Descriptions>
+
+      <AgentWorkflowTimeline compact workflow={agentWorkflow} />
 
       <div className="workbench-grid">
         <section className="ops-card">

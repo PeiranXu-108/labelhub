@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import AIReviewDecision
+from app.schemas.agent_workflow import AgentWorkflowRead
 from app.schemas.audit import AuditLogRead
 from app.schemas.submission import SubmissionRead
 from app.schemas.task import TaskItemRead, TaskRead
@@ -71,6 +72,7 @@ class ReviewSubmissionDetail(BaseModel):
     task: TaskRead
     item: TaskItemRead
     template_schema: TemplateSchemaRead
+    agent_workflow: AgentWorkflowRead
     ai_reviews: list[AIReviewRead]
     human_reviews: list[HumanReviewRead]
     audit_logs: list[AuditLogRead]

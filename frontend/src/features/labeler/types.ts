@@ -1,4 +1,5 @@
 import type { TaskRead, TemplateSchemaRead } from "../owner/types";
+import type { AgentWorkflowRead } from "../agent-workflow/types";
 import type { AnswerPayload } from "../schema-renderer";
 
 export type SubmissionStatus =
@@ -69,4 +70,5 @@ export type AssignmentDetailRead = ClaimRead & {
 export type AssignmentLoadResult = {
   assignment: AssignmentDetailRead;
   template: TemplateSchemaRead;
+  agentWorkflow: AgentWorkflowRead | null;
 };

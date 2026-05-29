@@ -10,6 +10,11 @@ services:
       LABELHUB_DATABASE_URL: postgresql+psycopg://labelhub:labelhub@postgres:5432/labelhub
       LABELHUB_REDIS_URL: redis://redis:6379/0
       LABELHUB_JWT_SECRET_KEY: docker-dev-secret
+      LABELHUB_LLM_PROVIDER: ${LABELHUB_LLM_PROVIDER:-deepseek}
+      LABELHUB_LLM_MODEL: ${LABELHUB_LLM_MODEL:-deepseek-chat}
+      LABELHUB_LLM_BASE_URL: ${LABELHUB_LLM_BASE_URL:-https://api.deepseek.com}
+      LABELHUB_LLM_API_KEY: ${LABELHUB_LLM_API_KEY:-}
+      LABELHUB_LLM_TEMPERATURE: ${LABELHUB_LLM_TEMPERATURE:-0}
     ports:
       - "8000:8000"
     depends_on:
@@ -25,6 +30,11 @@ services:
       LABELHUB_DATABASE_URL: postgresql+psycopg://labelhub:labelhub@postgres:5432/labelhub
       LABELHUB_REDIS_URL: redis://redis:6379/0
       LABELHUB_JWT_SECRET_KEY: docker-dev-secret
+      LABELHUB_LLM_PROVIDER: ${LABELHUB_LLM_PROVIDER:-deepseek}
+      LABELHUB_LLM_MODEL: ${LABELHUB_LLM_MODEL:-deepseek-chat}
+      LABELHUB_LLM_BASE_URL: ${LABELHUB_LLM_BASE_URL:-https://api.deepseek.com}
+      LABELHUB_LLM_API_KEY: ${LABELHUB_LLM_API_KEY:-}
+      LABELHUB_LLM_TEMPERATURE: ${LABELHUB_LLM_TEMPERATURE:-0}
     depends_on:
       - postgres
       - redis

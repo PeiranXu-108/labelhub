@@ -14,6 +14,7 @@ from app.schemas.review import (
 )
 from app.schemas.submission import SubmissionRead
 from app.services.submissions import SubmissionService
+from app.services.agent_workflow import AgentWorkflowService
 from app.services.workflow import ActorContext, WorkflowError
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -128,6 +129,7 @@ def get_submission_detail(
         "task": submission.task,
         "item": submission.item,
         "template_schema": submission.template_schema,
+        "agent_workflow": AgentWorkflowService(db).workflow_for_submission(submission),
         "ai_reviews": ai_reviews,
         "human_reviews": human_reviews,
         "audit_logs": audit_logs,

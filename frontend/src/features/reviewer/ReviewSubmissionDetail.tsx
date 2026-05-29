@@ -2,6 +2,7 @@ import { Alert, Button, Descriptions, Result, Skeleton, Space, Tag, Timeline, Ty
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type { AIReviewRead, ReviewSubmissionDetail as ReviewSubmissionDetailType } from "./types";
@@ -48,7 +49,8 @@ export function ReviewSubmissionDetail() {
     setError(null);
     try {
       const updated = await approveSubmission(submissionId);
-      setDetail({ ...detail, submission: updated });
+      const refreshed = await getReviewSubmission(submissionId);
+      setDetail({ ...refreshed, submission: updated });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve submission.");
     } finally {
@@ -136,6 +138,8 @@ export function ReviewSubmissionDetail() {
           Return
         </Button>
       </div>
+
+      <AgentWorkflowTimeline workflow={detail.agent_workflow} />
 
       <div className="review-detail-grid">
         <JsonCard title="Raw item payload" value={detail.item.payload} />

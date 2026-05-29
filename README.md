@@ -99,6 +99,20 @@ npm run e2e
 
 The Playwright smoke test signs into the frontend through `/login` for the role-route checks.
 
+## Live AI Review Agent
+
+LabelHub defaults live AI review to DeepSeek through its OpenAI-compatible API. Add your key to `.env` before starting the API and worker:
+
+```bash
+LABELHUB_LLM_PROVIDER=deepseek
+LABELHUB_LLM_MODEL=deepseek-chat
+LABELHUB_LLM_BASE_URL=https://api.deepseek.com
+LABELHUB_LLM_API_KEY=
+LABELHUB_LLM_TEMPERATURE=0
+```
+
+After a labeler submits an assignment, the API enqueues `ai_review.run_ai_review`; the Celery worker calls DeepSeek and writes the persisted AI review, status transition, prompt snapshot, structured response, and audit events. The owner, labeler, and reviewer screens show the agent workflow without exposing provider or API-key controls.
+
 ## Docker Compose
 
 Task08 has config-validated Docker Compose with `docker compose config`; full `docker compose up --build` runtime startup is not yet recorded as verified.

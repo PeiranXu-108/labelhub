@@ -9,6 +9,7 @@ import type {
   TaskUpdate,
   TemplateSchemaRead,
 } from "./types";
+import type { TaskAgentWorkflowSummaryRead } from "../agent-workflow/types";
 import { apiRequest, fetchWithAuth, readError } from "../auth/http";
 
 export type DownloadedFile = {
@@ -38,6 +39,10 @@ export function getTask(taskId: string) {
 
 export function listItems(taskId: string) {
   return apiRequest<TaskItemRead[]>(`/tasks/${taskId}/items`);
+}
+
+export function getTaskAgentWorkflow(taskId: string) {
+  return apiRequest<TaskAgentWorkflowSummaryRead>(`/tasks/${taskId}/agent-workflow`);
 }
 
 export function importItems(taskId: string, items: ItemImportEntry[]) {

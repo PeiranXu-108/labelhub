@@ -6,10 +6,12 @@ from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskStatus, UserRole
 from app.models import Assignment, HumanReview, Submission, Task, TemplateSchema
+from app.schemas.agent_workflow import AgentWorkflowRead
 from app.schemas.labeler import AssignmentDetailRead, ClaimRead
 from app.schemas.submission import DraftSaveRequest, SubmissionRead, SubmitRequest
 from app.schemas.task import TaskRead
 from app.services.submissions import SubmissionService
+from app.services.agent_workflow import AgentWorkflowService
 from app.services.workflow import ActorContext, WorkflowError
 
 router = APIRouter(prefix="/labeler", tags=["labeler"])
@@ -81,6 +83,19 @@ def get_assignment(
             "template_schema": template_schema,
             "latest_human_review": latest_human_review,
         }
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.get("/assignments/{assignment_id}/agent-workflow", response_model=AgentWorkflowRead)
+def get_assignment_agent_workflow(
+    assignment_id: str,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> AgentWorkflowRead:
+    try:
+        assignment = SubmissionService(db).get_owned_assignment(assignment_id, _actor_context(actor))
+        return AgentWorkflowService(db).workflow_for_submission(assignment.submission)
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

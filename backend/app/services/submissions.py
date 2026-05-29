@@ -1,3 +1,5 @@
+import logging
+from threading import Thread
 from typing import Any
 
 from sqlalchemy import exists, select
@@ -17,6 +19,10 @@ from app.models import (
 from app.schemas.template import SubmissionValidationError
 from app.services.templates import TemplateService
 from app.services.workflow import ActorContext, WorkflowError, WorkflowService
+from app.workers.ai_review import run_ai_review_task
+
+
+logger = logging.getLogger(__name__)
 
 
 class SubmissionService:
@@ -142,6 +148,10 @@ class SubmissionService:
         assignment.status = "submitted"
         self.db.commit()
         self.db.refresh(submission)
+        try:
+            enqueue_ai_review(submission.id)
+        except Exception:
+            logger.exception("Failed to enqueue AI review for submission %s", submission.id)
         return submission
 
     def approve(self, submission_id: str, actor: ActorContext) -> Submission:
@@ -213,3 +223,14 @@ class SubmissionService:
             )
         )
         self.db.flush()
+
+
+def enqueue_ai_review(submission_id: str) -> None:
+    Thread(target=_publish_ai_review_task, args=(submission_id,), daemon=True).start()
+
+
+def _publish_ai_review_task(submission_id: str) -> None:
+    try:
+        run_ai_review_task.delay(submission_id)
+    except Exception:
+        logger.exception("Failed to enqueue AI review for submission %s", submission_id)

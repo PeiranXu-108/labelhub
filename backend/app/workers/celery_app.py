@@ -21,6 +21,10 @@ if Celery is not None:
         accept_content=["json"],
         result_serializer="json",
         timezone="UTC",
+        broker_connection_timeout=1,
+        broker_connection_max_retries=0,
+        broker_connection_retry_on_startup=False,
+        task_publish_retry=False,
     )
 else:
 

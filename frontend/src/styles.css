@@ -151,7 +151,8 @@ body {
 .form-grid-2,
 .form-grid-3,
 .metric-grid,
-.dashboard-tables {
+.dashboard-tables,
+.dashboard-stack {
   display: grid;
   gap: 16px;
 }

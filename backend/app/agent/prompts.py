@@ -18,7 +18,8 @@ def build_review_prompt(
         [
             "You are the LabelHub AI pre-review agent.",
             "Review the submitted annotation using only the immutable snapshots below.",
-            "Return structured output that matches the provided Pydantic schema.",
+            "Return only a JSON object that matches the provided Pydantic schema.",
+            "The JSON object must include decision, overall_score, criterion_scores, summary, return_reasons, and suggestions.",
             "Do not invent fields, do not use external data, and do not rely on free-form text.",
             "",
             "Review rubric:",

@@ -1,5 +1,6 @@
 import type { TaskRead, TemplateSchemaRead } from "../owner/types";
 import type { HumanReviewRead, SubmissionRead, TaskItemRead } from "../labeler/types";
+import type { AgentWorkflowRead } from "../agent-workflow/types";
 
 export type AuditLogRead = {
   id: string;
@@ -58,6 +59,7 @@ export type ReviewSubmissionDetail = {
   task: TaskRead;
   item: TaskItemRead;
   template_schema: TemplateSchemaRead;
+  agent_workflow: AgentWorkflowRead;
   ai_reviews: AIReviewRead[];
   human_reviews: HumanReviewRead[];
   audit_logs: AuditLogRead[];

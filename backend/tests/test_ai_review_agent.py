@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from app.agent.config import LLMProviderConfig
 from app.agent.prompts import build_review_prompt
 from app.agent.schemas import AIReviewResult
 from app.domain.enums import AIReviewDecision, SubmissionStatus, TaskStatus, UserRole
@@ -145,6 +146,15 @@ def test_structured_output_validates_valid_model_response() -> None:
     assert result.criterion_scores[0].key == "accuracy"
 
 
+def test_structured_output_accepts_missing_criterion_reason() -> None:
+    response = _passing_response()
+    del response["criterion_scores"][0]["reason"]
+
+    result = AIReviewResult.model_validate(response)
+
+    assert result.criterion_scores[0].reason == ""
+
+
 def test_malformed_output_triggers_retry_and_persists_completed_review(db_session: Session) -> None:
     submission = _submitted_submission(db_session)
     model = QueueModel([{"decision": "pass", "overall_score": 101}, _passing_response()])
@@ -175,16 +185,24 @@ def test_max_retry_exhaustion_creates_human_review_fallback(db_session: Session)
 
 
 def test_missing_provider_credentials_fall_back_to_human_review(
-    db_session: Session, monkeypatch: pytest.MonkeyPatch
+    db_session: Session,
 ) -> None:
     submission = _submitted_submission(db_session)
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
 
-    review = AIReviewService(db_session).review_submission(submission.id)
+    review = AIReviewService(
+        db_session,
+        provider_config=LLMProviderConfig(
+            provider="deepseek",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+            api_key=None,
+            temperature=0,
+        ),
+    ).review_submission(submission.id)
 
     assert review.status == "failed"
     assert review.decision == AIReviewDecision.HUMAN_REVIEW
-    assert "Missing LLM_API_KEY" in review.error_metadata["failure_reason"]
+    assert "Missing LABELHUB_LLM_API_KEY" in review.error_metadata["failure_reason"]
     db_session.refresh(submission)
     assert submission.status == SubmissionStatus.NEEDS_HUMAN_REVIEW
 

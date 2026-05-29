@@ -62,7 +62,7 @@ class ReviewConfigUpsert(BaseModel):
     pass_threshold: int = Field(default=80, ge=0, le=100)
     return_threshold: int = Field(default=40, ge=0, le=100)
     manual_review_threshold: int = Field(default=60, ge=0, le=100)
-    model_name: str = "gpt-4.1-mini"
+    model_name: str = "deepseek-chat"
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_retries: int = Field(default=2, ge=0, le=10)
 

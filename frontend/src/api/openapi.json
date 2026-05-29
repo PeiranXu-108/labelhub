@@ -274,6 +274,53 @@
         }
       }
     },
+    "/tasks/{task_id}/agent-workflow": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Get Task Agent Workflow",
+        "operationId": "get_task_agent_workflow_tasks__task_id__agent_workflow_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAgentWorkflowSummaryRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tasks/{task_id}/publish": {
       "post": {
         "tags": [
@@ -887,6 +934,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AssignmentDetailRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labeler/assignments/{assignment_id}/agent-workflow": {
+      "get": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Get Assignment Agent Workflow",
+        "operationId": "get_assignment_agent_workflow_labeler_assignments__assignment_id__agent_workflow_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkflowRead"
                 }
               }
             }
@@ -1679,6 +1773,110 @@
           "created_at"
         ],
         "title": "AIReviewRead"
+      },
+      "AgentWorkflowRead": {
+        "properties": {
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "current_status": {
+            "type": "string",
+            "title": "Current Status"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AgentWorkflowStepRead"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submission_id",
+          "task_id",
+          "current_status",
+          "steps"
+        ],
+        "title": "AgentWorkflowRead"
+      },
+      "AgentWorkflowStepRead": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "actor_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Role"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "status"
+        ],
+        "title": "AgentWorkflowStepRead"
       },
       "AssignmentDetailRead": {
         "properties": {
@@ -2647,7 +2845,7 @@
           "model_name": {
             "type": "string",
             "title": "Model Name",
-            "default": "gpt-4.1-mini"
+            "default": "deepseek-chat"
           },
           "temperature": {
             "type": "number",
@@ -2730,7 +2928,7 @@
           "model_name": {
             "type": "string",
             "title": "Model Name",
-            "default": "gpt-4.1-mini"
+            "default": "deepseek-chat"
           },
           "temperature": {
             "type": "number",
@@ -2802,6 +3000,9 @@
           "template_schema": {
             "$ref": "#/components/schemas/TemplateSchemaRead"
           },
+          "agent_workflow": {
+            "$ref": "#/components/schemas/AgentWorkflowRead"
+          },
           "ai_reviews": {
             "items": {
               "$ref": "#/components/schemas/AIReviewRead"
@@ -2837,6 +3038,7 @@
           "task",
           "item",
           "template_schema",
+          "agent_workflow",
           "ai_reviews",
           "human_reviews",
           "audit_logs",
@@ -3117,6 +3319,53 @@
         },
         "type": "object",
         "title": "SubmitRequest"
+      },
+      "TaskAgentWorkflowSummaryRead": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "submission_status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Submission Status Counts"
+          },
+          "ai_decision_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Ai Decision Counts"
+          },
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count"
+          },
+          "recent_workflows": {
+            "items": {
+              "$ref": "#/components/schemas/AgentWorkflowRead"
+            },
+            "type": "array",
+            "title": "Recent Workflows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "submission_status_counts",
+          "ai_decision_counts",
+          "pending_count",
+          "failed_count",
+          "recent_workflows"
+        ],
+        "title": "TaskAgentWorkflowSummaryRead"
       },
       "TaskCreate": {
         "properties": {

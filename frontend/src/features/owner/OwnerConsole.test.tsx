@@ -18,6 +18,33 @@ const task = {
   updated_at: "2026-05-23T00:00:00Z",
 };
 
+const agentWorkflowSummary = {
+  task_id: "task-1",
+  submission_status_counts: { ai_passed: 2, needs_human_review: 1 },
+  ai_decision_counts: { pass: 2, human_review: 1 },
+  pending_count: 1,
+  failed_count: 0,
+  recent_workflows: [
+    {
+      submission_id: "sub-1",
+      assignment_id: "assignment-1",
+      task_id: "task-1",
+      current_status: "ai_passed",
+      steps: [
+        {
+          key: "ai_decision",
+          label: "AI decision",
+          status: "complete",
+          timestamp: "2026-05-23T00:01:00Z",
+          actor_role: "ai_agent",
+          summary: "Submission is ready for human approval.",
+          metadata: { decision: "pass", overall_score: 94, model_name: "deepseek-chat" },
+        },
+      ],
+    },
+  ],
+};
+
 describe("owner console", () => {
   beforeEach(() => {
     localStorage.setItem("labelhub.accessToken", "owner-token");
@@ -148,6 +175,35 @@ describe("owner console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save review config" }));
 
     expect(await screen.findByText("Criteria must be a JSON array.")).toBeInTheDocument();
+  });
+
+  it("renders owner agent workflow summary on the task dashboard", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/tasks/task-1")) return jsonResponse({ ...task, status: "published" });
+      if (String(input).endsWith("/tasks/task-1/items")) return jsonResponse([]);
+      if (String(input).endsWith("/tasks/task-1/agent-workflow")) return jsonResponse(agentWorkflowSummary);
+      if (String(input).endsWith("/tasks/task-1/review-config")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/template")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/exports")) return jsonResponse([]);
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={["/owner/tasks/task-1"]}
+      >
+        <Routes>
+          <Route path="/owner/tasks/:taskId" element={<OwnerTaskDetailRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Agent workflow")).toBeInTheDocument();
+    expect(screen.getByText("Pending agent work")).toBeInTheDocument();
+    expect(screen.getByText("AI decisions")).toBeInTheDocument();
+    expect(screen.getByText(/deepseek-chat/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not exposed by the current owner API contract/i)).not.toBeInTheDocument();
   });
 });
 

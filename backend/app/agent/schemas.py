@@ -6,7 +6,7 @@ from app.domain.enums import AIReviewDecision
 class CriterionScore(BaseModel):
     key: str
     score: int = Field(ge=0, le=5)
-    reason: str
+    reason: str = ""
 
 
 class AIReviewResult(BaseModel):
