@@ -2,6 +2,7 @@ import { Statistic, Table, Tag, Typography } from "antd";
 
 import { TaskAgentWorkflowSummary } from "../agent-workflow/TaskAgentWorkflowSummary";
 import type { TaskAgentWorkflowSummaryRead } from "../agent-workflow/types";
+import { formatLabel } from "../i18n/labels";
 import type { ExportJobRead, TaskItemRead, TaskRead, TemplateSchemaRead } from "./types";
 
 type TaskDashboardProps = {
@@ -20,19 +21,19 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
     <div className="dashboard-stack">
       <section className="ops-card" aria-labelledby="result-dashboard-heading">
         <Typography.Title id="result-dashboard-heading" level={3}>
-          Result dashboard
+          结果看板
         </Typography.Title>
         <div className="metric-grid">
-          <Statistic title="Imported items" value={items.length} />
-          <Statistic title="Template version" value={template?.version ?? 0} />
-          <Statistic title="Export jobs" value={exports.length} />
-          <Statistic title="Task status" value={task.status} />
+          <Statistic title="已导入数据项" value={items.length} />
+          <Statistic title="模板版本" value={template?.version ?? 0} />
+          <Statistic title="导出任务" value={exports.length} />
+          <Statistic title="任务状态" value={formatLabel(task.status)} />
         </div>
         <div className="dashboard-tables">
           <Table
             columns={[
-              { title: "Item status", dataIndex: "status", key: "status", render: (status) => <Tag>{status}</Tag> },
-              { title: "Count", dataIndex: "count", key: "count" },
+              { title: "数据项状态", dataIndex: "status", key: "status", render: (status) => <Tag>{formatLabel(status)}</Tag> },
+              { title: "数量", dataIndex: "count", key: "count" },
             ]}
             dataSource={itemStatusCounts}
             pagination={false}
@@ -41,8 +42,8 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
           />
           <Table
             columns={[
-              { title: "Export status", dataIndex: "status", key: "status", render: (status) => <Tag>{status}</Tag> },
-              { title: "Count", dataIndex: "count", key: "count" },
+              { title: "导出状态", dataIndex: "status", key: "status", render: (status) => <Tag>{formatLabel(status)}</Tag> },
+              { title: "数量", dataIndex: "count", key: "count" },
             ]}
             dataSource={exportStatusCounts}
             pagination={false}

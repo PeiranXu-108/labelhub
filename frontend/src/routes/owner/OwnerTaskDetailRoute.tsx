@@ -48,7 +48,7 @@ export function OwnerTaskDetailRoute() {
 
   const load = useCallback(async () => {
     if (!taskId) {
-      setError("Task id is missing from the route.");
+      setError("路由中缺少任务 ID。");
       setLoading(false);
       return;
     }
@@ -70,7 +70,7 @@ export function OwnerTaskDetailRoute() {
       setExports(exportResult);
       setAgentWorkflow(workflowResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load task operations.");
+      setError(err instanceof Error ? err.message : "加载任务运营数据失败。");
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export function OwnerTaskDetailRoute() {
   if (!taskId) {
     return (
       <main className="page-shell owner-shell">
-        <Alert message="Task id is missing from the route." type="error" />
+        <Alert message="路由中缺少任务 ID。" type="error" />
       </main>
     );
   }
@@ -100,8 +100,8 @@ export function OwnerTaskDetailRoute() {
     return (
       <main className="page-shell owner-shell">
         <Alert
-          action={<Button onClick={load}>Retry</Button>}
-          message={error ?? "Task not found."}
+          action={<Button onClick={load}>重试</Button>}
+          message={error ?? "未找到任务。"}
           type="error"
         />
       </main>
@@ -112,16 +112,16 @@ export function OwnerTaskDetailRoute() {
     <main className="page-shell owner-shell">
       <section className="owner-section">
         <Space direction="vertical" size={4}>
-          <Link to="/owner/tasks">Back to tasks</Link>
+          <Link to="/owner/tasks">返回任务列表</Link>
           <Typography.Title level={1}>{task.name}</Typography.Title>
-          <Typography.Text type="secondary">{task.description || "No description"}</Typography.Text>
+          <Typography.Text type="secondary">{task.description || "暂无描述"}</Typography.Text>
         </Space>
         <Tabs
           className="owner-tabs"
           items={[
             {
               key: "dashboard",
-              label: "Dashboard",
+              label: "看板",
               children: (
                 <TaskDashboard
                   agentWorkflow={agentWorkflow}
@@ -134,7 +134,7 @@ export function OwnerTaskDetailRoute() {
             },
             {
               key: "dataset",
-              label: "Dataset",
+              label: "数据集",
               children: (
                 <DatasetImportPanel
                   taskId={taskId}
@@ -144,17 +144,17 @@ export function OwnerTaskDetailRoute() {
             },
             {
               key: "template",
-              label: "Template",
+              label: "模板",
               children: <TemplateWorkspace taskId={taskId} template={template} onSaved={setTemplate} />,
             },
             {
               key: "review",
-              label: "Review config",
+              label: "审核配置",
               children: <ReviewConfigEditor config={config} taskId={taskId} onSaved={setConfig} />,
             },
             {
               key: "exports",
-              label: "Exports",
+              label: "导出",
               children: <ExportCenter jobs={exports} taskId={taskId} onJobsChanged={setExports} />,
             },
           ]}

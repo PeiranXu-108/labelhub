@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { SubmissionRead } from "../labeler/types";
+import { formatLabel } from "../i18n/labels";
 import { approveSubmission, batchReview, listReviewQueue, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type { ReviewQueueItemRead } from "./types";
@@ -46,7 +47,7 @@ export function ReviewQueue() {
     try {
       setQueueItems(await listReviewQueue(queueFilters));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load review queue.");
+      setError(err instanceof Error ? err.message : "加载审核队列失败。");
     } finally {
       setLoading(false);
     }
@@ -63,7 +64,7 @@ export function ReviewQueue() {
       const updated = await approveSubmission(submissionId);
       replaceSubmissions([updated]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to approve submission.");
+      setError(err instanceof Error ? err.message : "批准提交失败。");
     } finally {
       setMutating(null);
     }
@@ -80,7 +81,7 @@ export function ReviewQueue() {
       replaceSubmissions(updated);
       setSelectedIds([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to batch approve submissions.");
+      setError(err instanceof Error ? err.message : "批量批准提交失败。");
     } finally {
       setMutating(null);
     }
@@ -101,7 +102,7 @@ export function ReviewQueue() {
       setSelectedIds([]);
       setReturnTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to return submission.");
+      setError(err instanceof Error ? err.message : "退回提交失败。");
     } finally {
       setMutating(null);
     }
@@ -122,52 +123,52 @@ export function ReviewQueue() {
       <div className="panel-toolbar">
         <div>
           <Typography.Title id="review-heading" level={1}>
-            Review queue
+            审核队列
           </Typography.Title>
           <Typography.Text type="secondary">
-            Inspect AI-routed submissions and apply human review decisions.
+            检查 AI 分流的提交，并执行人工审核决策。
           </Typography.Text>
         </div>
-        <Button onClick={load}>Refresh</Button>
+        <Button onClick={load}>刷新</Button>
       </div>
 
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
 
       <div className="filter-row review-filters">
         <label className="native-filter">
-          <span>Status</span>
-          <select aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <span>状态</span>
+          <select aria-label="状态" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             {reviewableStatuses.map((status) => (
               <option key={status} value={status}>
-                {status === "all" ? "All statuses" : status}
+                {status === "all" ? "全部状态" : formatLabel(status)}
               </option>
             ))}
           </select>
         </label>
         <Input
-          aria-label="Task"
-          placeholder="Filter by task id"
+          aria-label="任务"
+          placeholder="按任务 ID 筛选"
           value={taskFilter}
           onChange={(event) => setTaskFilter(event.target.value)}
         />
-        <Tooltip title="Server-backed AI decision filter">
+        <Tooltip title="由服务端筛选 AI 决策">
           <label className="native-filter">
-            <span>AI decision</span>
+            <span>AI 决策</span>
             <select
-              aria-label="AI decision"
+              aria-label="AI 决策"
               value={aiDecisionFilter}
               onChange={(event) => setAiDecisionFilter(event.target.value)}
             >
-              <option value="all">All decisions</option>
-              <option value="pass">pass</option>
-              <option value="return">return</option>
-              <option value="human_review">human_review</option>
+              <option value="all">全部决策</option>
+              <option value="pass">通过</option>
+              <option value="return">退回</option>
+              <option value="human_review">需人工审核</option>
             </select>
           </label>
         </Tooltip>
-        <Tooltip title="Server-backed AI score range">
-          <div className="score-filter" aria-label="AI score range">
-            <span>Score range</span>
+        <Tooltip title="由服务端筛选 AI 分数范围">
+          <div className="score-filter" aria-label="AI 分数范围">
+            <span>分数范围</span>
             <Slider range value={scoreRange} onChange={(value) => setScoreRange(value as [number, number])} />
           </div>
         </Tooltip>
@@ -175,7 +176,7 @@ export function ReviewQueue() {
 
       <div className="section-actions">
         <Button disabled={selectedIds.length === 0} loading={mutating === "batch"} onClick={() => void approveSelected()}>
-          Batch approve
+          批量批准
         </Button>
         <Button
           danger
@@ -183,14 +184,14 @@ export function ReviewQueue() {
           loading={mutating === "batch"}
           onClick={() => setReturnTarget("batch")}
         >
-          Batch return
+          批量退回
         </Button>
       </div>
 
       <Table
         columns={[
           {
-            title: "Submission",
+            title: "提交",
             dataIndex: "id",
             key: "id",
             render: (_: unknown, record: ReviewQueueItemRead) => (
@@ -200,14 +201,14 @@ export function ReviewQueue() {
             ),
           },
           {
-            title: "Task",
+            title: "任务",
             key: "task_id",
             render: (_: unknown, record: ReviewQueueItemRead) => record.task.name,
           },
           {
-            title: "Status",
+            title: "状态",
             key: "status",
-            render: (_: unknown, record: ReviewQueueItemRead) => <Tag>{record.submission.status}</Tag>,
+            render: (_: unknown, record: ReviewQueueItemRead) => <Tag>{formatLabel(record.submission.status)}</Tag>,
           },
           {
             title: "AI",
@@ -215,26 +216,26 @@ export function ReviewQueue() {
             render: (_: unknown, record: ReviewQueueItemRead) =>
               record.latest_ai_review ? (
                 <Space>
-                  <Tag>{record.latest_ai_review.decision}</Tag>
+                  <Tag>{formatLabel(record.latest_ai_review.decision)}</Tag>
                   <Typography.Text>{record.latest_ai_review.overall_score}</Typography.Text>
                 </Space>
               ) : (
-                <Typography.Text type="secondary">No AI review</Typography.Text>
+                <Typography.Text type="secondary">暂无 AI 审核</Typography.Text>
               ),
           },
           {
-            title: "Attempt",
+            title: "尝试次数",
             key: "attempt",
             render: (_: unknown, record: ReviewQueueItemRead) => record.submission.attempt,
           },
           {
-            title: "Updated",
+            title: "更新时间",
             key: "updated_at",
             render: (_: unknown, record: ReviewQueueItemRead) =>
               new Date(record.submission.updated_at).toLocaleString(),
           },
           {
-            title: "Actions",
+            title: "操作",
             key: "actions",
             render: (_: unknown, record: ReviewQueueItemRead) => (
               <Space>
@@ -242,14 +243,14 @@ export function ReviewQueue() {
                   loading={mutating === record.submission.id}
                   onClick={() => void approveOne(record.submission.id)}
                 >
-                  Approve
+                  批准
                 </Button>
                 <Button
                   danger
                   loading={mutating === record.submission.id}
                   onClick={() => setReturnTarget(record.submission.id)}
                 >
-                  Return
+                  退回
                 </Button>
               </Space>
             ),
@@ -265,7 +266,7 @@ export function ReviewQueue() {
       <ReturnReasonModal
         loading={mutating === returnTarget}
         open={returnTarget !== null}
-        title={returnTarget === "batch" ? "Return selected submissions" : "Return submission"}
+        title={returnTarget === "batch" ? "退回选中的提交" : "退回提交"}
         onCancel={() => setReturnTarget(null)}
         onConfirm={(reason) => void returnWithReason(reason)}
       />

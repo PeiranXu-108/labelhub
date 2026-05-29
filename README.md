@@ -1,25 +1,25 @@
 # LabelHub
 
-LabelHub is a full-stack MVP for data annotation workflows used in LLM and agent training data production.
+LabelHub 是一个用于 LLM 和 Agent 训练数据生产的数据标注全栈 MVP。
 
-The implemented vertical slice is:
+当前已经实现的端到端流程：
 
 ```text
-Owner creates a task, imports items, publishes a template
--> Labeler claims an item and submits answers
--> AI review records structured review output
--> Reviewer approves or returns the submission
--> Owner exports approved data
+负责人创建任务、导入数据项、发布标注模板
+-> 标注员认领数据项并提交答案
+-> AI 审核记录结构化审核结果
+-> 审核员批准或退回提交
+-> 负责人导出已批准的数据
 ```
 
-## Stack
+## 技术栈
 
-- Backend: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL, Redis, Celery.
-- Agent: LangGraph plus LangChain structured-output model adapters.
-- Frontend: React 18, TypeScript, Vite, Ant Design.
-- Tests: pytest, Vitest, Playwright.
+- 后端：Python 3.12、FastAPI、SQLAlchemy 2、Alembic、PostgreSQL、Redis、Celery。
+- Agent：LangGraph，以及基于 LangChain 的结构化输出模型适配器。
+- 前端：React 18、TypeScript、Vite、Ant Design。
+- 测试：pytest、Vitest、Playwright。
 
-## Local Backend
+## 本地后端
 
 ```bash
 cd backend
@@ -31,15 +31,15 @@ python scripts/seed_e2e_data.py demo-users
 uvicorn app.main:app --reload
 ```
 
-Health check:
+健康检查：
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-FastAPI serves OpenAPI at `http://localhost:8000/openapi.json`.
+FastAPI 在 `http://localhost:8000/openapi.json` 提供 OpenAPI 文档。
 
-## Local Frontend
+## 本地前端
 
 ```bash
 cd frontend
@@ -47,17 +47,17 @@ npm install
 VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ```
 
-Open `http://localhost:5173`.
+打开 `http://localhost:5173`。
 
-MVP auth uses persisted demo users plus JWT bearer tokens. Seed the demo users with `backend/scripts/seed_e2e_data.py demo-users`, then sign in at `/login` with:
+MVP 认证使用持久化 demo 用户和 JWT bearer token。先通过 `backend/scripts/seed_e2e_data.py demo-users` 写入 demo 用户，然后在 `/login` 登录：
 
-- Owner: `owner@example.com` / `LabelHubOwner123!`
-- Labeler: `labeler@example.com` / `LabelHubLabeler123!`
-- Reviewer: `reviewer@example.com` / `LabelHubReviewer123!`
+- 负责人：`owner@example.com` / `LabelHubOwner123!`
+- 标注员：`labeler@example.com` / `LabelHubLabeler123!`
+- 审核员：`reviewer@example.com` / `LabelHubReviewer123!`
 
-Business routes still enforce role permissions on the backend. The legacy `backend/scripts/seed_e2e_data.py tokens` helper remains for API/E2E helpers, but it now seeds matching persisted users before printing tokens.
+业务路由仍然由后端校验角色权限。旧的 `backend/scripts/seed_e2e_data.py tokens` 辅助命令仍可用于 API/E2E 辅助流程；它会先写入匹配的持久化用户，再打印 token。
 
-## Verification
+## 验证
 
 ```bash
 cd backend && ./.venv313/bin/pytest -q
@@ -66,7 +66,7 @@ cd frontend && npm run build
 docker compose config
 ```
 
-E2E smoke test, after the backend and frontend are running against the same database:
+E2E 冒烟测试需要后端和前端连接同一个数据库后再运行：
 
 ```bash
 cd backend
@@ -79,14 +79,14 @@ LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_e2e_exports \
 ./.venv313/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-In another terminal:
+在另一个终端：
 
 ```bash
 cd frontend
 VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev -- --host 127.0.0.1
 ```
 
-In a third terminal:
+在第三个终端：
 
 ```bash
 cd frontend
@@ -97,11 +97,11 @@ FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
 ```
 
-The Playwright smoke test signs into the frontend through `/login` for the role-route checks.
+Playwright 冒烟测试会通过 `/login` 登录前端，并检查各角色路由。
 
-## Live AI Review Agent
+## 实时 AI 审核 Agent
 
-LabelHub defaults live AI review to DeepSeek through its OpenAI-compatible API. Add your key to `.env` before starting the API and worker:
+LabelHub 默认通过 DeepSeek 的 OpenAI 兼容 API 执行实时 AI 审核。启动 API 和 worker 前，把 key 写入 `.env`：
 
 ```bash
 LABELHUB_LLM_PROVIDER=deepseek
@@ -111,37 +111,37 @@ LABELHUB_LLM_API_KEY=
 LABELHUB_LLM_TEMPERATURE=0
 ```
 
-After a labeler submits an assignment, the API enqueues `ai_review.run_ai_review`; the Celery worker calls DeepSeek and writes the persisted AI review, status transition, prompt snapshot, structured response, and audit events. The owner, labeler, and reviewer screens show the agent workflow without exposing provider or API-key controls.
+标注员提交任务后，API 会入队 `ai_review.run_ai_review`；Celery worker 调用 DeepSeek，并写入持久化 AI 审核、状态流转、prompt 快照、结构化响应和审计事件。负责人、标注员、审核员界面会展示 Agent 工作流，但不会暴露模型供应商或 API key 控件。
 
 ## Docker Compose
 
-Task08 has config-validated Docker Compose with `docker compose config`; full `docker compose up --build` runtime startup is not yet recorded as verified.
+Task08 已通过 `docker compose config` 校验 Docker Compose 配置；完整 `docker compose up --build` 运行启动尚未记录为已验证。
 
 ```bash
 docker compose up --build
 ```
 
-Services:
+服务：
 
-- API: `http://localhost:8000`
-- Frontend: `http://localhost:5173`
-- Worker: Celery worker for AI review/export tasks
-- Postgres: `localhost:5432`
-- Redis: `localhost:6379`
+- API：`http://localhost:8000`
+- 前端：`http://localhost:5173`
+- Worker：用于 AI 审核/导出任务的 Celery worker
+- Postgres：`localhost:5432`
+- Redis：`localhost:6379`
 
-The API container runs `alembic upgrade head` before starting Uvicorn. The frontend receives `VITE_API_BASE_URL=http://localhost:8000`.
+API 容器会先运行 `alembic upgrade head`，再启动 Uvicorn。前端会接收 `VITE_API_BASE_URL=http://localhost:8000`。
 
-Seed demo users in the running API container before using `/login`:
+使用 `/login` 前，先在运行中的 API 容器里写入 demo 用户：
 
 ```bash
 docker compose exec api python scripts/seed_e2e_data.py demo-users
 ```
 
-## Documentation
+## 文档
 
-- API: `docs/api.md`
-- Architecture: `docs/architecture.md`
-- Demo script: `docs/demo-script.md`
-- Deployment: `docs/deployment.md`
-- Known limitations: `docs/known-limitations.md`
-- Coordination and task status: `docs/agent-coordination.md`, `docs/status-board.md`
+- API：`docs/api.md`
+- 架构：`docs/architecture.md`
+- Demo 脚本：`docs/demo-script.md`
+- 部署：`docs/deployment.md`
+- 已知限制：`docs/known-limitations.md`
+- 协作与任务状态：`docs/agent-coordination.md`、`docs/status-board.md`

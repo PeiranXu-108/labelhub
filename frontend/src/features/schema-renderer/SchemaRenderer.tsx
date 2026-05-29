@@ -60,7 +60,7 @@ export function validateAnswers(
       return;
     }
     if (field.required && isEmpty(answers[field.id])) {
-      errors[field.id] = `${field.label} is required`;
+      errors[field.id] = `请填写${field.label}`;
     }
   });
   return errors;
@@ -113,7 +113,7 @@ export function SchemaRenderer({
       </div>
       {!readOnly && answerableFields.length > 0 ? (
         <Button type="primary" onClick={handleSubmit}>
-          Submit
+          提交
         </Button>
       ) : null}
     </section>

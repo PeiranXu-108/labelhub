@@ -13,7 +13,7 @@ const sample = JSON.stringify(
   [
     {
       external_id: "row-1",
-      payload: { text: "Paste source text here", metadata: { source: "demo" } },
+      payload: { text: "在这里粘贴源文本", metadata: { source: "demo" } },
     },
   ],
   null,
@@ -29,15 +29,15 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
   function parseItems() {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error("Dataset must be a non-empty JSON array.");
+      throw new Error("数据集必须是非空 JSON 数组。");
     }
     return parsed.map((entry, index) => {
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        throw new Error(`Item ${index + 1} must be an object.`);
+        throw new Error(`第 ${index + 1} 个数据项必须是对象。`);
       }
       const item = entry as Record<string, unknown>;
       if (!item.payload || typeof item.payload !== "object" || Array.isArray(item.payload)) {
-        throw new Error(`Item ${index + 1} must include a payload object.`);
+        throw new Error(`第 ${index + 1} 个数据项必须包含 payload 对象。`);
       }
       return {
         external_id: typeof item.external_id === "string" ? item.external_id : null,
@@ -53,7 +53,7 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
       setError(null);
     } catch (err) {
       setPreview([]);
-      setError(err instanceof Error ? err.message : "Invalid dataset JSON.");
+      setError(err instanceof Error ? err.message : "数据集 JSON 无效。");
     }
   }
 
@@ -65,7 +65,7 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
       const imported = await importItems(taskId, items);
       onImported(imported);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import items.");
+      setError(err instanceof Error ? err.message : "导入数据项失败。");
     } finally {
       setSubmitting(false);
     }
@@ -74,11 +74,11 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
   return (
     <section className="ops-card" aria-labelledby="dataset-import-heading">
       <Typography.Title id="dataset-import-heading" level={3}>
-        Dataset import
+        数据集导入
       </Typography.Title>
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
       <label className="schema-control">
-        <span>Items JSON</span>
+        <span>数据项 JSON</span>
         <Input.TextArea
           value={value}
           rows={10}
@@ -86,18 +86,18 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
         />
       </label>
       <Space className="section-actions">
-        <Button onClick={handlePreview}>Preview import</Button>
+        <Button onClick={handlePreview}>预览导入</Button>
         <Button loading={submitting} type="primary" onClick={handleImport}>
-          Import dataset
+          导入数据集
         </Button>
       </Space>
       <Table
         columns={[
-          { title: "External ID", dataIndex: "external_id", key: "external_id", render: (id) => id || "None" },
+          { title: "外部 ID", dataIndex: "external_id", key: "external_id", render: (id) => id || "无" },
           {
-            title: "Payload keys",
+            title: "Payload 字段",
             key: "payload",
-            render: (_: unknown, record: ItemImportEntry) => Object.keys(record.payload).join(", ") || "None",
+            render: (_: unknown, record: ItemImportEntry) => Object.keys(record.payload).join(", ") || "无",
           },
         ]}
         dataSource={preview}

@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { createTask, listTasks, transitionTask, updateTask } from "./api";
 import { TaskDrawer } from "./TaskDrawer";
 import type { TaskCreate, TaskRead, TaskStatus } from "./types";
+import { formatLabel } from "../i18n/labels";
 
 const statusColors: Record<TaskStatus, string> = {
   draft: "default",
@@ -28,7 +29,7 @@ export function OwnerTaskList() {
     try {
       setTasks(await listTasks());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+      setError(err instanceof Error ? err.message : "加载任务失败");
     } finally {
       setLoading(false);
     }
@@ -41,7 +42,7 @@ export function OwnerTaskList() {
   const columns = useMemo(
     () => [
       {
-        title: "Task",
+        title: "任务",
         dataIndex: "name",
         key: "name",
         render: (_: string, record: TaskRead) => (
@@ -49,39 +50,40 @@ export function OwnerTaskList() {
             <Link className="table-primary-link" to={`/owner/tasks/${record.id}`}>
               {record.name}
             </Link>
-            <Typography.Text type="secondary">{record.description || "No description"}</Typography.Text>
+            <Typography.Text type="secondary">{record.description || "暂无描述"}</Typography.Text>
           </Space>
         ),
       },
       {
-        title: "Status",
+        title: "状态",
         dataIndex: "status",
         key: "status",
-        render: (status: TaskStatus) => <Tag color={statusColors[status]}>{status}</Tag>,
+        render: (status: TaskStatus) => <Tag color={statusColors[status]}>{formatLabel(status)}</Tag>,
       },
       {
-        title: "Distribution",
+        title: "分发方式",
         dataIndex: "distribution_strategy",
         key: "distribution_strategy",
+        render: (strategy: string) => formatLabel(strategy),
       },
       {
-        title: "Progress",
+        title: "进度",
         key: "progress",
         render: () => <Progress percent={0} size="small" status="normal" />,
       },
       {
-        title: "Deadline",
+        title: "截止时间",
         dataIndex: "deadline_at",
         key: "deadline_at",
-        render: (deadline: string | null) => (deadline ? new Date(deadline).toLocaleString() : "None"),
+        render: (deadline: string | null) => (deadline ? new Date(deadline).toLocaleString() : "无"),
       },
       {
-        title: "Actions",
+        title: "操作",
         key: "actions",
         render: (_: unknown, record: TaskRead) => (
           <Space>
             <Button size="small" onClick={() => openEdit(record)}>
-              Edit
+              编辑
             </Button>
             {record.status === "draft" || record.status === "paused" ? (
               <Button
@@ -90,7 +92,7 @@ export function OwnerTaskList() {
                 type="primary"
                 onClick={() => runTransition(record.id, "publish")}
               >
-                Publish
+                发布
               </Button>
             ) : null}
             {record.status === "published" ? (
@@ -99,7 +101,7 @@ export function OwnerTaskList() {
                 size="small"
                 onClick={() => runTransition(record.id, "pause")}
               >
-                Pause
+                暂停
               </Button>
             ) : null}
             {record.status === "published" || record.status === "paused" ? (
@@ -109,7 +111,7 @@ export function OwnerTaskList() {
                 size="small"
                 onClick={() => runTransition(record.id, "end")}
               >
-                End
+                结束
               </Button>
             ) : null}
           </Space>
@@ -150,7 +152,7 @@ export function OwnerTaskList() {
       setDrawerOpen(false);
       setEditingTask(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save task");
+      setError(err instanceof Error ? err.message : "保存任务失败");
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +165,7 @@ export function OwnerTaskList() {
       const updated = await transitionTask(taskId, action);
       setTasks((current) => current.map((task) => (task.id === taskId ? updated : task)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${action} task`);
+      setError(err instanceof Error ? err.message : `任务操作失败：${formatLabel(action)}`);
     } finally {
       setTransitioningId(null);
     }
@@ -174,12 +176,12 @@ export function OwnerTaskList() {
       <div className="panel-toolbar">
         <div>
           <Typography.Title id="owner-heading" level={1}>
-            Owner tasks
+            负责人任务
           </Typography.Title>
-          <Typography.Text type="secondary">Create tasks, publish workflow states, and open task operations.</Typography.Text>
+          <Typography.Text type="secondary">创建任务、发布工作流状态，并进入任务运营面板。</Typography.Text>
         </div>
         <Button type="primary" onClick={openCreate}>
-          New task
+          新建任务
         </Button>
       </div>
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}

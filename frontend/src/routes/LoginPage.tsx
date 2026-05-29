@@ -31,7 +31,7 @@ export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
       onAuthenticated?.(response.user);
       navigate(defaultRouteForRole(response.user.role), { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to sign in");
+      setError(err instanceof Error ? err.message : "无法登录");
     } finally {
       setSubmitting(false);
     }
@@ -41,29 +41,29 @@ export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
     <main className="page-shell">
       <section className="form-panel" aria-labelledby="login-heading">
         <Typography.Title id="login-heading" level={1}>
-          Sign in
+          登录
         </Typography.Title>
         {error ? <Alert className="section-alert" type="error" message={error} /> : null}
         <Form<LoginCredentials> layout="vertical" onFinish={handleSubmit}>
           <Form.Item
-            label="Email"
+            label="邮箱"
             name="email"
             rules={[
-              { required: true, message: "Enter your email" },
-              { type: "email", message: "Enter a valid email" },
+              { required: true, message: "请输入邮箱" },
+              { type: "email", message: "请输入有效邮箱" },
             ]}
           >
             <Input autoComplete="email" placeholder="owner@example.com" />
           </Form.Item>
           <Form.Item
-            label="Password"
+            label="密码"
             name="password"
-            rules={[{ required: true, message: "Enter your password" }]}
+            rules={[{ required: true, message: "请输入密码" }]}
           >
-            <Input.Password autoComplete="current-password" placeholder="Password" />
+            <Input.Password autoComplete="current-password" placeholder="密码" />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={submitting}>
-            Sign in
+            登录
           </Button>
         </Form>
       </section>

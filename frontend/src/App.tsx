@@ -20,9 +20,9 @@ type AuthState =
   | { status: "authenticated"; user: UserSummary };
 
 const navigationByRole: Partial<Record<UserRole, { path: string; label: string }[]>> = {
-  owner: [{ path: "/owner/tasks", label: "Owner" }],
-  labeler: [{ path: "/labeler/tasks", label: "Labeler" }],
-  reviewer: [{ path: "/review/queue", label: "Review" }],
+  owner: [{ path: "/owner/tasks", label: "负责人" }],
+  labeler: [{ path: "/labeler/tasks", label: "标注员" }],
+  reviewer: [{ path: "/review/queue", label: "审核" }],
 };
 
 function HomePage() {
@@ -31,8 +31,7 @@ function HomePage() {
       <section className="intro-panel">
         <Typography.Title level={1}>LabelHub</Typography.Title>
         <Typography.Paragraph>
-          Foundation scaffold for task creation, annotation, AI review, human review,
-          and export workflows.
+          面向任务创建、数据标注、AI 审核、人工审核和数据导出的工作流平台。
         </Typography.Paragraph>
       </section>
     </main>
@@ -121,7 +120,7 @@ export default function App() {
         <Link className="brand" to="/">
           LabelHub
         </Link>
-        <nav className="app-nav" aria-label="Primary">
+        <nav className="app-nav" aria-label="主导航">
           {navigationItems.map((item) => (
             <Link key={item.path} to={item.path}>
               {item.label}
@@ -131,7 +130,7 @@ export default function App() {
         {authState.user ? (
           <div className="auth-summary">
             <span>{authState.user.name}</span>
-            <Button onClick={handleLogout}>Log out</Button>
+            <Button onClick={handleLogout}>退出登录</Button>
           </div>
         ) : null}
       </Layout.Header>

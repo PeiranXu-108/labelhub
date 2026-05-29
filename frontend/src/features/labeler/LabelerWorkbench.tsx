@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
+import { formatLabel } from "../i18n/labels";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
 import type { AnswerPayload } from "../schema-renderer";
@@ -34,7 +35,7 @@ export function LabelerWorkbench() {
 
   const load = useCallback(async () => {
     if (!assignmentId) {
-      setError("Assignment id is missing from the route.");
+      setError("路由中缺少作业 ID。");
       setLoading(false);
       return;
     }
@@ -51,7 +52,7 @@ export function LabelerWorkbench() {
       editedRef.current = false;
       setAutosaveState("idle");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assignment.");
+      setError(err instanceof Error ? err.message : "加载作业失败。");
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,7 @@ export function LabelerWorkbench() {
           }
         })
         .catch((err) => {
-          setError(err instanceof Error ? err.message : "Failed to autosave draft.");
+          setError(err instanceof Error ? err.message : "自动保存草稿失败。");
           setAutosaveState("error");
         });
     }, AUTOSAVE_DEBOUNCE_MS);
@@ -110,7 +111,7 @@ export function LabelerWorkbench() {
       editedRef.current = false;
       setAutosaveState("saved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit assignment.");
+      setError(err instanceof Error ? err.message : "提交作业失败。");
     } finally {
       setSubmitting(false);
     }
@@ -127,7 +128,7 @@ export function LabelerWorkbench() {
   if (error && (!assignment || !template || !submission)) {
     return (
       <section className="owner-section">
-        <Alert action={<Button onClick={load}>Retry</Button>} message={error} type="error" />
+        <Alert action={<Button onClick={load}>重试</Button>} message={error} type="error" />
       </section>
     );
   }
@@ -136,8 +137,8 @@ export function LabelerWorkbench() {
     return (
       <Result
         status="warning"
-        title="Assignment is not available"
-        extra={<Link to="/labeler/tasks">Back to labeler tasks</Link>}
+        title="作业不可用"
+        extra={<Link to="/labeler/tasks">返回标注任务</Link>}
       />
     );
   }
@@ -149,9 +150,9 @@ export function LabelerWorkbench() {
   return (
     <section className="owner-section" aria-labelledby="assignment-heading">
       <Space direction="vertical" size={4}>
-        <Link to="/labeler/tasks">Back to labeler tasks</Link>
+        <Link to="/labeler/tasks">返回标注任务</Link>
         <Typography.Title id="assignment-heading" level={1}>
-          Assignment workbench
+          标注工作台
         </Typography.Title>
         <Typography.Text type="secondary">{assignment.task.name}</Typography.Text>
       </Space>
@@ -159,11 +160,11 @@ export function LabelerWorkbench() {
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
       {isReturned ? (
         <Alert
-          message="Returned submission revision"
+          message="退回提交修订"
           description={
             returnReason
-              ? `This is attempt ${submission.attempt}. Reviewer reason: ${returnReason}`
-              : `This is attempt ${submission.attempt}. Review the returned status and resubmit after correcting the annotation.`
+              ? `这是第 ${submission.attempt} 次尝试。审核员原因：${returnReason}`
+              : `这是第 ${submission.attempt} 次尝试。请查看退回状态，修正标注后重新提交。`
           }
           type="warning"
           showIcon
@@ -171,24 +172,24 @@ export function LabelerWorkbench() {
       ) : null}
       {versionMismatch ? (
         <Alert
-          message="Template snapshot mismatch"
-          description={`This submission references schema version ${submission.schema_version}, but the assignment response returned version ${template.version}.`}
+          message="模板快照不匹配"
+          description={`此提交引用的是 schema 版本 ${submission.schema_version}，但作业响应返回的是版本 ${template.version}。`}
           type="warning"
           showIcon
         />
       ) : null}
 
       <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">
-        <Descriptions.Item label="Assignment">{assignment.id}</Descriptions.Item>
-        <Descriptions.Item label="Submission">{submission.id}</Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <Tag>{submission.status}</Tag>
+        <Descriptions.Item label="作业">{assignment.id}</Descriptions.Item>
+        <Descriptions.Item label="提交">{submission.id}</Descriptions.Item>
+        <Descriptions.Item label="状态">
+          <Tag>{formatLabel(submission.status)}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="Attempt">{submission.attempt}</Descriptions.Item>
-        <Descriptions.Item label="Schema version">{submission.schema_version}</Descriptions.Item>
-        <Descriptions.Item label="Autosave">
+        <Descriptions.Item label="尝试次数">{submission.attempt}</Descriptions.Item>
+        <Descriptions.Item label="Schema 版本">{submission.schema_version}</Descriptions.Item>
+        <Descriptions.Item label="自动保存">
           <Tag color={autosaveState === "error" ? "red" : autosaveState === "saved" ? "green" : "blue"}>
-            {autosaveState}
+            {formatLabel(autosaveState)}
           </Tag>
         </Descriptions.Item>
       </Descriptions>
@@ -197,7 +198,7 @@ export function LabelerWorkbench() {
 
       <div className="workbench-grid">
         <section className="ops-card">
-          <Typography.Title level={2}>Item payload</Typography.Title>
+          <Typography.Title level={2}>数据项内容</Typography.Title>
           <pre className="json-panel">{JSON.stringify(assignment.item.payload, null, 2)}</pre>
         </section>
         <section className="ops-card">
@@ -213,7 +214,7 @@ export function LabelerWorkbench() {
             onChange={handleChange}
             onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
           />
-          {submitting ? <Typography.Text type="secondary">Submitting current answers...</Typography.Text> : null}
+          {submitting ? <Typography.Text type="secondary">正在提交当前答案...</Typography.Text> : null}
         </section>
       </div>
     </section>

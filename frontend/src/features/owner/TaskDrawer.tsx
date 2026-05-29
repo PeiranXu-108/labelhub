@@ -50,35 +50,35 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
     <Drawer
       destroyOnClose
       open={open}
-      title={isEditing ? "Edit task" : "New task"}
+      title={isEditing ? "编辑任务" : "新建任务"}
       width={420}
       onClose={onClose}
     >
       <Form form={form} layout="vertical" onFinish={handleFinish}>
-        <Form.Item label="Name" name="name" rules={[{ required: true, message: "Name is required" }]}>
+        <Form.Item label="名称" name="name" rules={[{ required: true, message: "请输入名称" }]}>
           <Input autoFocus />
         </Form.Item>
-        <Form.Item label="Description" name="description">
+        <Form.Item label="描述" name="description">
           <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} />
         </Form.Item>
-        <Form.Item label="Distribution strategy" name="distribution_strategy">
+        <Form.Item label="分发方式" name="distribution_strategy">
           <Select
             options={[
-              { label: "Manual", value: "manual" },
-              { label: "Auto claim", value: "auto_claim" },
+              { label: "手动分配", value: "manual" },
+              { label: "自动认领", value: "auto_claim" },
             ]}
           />
         </Form.Item>
-        <Form.Item label="Quota per labeler" name="quota_per_labeler">
+        <Form.Item label="每位标注员配额" name="quota_per_labeler">
           <InputNumber min={1} precision={0} style={{ width: "100%" }} />
         </Form.Item>
-        <Form.Item label="Deadline" name="deadline_at">
+        <Form.Item label="截止时间" name="deadline_at">
           <Input type="datetime-local" />
         </Form.Item>
         <div className="drawer-actions">
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose}>取消</Button>
           <Button htmlType="submit" loading={submitting} type="primary">
-            {isEditing ? "Save task" : "Create task"}
+            {isEditing ? "保存任务" : "创建任务"}
           </Button>
         </div>
       </Form>

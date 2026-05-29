@@ -29,7 +29,7 @@ export function ReturnReasonModal({
   function confirm() {
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError("Return reason is required");
+      setError("必须填写退回原因");
       return;
     }
     onConfirm(trimmed);
@@ -40,9 +40,9 @@ export function ReturnReasonModal({
       <Space className="modal-stack" direction="vertical">
         {error ? <Alert message={error} type="error" /> : null}
         <Input.TextArea
-          aria-label="Return reason"
+          aria-label="退回原因"
           autoSize={{ minRows: 4 }}
-          placeholder="Explain what the labeler must fix"
+          placeholder="说明标注员需要修正的内容"
           value={reason}
           onChange={(event) => {
             setReason(event.target.value);
@@ -50,9 +50,9 @@ export function ReturnReasonModal({
           }}
         />
         <div className="drawer-actions">
-          <Button onClick={onCancel}>Cancel</Button>
+          <Button onClick={onCancel}>取消</Button>
           <Button danger loading={loading} type="primary" onClick={confirm}>
-            Return
+            退回
           </Button>
         </div>
       </Space>

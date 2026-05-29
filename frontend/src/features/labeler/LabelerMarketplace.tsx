@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { claimTask, listMarketplaceTasks, listOwnSubmissions } from "./api";
+import { formatLabel } from "../i18n/labels";
 import type { TaskRead } from "../owner/types";
 import type { SubmissionRead } from "./types";
 
@@ -27,7 +28,7 @@ export function LabelerMarketplace() {
       setTasks(taskResult);
       setSubmissions(submissionResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load labeler marketplace.");
+      setError(err instanceof Error ? err.message : "加载标注任务市场失败。");
     } finally {
       setLoading(false);
     }
@@ -61,7 +62,7 @@ export function LabelerMarketplace() {
       const claim = await claimTask(taskId);
       navigate(`/labeler/assignments/${claim.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to claim a task item.");
+      setError(err instanceof Error ? err.message : "认领任务数据项失败。");
     } finally {
       setClaimingId(null);
     }
@@ -72,13 +73,13 @@ export function LabelerMarketplace() {
       <div className="panel-toolbar">
         <div>
           <Typography.Title id="labeler-heading" level={1}>
-            Labeler tasks
+            标注任务
           </Typography.Title>
           <Typography.Text type="secondary">
-            Claim published work and continue drafts that need attention.
+            认领已发布任务，并继续处理需要关注的草稿。
           </Typography.Text>
         </div>
-        <Button onClick={load}>Refresh</Button>
+        <Button onClick={load}>刷新</Button>
       </div>
 
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
@@ -86,17 +87,17 @@ export function LabelerMarketplace() {
       <div className="filter-row">
         <Input.Search
           allowClear
-          aria-label="Search tasks"
-          placeholder="Search tasks"
+          aria-label="搜索任务"
+          placeholder="搜索任务"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         <Select
-          aria-label="Deadline filter"
+          aria-label="截止时间筛选"
           options={[
-            { label: "All deadlines", value: "all" },
-            { label: "Open", value: "open" },
-            { label: "Overdue", value: "overdue" },
+            { label: "全部截止时间", value: "all" },
+            { label: "未逾期", value: "open" },
+            { label: "已逾期", value: "overdue" },
           ]}
           value={deadlineFilter}
           onChange={setDeadlineFilter}
@@ -106,35 +107,36 @@ export function LabelerMarketplace() {
       <Table
         columns={[
           {
-            title: "Task",
+            title: "任务",
             dataIndex: "name",
             key: "name",
             render: (_: string, record: TaskRead) => (
               <Space direction="vertical" size={0}>
                 <Typography.Text strong>{record.name}</Typography.Text>
-                <Typography.Text type="secondary">{record.description || "No description"}</Typography.Text>
+                <Typography.Text type="secondary">{record.description || "暂无描述"}</Typography.Text>
               </Space>
             ),
           },
           {
-            title: "Distribution",
+            title: "分发方式",
             dataIndex: "distribution_strategy",
             key: "distribution_strategy",
+            render: (strategy: string) => formatLabel(strategy),
           },
           {
-            title: "Deadline",
+            title: "截止时间",
             dataIndex: "deadline_at",
             key: "deadline_at",
-            render: (deadline: string | null) => (deadline ? new Date(deadline).toLocaleString() : "None"),
+            render: (deadline: string | null) => (deadline ? new Date(deadline).toLocaleString() : "无"),
           },
           {
-            title: "Status",
+            title: "状态",
             dataIndex: "status",
             key: "status",
-            render: (status: string) => <Tag color="green">{status}</Tag>,
+            render: (status: string) => <Tag color="green">{formatLabel(status)}</Tag>,
           },
           {
-            title: "Action",
+            title: "操作",
             key: "action",
             render: (_: unknown, record: TaskRead) => (
               <Button
@@ -142,7 +144,7 @@ export function LabelerMarketplace() {
                 type="primary"
                 onClick={() => void handleClaim(record.id)}
               >
-                Claim
+                认领
               </Button>
             ),
           },
@@ -155,12 +157,12 @@ export function LabelerMarketplace() {
 
       <section className="ops-card" aria-labelledby="labeler-submissions-heading">
         <Typography.Title id="labeler-submissions-heading" level={2}>
-          My submissions
+          我的提交
         </Typography.Title>
         <Table
           columns={[
             {
-              title: "Submission",
+              title: "提交",
               dataIndex: "id",
               key: "id",
               render: (id: string, record: SubmissionRead) =>
@@ -171,23 +173,23 @@ export function LabelerMarketplace() {
                 ),
             },
             {
-              title: "Task",
+              title: "任务",
               dataIndex: "task_id",
               key: "task_id",
             },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
               key: "status",
-              render: (status: string) => <Tag>{status}</Tag>,
+              render: (status: string) => <Tag>{formatLabel(status)}</Tag>,
             },
             {
-              title: "Attempt",
+              title: "尝试次数",
               dataIndex: "attempt",
               key: "attempt",
             },
             {
-              title: "Updated",
+              title: "更新时间",
               dataIndex: "updated_at",
               key: "updated_at",
               render: (value: string) => new Date(value).toLocaleString(),

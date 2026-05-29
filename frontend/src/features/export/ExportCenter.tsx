@@ -2,6 +2,7 @@ import { Alert, Button, Checkbox, Input, Radio, Space, Table, Tag, Typography } 
 import { useEffect, useState } from "react";
 
 import { createExportJob, downloadExportJob, listExportJobs } from "../owner/api";
+import { formatLabel } from "../i18n/labels";
 import type { ExportFormat, ExportJobRead } from "../owner/types";
 
 type ExportCenterProps = {
@@ -38,7 +39,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
     setLoading(true);
     listExportJobs(taskId)
       .then(setLocalJobs)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load export jobs."))
+      .catch((err) => setError(err instanceof Error ? err.message : "加载导出任务失败。"))
       .finally(() => setLoading(false));
   }, [jobs, taskId]);
 
@@ -47,14 +48,14 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
     try {
       const parsed = JSON.parse(mappingText || "{}") as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        setError("Field mapping must be a JSON object.");
+        setError("字段映射必须是 JSON 对象。");
         return;
       }
       fieldMapping = Object.fromEntries(
         Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Field mapping must be valid JSON.");
+      setError(err instanceof Error ? err.message : "字段映射必须是有效 JSON。");
       return;
     }
 
@@ -70,7 +71,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
       setLocalJobs(nextJobs);
       onJobsChanged?.(nextJobs);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create export job.");
+      setError(err instanceof Error ? err.message : "创建导出任务失败。");
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +91,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
       anchor.remove();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to download export.");
+      setError(err instanceof Error ? err.message : "下载导出文件失败。");
     } finally {
       setDownloadingId(null);
     }
@@ -99,12 +100,12 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
   return (
     <section className="ops-card" aria-labelledby="export-center-heading">
       <Typography.Title id="export-center-heading" level={3}>
-        Export center
+        导出中心
       </Typography.Title>
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
       <div className="form-grid-2">
         <label className="schema-control">
-          <span>Export format</span>
+          <span>导出格式</span>
           <Radio.Group
             optionType="button"
             options={[
@@ -118,30 +119,30 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
           />
         </label>
         <Checkbox checked={includeReviewMetadata} onChange={(event) => setIncludeReviewMetadata(event.target.checked)}>
-          Include review metadata
+          包含审核元数据
         </Checkbox>
       </div>
       <label className="schema-control">
-        <span>Field mapping JSON</span>
+        <span>字段映射 JSON</span>
         <Input.TextArea rows={7} value={mappingText} onChange={(event) => setMappingText(event.target.value)} />
       </label>
       <Space className="section-actions">
         <Button loading={submitting} type="primary" onClick={handleCreate}>
-          Create export
+          创建导出
         </Button>
       </Space>
       <Table
         columns={[
-          { title: "Format", dataIndex: "format", key: "format" },
-          { title: "Status", dataIndex: "status", key: "status", render: (status) => <Tag>{status}</Tag> },
+          { title: "格式", dataIndex: "format", key: "format", render: (format) => formatLabel(format) },
+          { title: "状态", dataIndex: "status", key: "status", render: (status) => <Tag>{formatLabel(status)}</Tag> },
           {
-            title: "Created",
+            title: "创建时间",
             dataIndex: "created_at",
             key: "created_at",
             render: (value) => new Date(value).toLocaleString(),
           },
           {
-            title: "Download",
+            title: "下载",
             key: "download",
             render: (_: unknown, record: ExportJobRead) =>
               record.status === "succeeded" ? (
@@ -151,10 +152,10 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
                   type="link"
                   onClick={() => void handleDownload(record)}
                 >
-                  Download
+                  下载
                 </Button>
               ) : (
-                <Typography.Text type="secondary">{record.error_message || "Not ready"}</Typography.Text>
+                <Typography.Text type="secondary">{record.error_message || "尚未就绪"}</Typography.Text>
               ),
           },
         ]}

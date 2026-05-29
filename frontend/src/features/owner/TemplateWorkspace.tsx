@@ -14,7 +14,7 @@ type TemplateWorkspaceProps = {
 
 const emptySchema: TemplateSchemaDocument = {
   version: 1,
-  title: "Untitled template",
+  title: "未命名模板",
   layout: { type: "single", groups: [] },
   fields: [],
   llmTools: [],
@@ -38,7 +38,7 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
     try {
       onSaved(await saveTemplateDraft(taskId, schema));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save template draft.");
+      setError(err instanceof Error ? err.message : "保存模板草稿失败。");
     } finally {
       setSaving(false);
     }
@@ -50,7 +50,7 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
     try {
       onSaved(await publishTemplate(taskId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to publish template.");
+      setError(err instanceof Error ? err.message : "发布模板失败。");
     } finally {
       setPublishing(false);
     }
@@ -61,27 +61,27 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
       <div className="panel-toolbar compact">
         <div>
           <Typography.Title id="template-heading" level={3}>
-            Template designer
+            模板设计器
           </Typography.Title>
           <Space>
             <Tag color={template?.is_published ? "green" : "gold"}>
-              {template?.is_published ? "published" : "draft"}
+              {template?.is_published ? "已发布" : "草稿"}
             </Tag>
-            <Typography.Text type="secondary">Version {template?.version ?? schema.version}</Typography.Text>
+            <Typography.Text type="secondary">版本 {template?.version ?? schema.version}</Typography.Text>
           </Space>
         </div>
         <Space>
           <Button loading={saving} onClick={handleSaveDraft}>
-            Save draft
+            保存草稿
           </Button>
           <Button loading={publishing} type="primary" onClick={handlePublish}>
-            Publish template
+            发布模板
           </Button>
         </Space>
       </div>
       {error ? <Alert className="section-alert" message={error} type="error" /> : null}
       <label className="schema-control template-title-control">
-        <span>Template title</span>
+        <span>模板标题</span>
         <Input value={schema.title} onChange={(event) => setSchema({ ...schema, title: event.target.value })} />
       </label>
       <TemplateDesigner initialSchema={schema} onChange={setSchema} />
