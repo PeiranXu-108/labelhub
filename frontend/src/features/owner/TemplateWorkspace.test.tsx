@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publishTemplate, saveTemplateDraft } from "./api";
 import { TemplateWorkspace } from "./TemplateWorkspace";
@@ -31,6 +31,10 @@ const draftTemplate: TemplateSchemaRead = {
 };
 
 describe("TemplateWorkspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("saves the current draft before publishing a new template", async () => {
     const publishedTemplate = {
       ...draftTemplate,
@@ -60,5 +64,19 @@ describe("TemplateWorkspace", () => {
     });
     expect(publishTemplate).toHaveBeenCalledWith("task-1");
     expect(onSaved).toHaveBeenLastCalledWith(publishedTemplate);
+  });
+
+  it("blocks draft save and publish while the designer schema is invalid", () => {
+    render(<TemplateWorkspace taskId="task-1" template={draftTemplate} onSaved={vi.fn()} />);
+
+    expect(screen.getByText("模板至少需要 1 个字段")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "保存草稿" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "发布模板" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    fireEvent.click(screen.getByRole("button", { name: "发布模板" }));
+
+    expect(saveTemplateDraft).not.toHaveBeenCalled();
+    expect(publishTemplate).not.toHaveBeenCalled();
   });
 });

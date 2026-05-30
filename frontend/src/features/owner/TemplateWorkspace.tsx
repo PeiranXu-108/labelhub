@@ -2,7 +2,7 @@ import { Button, Input, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { useOperationMessage } from "../feedback";
-import { TemplateDesigner } from "../template";
+import { TemplateDesigner, validateTemplateSchema } from "../template";
 import { publishTemplate, saveTemplateDraft } from "./api";
 import { StudioPanel } from "../studio";
 import type { TemplateSchemaRead } from "./types";
@@ -42,12 +42,16 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
   const [schema, setSchema] = useState<TemplateSchemaDocument>(template?.schema_payload ?? emptySchema);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const validationIssues = validateTemplateSchema(schema);
 
   useEffect(() => {
     setSchema(template?.schema_payload ?? emptySchema);
   }, [template]);
 
   async function handleSaveDraft() {
+    if (validationIssues.length > 0) {
+      return;
+    }
     setSaving(true);
     try {
       onSaved(await saveTemplateDraft(taskId, schema));
@@ -59,6 +63,9 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
   }
 
   async function handlePublish() {
+    if (validationIssues.length > 0) {
+      return;
+    }
     setPublishing(true);
     try {
       await saveTemplateDraft(taskId, schema);
@@ -82,10 +89,10 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
           </Space>
         </div>
         <Space>
-          <Button disabled={publishing} loading={saving} onClick={handleSaveDraft}>
+          <Button disabled={publishing || validationIssues.length > 0} loading={saving} onClick={handleSaveDraft}>
             保存草稿
           </Button>
-          <Button disabled={saving} loading={publishing} type="primary" onClick={handlePublish}>
+          <Button disabled={saving || validationIssues.length > 0} loading={publishing} type="primary" onClick={handlePublish}>
             发布模板
           </Button>
         </Space>

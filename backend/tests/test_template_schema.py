@@ -71,6 +71,101 @@ def test_radio_without_options_is_rejected(client: TestClient) -> None:
     assert "at least 1 item" in response.text
 
 
+def test_full_mvp_designer_schema_is_accepted_by_backend_validation(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers)
+    payload = {
+        "version": 1,
+        "title": "Full designer schema",
+        "layout": {"type": "single", "groups": []},
+        "fields": [
+            {
+                "id": "source",
+                "type": "show_item",
+                "label": "Source",
+                "source": "item.payload.text",
+            },
+            {
+                "id": "short_answer",
+                "type": "text",
+                "label": "Short answer",
+                "required": True,
+                "helpText": "Keep it concise.",
+                "placeholder": "One-line answer",
+                "minLength": 1,
+                "maxLength": 120,
+            },
+            {
+                "id": "notes",
+                "type": "textarea",
+                "label": "Notes",
+                "placeholder": "Explain the decision",
+            },
+            {
+                "id": "score",
+                "type": "number",
+                "label": "Score",
+                "min": 0,
+                "max": 100,
+            },
+            {
+                "id": "sentiment",
+                "type": "radio",
+                "label": "Sentiment",
+                "options": [
+                    {"label": "Positive", "value": "positive"},
+                    {"label": "Negative", "value": "negative"},
+                ],
+            },
+            {
+                "id": "issues",
+                "type": "checkbox_group",
+                "label": "Issues",
+                "options": [
+                    {"label": "Tone", "value": "tone"},
+                    {"label": "Accuracy", "value": "accuracy"},
+                ],
+            },
+            {
+                "id": "priority",
+                "type": "select",
+                "label": "Priority",
+                "options": [
+                    {"label": "High", "value": "high"},
+                    {"label": "Low", "value": "low"},
+                ],
+            },
+            {"id": "quality", "type": "rating", "label": "Quality", "min": 1, "max": 5},
+            {"id": "metadata", "type": "json", "label": "Metadata"},
+            {
+                "id": "assist",
+                "type": "llm_trigger",
+                "label": "Assist",
+                "promptTemplate": "Summarize {{item.payload.text}}",
+                "targetFieldId": "notes",
+            },
+        ],
+        "llmTools": [],
+        "validations": [],
+        "visibilityRules": [],
+    }
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 201
+    response_fields = response.json()["schema_payload"]["fields"]
+    assert [field["type"] for field in response_fields] == [field["type"] for field in payload["fields"]]
+    assert response_fields[1]["id"] == "short_answer"
+    assert response_fields[1]["minLength"] == 1
+    assert response_fields[4]["options"] == payload["fields"][4]["options"]
+    assert response_fields[9]["promptTemplate"] == "Summarize {{item.payload.text}}"
+    assert response_fields[9]["targetFieldId"] == "notes"
+
+
 def test_publish_creates_immutable_versions(
     client: TestClient, db_session: Session
 ) -> None:

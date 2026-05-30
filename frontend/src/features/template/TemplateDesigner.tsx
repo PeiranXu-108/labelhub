@@ -1,26 +1,24 @@
-import { Button, Input, Segmented, Typography } from "antd";
+import { Segmented } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
-import { SchemaRenderer } from "../schema-renderer";
 import type { TemplateField, TemplateFieldType, TemplateSchemaDocument } from "../schema-renderer";
+import { TemplateDesignerCanvas } from "./TemplateDesignerCanvas";
+import { TemplateDesignerPreview } from "./TemplateDesignerPreview";
+import { TemplateFieldPalette } from "./TemplateFieldPalette";
+import { TemplatePropertyInspector } from "./TemplatePropertyInspector";
+import {
+  createField,
+  duplicateField,
+  moveField,
+  validateTemplateSchema,
+} from "./templateDesignerModel";
+
+export { validateTemplateSchema } from "./templateDesignerModel";
 
 export type TemplateDesignerProps = {
   initialSchema?: TemplateSchemaDocument;
   onChange?: (schema: TemplateSchemaDocument) => void;
 };
-
-const palette: Array<{ type: TemplateFieldType; label: string }> = [
-  { type: "show_item", label: "展示数据项" },
-  { type: "text", label: "单行文本" },
-  { type: "textarea", label: "多行文本" },
-  { type: "number", label: "数字" },
-  { type: "radio", label: "单选" },
-  { type: "checkbox_group", label: "多选组" },
-  { type: "select", label: "下拉选择" },
-  { type: "rating", label: "评分" },
-  { type: "json", label: "JSON" },
-  { type: "llm_trigger", label: "LLM 触发器" },
-];
 
 const emptySchema: TemplateSchemaDocument = {
   version: 1,
@@ -34,19 +32,24 @@ const emptySchema: TemplateSchemaDocument = {
 
 export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerProps) {
   const [schema, setSchema] = useState<TemplateSchemaDocument>(initialSchema ?? emptySchema);
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(schema.fields[0]?.id ?? null);
-  const [mode, setMode] = useState<"design" | "preview">("design");
-  const selectedField = useMemo(
-    () => schema.fields.find((field) => field.id === selectedFieldId) ?? null,
-    [schema.fields, selectedFieldId],
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(
+    schema.fields.length > 0 ? 0 : null,
   );
+  const [mode, setMode] = useState<"design" | "preview">("design");
+  const validationIssues = useMemo(() => validateTemplateSchema(schema), [schema]);
+  const selectedField = selectedIndex == null ? null : schema.fields[selectedIndex] ?? null;
 
   useEffect(() => {
     if (!initialSchema) {
       return;
     }
     setSchema(initialSchema);
-    setSelectedFieldId(initialSchema.fields[0]?.id ?? null);
+    setSelectedIndex((current) => {
+      if (current != null && initialSchema.fields[current]) {
+        return current;
+      }
+      return initialSchema.fields.length > 0 ? 0 : null;
+    });
   }, [initialSchema]);
 
   function commit(nextSchema: TemplateSchemaDocument) {
@@ -54,29 +57,68 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
     onChange?.(nextSchema);
   }
 
-  function addField(type: TemplateFieldType) {
+  function addField(type: TemplateFieldType, index = schema.fields.length) {
     const nextField = createField(type, schema.fields);
-    const nextSchema = { ...schema, fields: [...schema.fields, nextField] };
-    setSelectedFieldId(nextField.id);
-    commit(nextSchema);
+    const insertIndex = Math.max(0, Math.min(index, schema.fields.length));
+    const nextFields = [...schema.fields];
+    nextFields.splice(insertIndex, 0, nextField);
+    setSelectedIndex(insertIndex);
+    commit({ ...schema, fields: nextFields });
   }
 
-  function renameSelected(label: string) {
-    if (!selectedField) {
+  function updateSelectedField(updater: (field: TemplateField) => TemplateField) {
+    if (selectedIndex == null || !schema.fields[selectedIndex]) {
       return;
     }
+    const currentField = schema.fields[selectedIndex];
+    const nextField = updater(currentField);
+    const nextFields = schema.fields.map((field, index) =>
+      index === selectedIndex ? nextField : updateFieldReferences(field, currentField.id, nextField.id),
+    );
     commit({
       ...schema,
-      fields: schema.fields.map((field) =>
-        field.id === selectedField.id ? { ...field, label } : field,
+      fields: nextFields,
+      llmTools: schema.llmTools.map((tool) =>
+        tool.targetFieldId === currentField.id ? { ...tool, targetFieldId: nextField.id } : tool,
       ),
     });
+  }
+
+  function moveFieldByIndex(fromIndex: number, toIndex: number) {
+    const clampedToIndex = Math.max(0, Math.min(toIndex, schema.fields.length - 1));
+    const nextFields = moveField(schema.fields, fromIndex, clampedToIndex);
+    if (nextFields === schema.fields) {
+      return;
+    }
+    setSelectedIndex((current) => nextSelectedIndexAfterMove(current, fromIndex, clampedToIndex));
+    commit({ ...schema, fields: nextFields });
+  }
+
+  function duplicateFieldByIndex(index: number) {
+    const field = schema.fields[index];
+    if (!field) {
+      return;
+    }
+    const nextField = duplicateField(field, schema.fields);
+    const nextFields = [...schema.fields];
+    nextFields.splice(index + 1, 0, nextField);
+    setSelectedIndex(index + 1);
+    commit({ ...schema, fields: nextFields });
+  }
+
+  function deleteFieldByIndex(index: number) {
+    if (!schema.fields[index]) {
+      return;
+    }
+    const nextFields = schema.fields.filter((_, fieldIndex) => fieldIndex !== index);
+    setSelectedIndex(nextFields.length === 0 ? null : Math.min(index, nextFields.length - 1));
+    commit({ ...schema, fields: nextFields });
   }
 
   return (
     <section className="template-designer" aria-label="模板设计器">
       <div className="designer-toolbar">
-        <Typography.Title level={3}>模板设计器</Typography.Title>
+        <h3>模板设计器</h3>
         <Segmented
           value={mode}
           onChange={(value) => setMode(value as "design" | "preview")}
@@ -88,116 +130,65 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
       </div>
 
       {mode === "preview" ? (
-        <SchemaRenderer
-          schema={schema}
-          item={{ payload: { text: "预览数据项文本" } }}
-          readOnly
-        />
+        <TemplateDesignerPreview schema={schema} />
       ) : (
-        <div className="designer-grid">
-          <aside className="designer-panel" aria-label="组件面板">
-            <Typography.Title level={4}>组件面板</Typography.Title>
-            <div className="palette-buttons">
-              {palette.map((item) => (
-                <Button key={item.type} onClick={() => addField(item.type)}>
-                  添加{item.label}字段
-                </Button>
+        <>
+          {validationIssues.length > 0 ? (
+            <div className="template-validation" role="alert">
+              {validationIssues.map((issue) => (
+                <p key={issue}>{issue}</p>
               ))}
             </div>
-          </aside>
-
-          <main className="designer-canvas" aria-label="字段画布">
-            <Typography.Title level={4}>字段</Typography.Title>
-            {schema.fields.length === 0 ? (
-              <Typography.Text type="secondary">暂无字段</Typography.Text>
-            ) : (
-              <div className="field-list">
-                {schema.fields.map((field) => (
-                  <button
-                    className={field.id === selectedFieldId ? "field-row active" : "field-row"}
-                    key={field.id}
-                    onClick={() => setSelectedFieldId(field.id)}
-                    type="button"
-                  >
-                    <span>{field.label}</span>
-                    <code>{field.id}</code>
-                  </button>
-                ))}
-              </div>
-            )}
-          </main>
-
-          <aside className="designer-panel" aria-label="属性检查器">
-            <Typography.Title level={4}>属性</Typography.Title>
-            {selectedField ? (
-              <label className="schema-control">
-                <span>标签</span>
-                <Input
-                  value={selectedField.label}
-                  onChange={(event) => renameSelected(event.target.value)}
-                />
-              </label>
-            ) : (
-              <Typography.Text type="secondary">请选择一个字段</Typography.Text>
-            )}
-          </aside>
-        </div>
+          ) : null}
+          <div className="designer-grid">
+            <TemplateFieldPalette onAddField={(type) => addField(type)} />
+            <TemplateDesignerCanvas
+              fields={schema.fields}
+              selectedIndex={selectedIndex}
+              onAddField={addField}
+              onDeleteField={deleteFieldByIndex}
+              onDuplicateField={duplicateFieldByIndex}
+              onMoveField={moveFieldByIndex}
+              onSelectField={setSelectedIndex}
+            />
+            <TemplatePropertyInspector
+              field={selectedField}
+              fields={schema.fields}
+              issues={validationIssues}
+              onDelete={() => selectedIndex != null && deleteFieldByIndex(selectedIndex)}
+              onDuplicate={() => selectedIndex != null && duplicateFieldByIndex(selectedIndex)}
+              onUpdate={updateSelectedField}
+            />
+          </div>
+        </>
       )}
     </section>
   );
 }
 
-function createField(type: TemplateFieldType, fields: TemplateField[]): TemplateField {
-  const nextIndex = fields.filter((field) => field.type === type).length + 1;
-  const base = {
-    id: `${type === "checkbox_group" ? "checkbox" : type}_${nextIndex}`,
-    label: defaultLabel(type),
-    required: false,
-  };
-
-  switch (type) {
-    case "show_item":
-      return { ...base, id: `raw_text_${nextIndex}`, type, label: "原始文本", source: "item.payload.text" };
-    case "radio":
-      return { ...base, type, label: "单选字段", options: defaultOptions() };
-    case "checkbox_group":
-      return { ...base, type, label: "多选组字段", options: defaultOptions() };
-    case "select":
-      return { ...base, type, label: "下拉选择字段", options: defaultOptions() };
-    case "rating":
-      return { ...base, type, label: "评分字段", min: 1, max: 5 };
-    case "llm_trigger":
-      return {
-        ...base,
-        type,
-        label: "LLM 触发器字段",
-        promptTemplate: "请辅助标注此数据项：{{item.payload.text}}",
-        targetFieldId: fields[0]?.id ?? "summary",
-      };
-    default:
-      return { ...base, type, label: defaultLabel(type) } as TemplateField;
+function updateFieldReferences(field: TemplateField, previousId: string, nextId: string): TemplateField {
+  if (field.type === "llm_trigger" && field.targetFieldId === previousId) {
+    return { ...field, targetFieldId: nextId };
   }
+  return field;
 }
 
-function defaultLabel(type: TemplateFieldType): string {
-  if (type === "text") {
-    return "单行文本字段";
+function nextSelectedIndexAfterMove(
+  selectedIndex: number | null,
+  fromIndex: number,
+  toIndex: number,
+): number | null {
+  if (selectedIndex == null) {
+    return null;
   }
-  if (type === "textarea") {
-    return "多行文本字段";
+  if (selectedIndex === fromIndex) {
+    return toIndex;
   }
-  if (type === "number") {
-    return "数字字段";
+  if (fromIndex < selectedIndex && toIndex >= selectedIndex) {
+    return selectedIndex - 1;
   }
-  if (type === "json") {
-    return "JSON 字段";
+  if (fromIndex > selectedIndex && toIndex <= selectedIndex) {
+    return selectedIndex + 1;
   }
-  return `${type} 字段`;
-}
-
-function defaultOptions() {
-  return [
-    { label: "选项 A", value: "option_a" },
-    { label: "选项 B", value: "option_b" },
-  ];
+  return selectedIndex;
 }

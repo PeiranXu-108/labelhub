@@ -305,7 +305,9 @@ body {
 
 .schema-renderer-fields,
 .field-list,
-.palette-buttons {
+.palette-buttons,
+.inspector-form,
+.option-editor {
   display: grid;
   gap: 12px;
 }
@@ -346,6 +348,20 @@ body {
   font-size: 13px;
 }
 
+.template-validation {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  color: #8f2c2c;
+  background: #fff4f3;
+  border: 1px solid #ffd0cc;
+  border-radius: 8px;
+}
+
+.template-validation p {
+  margin: 0;
+}
+
 .designer-toolbar {
   display: flex;
   align-items: center;
@@ -360,7 +376,35 @@ body {
   align-items: start;
 }
 
-.field-row {
+.designer-panel-title,
+.canvas-header h4 {
+  margin: 0;
+  color: #172033;
+  font-size: 16px;
+}
+
+.canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.canvas-empty {
+  margin: 0;
+  color: #64748b;
+}
+
+.palette-item,
+.field-card,
+.inspector-actions button,
+.field-card-actions button,
+.option-row button,
+.option-editor > button {
+  border-radius: 6px;
+}
+
+.palette-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -371,14 +415,86 @@ body {
   text-align: left;
   background: #f8fafd;
   border: 1px solid #dce3ee;
-  border-radius: 6px;
   cursor: pointer;
 }
 
-.field-row.active,
-.field-row:focus-visible {
+.field-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: #f8fafd;
+  border: 1px solid #dce3ee;
+}
+
+.field-card-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  color: #172033;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.field-card-main span,
+.field-card-main code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-card-actions,
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-card-actions button,
+.inspector-actions button,
+.option-row button,
+.option-editor > button {
+  min-height: 30px;
+  padding: 4px 8px;
+  color: #172033;
+  background: #ffffff;
+  border: 1px solid #dce3ee;
+  cursor: pointer;
+}
+
+.field-card-actions button:disabled {
+  color: #9aa4b2;
+  cursor: not-allowed;
+}
+
+.palette-item:focus-visible,
+.field-card.active,
+.field-card:focus-within {
   border-color: #1f5eff;
   outline: none;
+}
+
+.inspector-grid,
+.option-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.option-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.layout-disabled {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e4eaf2;
 }
 
 @media (max-width: 680px) {
@@ -1022,7 +1138,8 @@ body {
   border-radius: 8px;
 }
 
-.field-row {
+.palette-item,
+.field-card {
   background: #f4f5f0;
   border-color: rgb(31 35 31 / 10%);
   border-radius: 8px;
@@ -1032,8 +1149,9 @@ body {
     background 160ms ease;
 }
 
-.field-row:hover,
-.field-row.active {
+.palette-item:hover,
+.field-card:hover,
+.field-card.active {
   background: #eef4f2;
   border-color: #4f7666;
   transform: translateY(-1px);
