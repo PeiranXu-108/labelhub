@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Task10 Auth Login is approved. The project is ready for final Supervisor integration review; decide separately whether full Docker runtime validation is required before external handoff.
+Task10 Auth Login is approved. Supervisor follow-up gap triage has split the newly reported uncovered requirements into Tasks 11-19; these tasks are drafted and pending dispatch before any expanded-scope MVP readiness claim.
 
 ## Active Agents
 
@@ -21,6 +21,15 @@ Task10 Auth Login is approved. The project is ready for final Supervisor integra
 | Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | complete | `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md` | approved |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | complete | `docs/handoffs/2026-05-25-task08-qa-docs-deploy-handoff.md` | approved |
 | Auth Login Agent | `docs/tasks/10-auth-login-agent.md` | complete | `docs/handoffs/2026-05-28-task10-auth-login-handoff.md` | approved |
+| Task Metadata and Rewards Agent | `docs/tasks/11-task-metadata-rewards-agent.md` | drafted / not started | none | pending dispatch |
+| Dataset Import Pipeline Agent | `docs/tasks/12-dataset-import-pipeline-agent.md` | drafted / not started | none | pending dispatch |
+| Template Designer Builder Agent | `docs/tasks/13-template-designer-builder-agent.md` | drafted / not started | none | pending dispatch |
+| Rich Text and Media Fields Agent | `docs/tasks/14-rich-media-fields-agent.md` | drafted / not started | none | pending dispatch |
+| Dynamic Form Runtime Agent | `docs/tasks/15-dynamic-form-runtime-agent.md` | drafted / not started | none | pending dispatch |
+| LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | drafted / not started | none | pending dispatch |
+| Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | drafted / not started | none | pending dispatch |
+| Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | drafted / not started | none | pending dispatch |
+| Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | drafted / not started | none | pending dispatch |
 
 ## Frozen Contracts
 
@@ -72,6 +81,14 @@ Task10 Auth Login is approved. The project is ready for final Supervisor integra
 | Template multi-tab/group layout | later enhancement | yes if required for MVP | defaulted |
 | Versioned template snapshot reads for assignments/submissions | implement in Task09 | no | decided: required for MVP |
 | Reviewer detail AI metadata, human review comments, previous attempts, and AI score filters | implement in Task09 | no | decided: required for MVP |
+| Rich task instruction storage | sanitized structured rich text plus plain-text fallback | yes if a specific editor/storage format is required | open |
+| Reward policy | metadata-only rules, no payment execution | yes before payout or settlement behavior | defaulted |
+| Dataset import limits/privacy | configurable row/file limits, no sensitive production data until policy exists | yes before production datasets | open |
+| Upload storage and scanning | local MVP storage, no antivirus/DLP guarantee | yes before production file/image uploads | open |
+| Dynamic custom validators | server-approved named validators only, no arbitrary code execution | yes before user-authored code validators | defaulted |
+| Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | open |
+| Multistage review policy | initial review, re-review, final review | yes before staffing/escalation policy changes | open |
+| Docker runtime validation | require Docker-enabled host for `docker compose up --build` evidence | yes if external handoff requires runtime proof | open |
 
 ## Task Status
 
@@ -88,6 +105,15 @@ Task10 Auth Login is approved. The project is ready for final Supervisor integra
 | 09 Review Integration Contracts | Review Integration Contracts Agent | complete | Tasks 02, 03, 04, 07 | Approved; frozen template snapshots, reviewer AI/human/audit detail, previous attempts, server-backed filters, OpenAPI, migration, tests, and handoff verified. |
 | 08 QA Docs Deploy | QA Docs Deploy Agent | complete | first vertical slice, Task09 approved | Approved; docs, local E2E smoke, Docker config validation, deployment notes, demo script, known limitations, and handoff verified. |
 | 10 Auth Login | Auth Login Agent | complete | Tasks 02, 06, 07, 08 | Approved; real JWT username/password login, persisted demo users, fail-closed bearer auth, route guards, logout, docs, OpenAPI, tests, migration, and login smoke verified. |
+| 11 Task Metadata and Rewards | Task Metadata and Rewards Agent | drafted / not started | Tasks 02, 06, 10 | Expand task rich instructions, tags, reward-rule metadata, owner edit UI, and labeler read surfaces. |
+| 12 Dataset Import Pipeline | Dataset Import Pipeline Agent | drafted / not started | Tasks 02, 06, 10 | Add JSONL/Excel file import, preview validation, batch editing, and import docs. |
+| 13 Template Designer Builder | Template Designer Builder Agent | drafted / not started | Tasks 03, 06 | Upgrade template designer to drag-and-drop builder with full property inspector. |
+| 14 Rich Text and Media Fields | Rich Text and Media Fields Agent | drafted / not started | Tasks 03, 06, preferably Task 13 | Add rich text, image upload, file upload schema/support and MVP storage contracts. |
+| 15 Dynamic Form Runtime | Dynamic Form Runtime Agent | drafted / not started | Tasks 03, 13 | Execute conditional visibility, linked validation, regex/custom validators, and group/tab layouts. |
+| 16 LLM Field Loop | LLM Field Loop Agent | drafted / not started | Tasks 03, 04, preferably Task 15 | Close `llm_trigger` loop with server-side model calls, structured output, and target-field writeback. |
+| 17 Labeler Navigation | Labeler Navigation Agent | drafted / not started | Tasks 07, 09, 10 | Add previous/next/skip navigation with draft preservation and skip audit. |
+| 18 Multistage Human Review | Multistage Human Review Agent | drafted / not started | Tasks 09, 10 | Add initial/re-review/final stages and round diff views while preserving WorkflowService authority. |
+| 19 Production Readiness | Production Readiness Agent | drafted / not started | Tasks 08, 10, Task 16 for live field LLM checks | Verify or document Docker runtime and live-AI readiness without overstating support. |
 
 ## Integration Risks
 
@@ -118,9 +144,20 @@ Task10 Auth Login is approved. The project is ready for final Supervisor integra
 - Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
 - Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
+- Tasks 11-19 expand scope beyond the previously approved MVP; do not declare expanded-scope readiness until each dispatched task has a handoff and Supervisor approval.
+- Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
+- Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
+- Task 13 and Task 15 must coordinate schema authoring versus runtime semantics so the designer does not emit rules the backend/renderer cannot execute.
+- Task 14 and Task 16 must keep storage and LLM provider credentials server-side; no frontend secrets or public upload URLs.
+- Task 18 may touch `WorkflowService`; any stage/status change must be reviewed as a workflow contract change.
+- Task 19 must not mark Docker runtime verified unless `docker compose up --build` actually runs on a Docker-enabled host.
 
 ## Latest Verification
 
+- 2026-05-31 Supervisor gap triage reviewed the reported uncovered requirements and mapped them to Tasks 11-19 in `docs/reviews/2026-05-31-supervisor-follow-up-gap-review.md`.
+- 2026-05-31 task docs drafted: `docs/tasks/11-task-metadata-rewards-agent.md` through `docs/tasks/19-production-readiness-agent.md`.
+- 2026-05-31 docs-only update completed; no backend/frontend tests were run for this triage because no feature code changed.
+- 2026-05-31 verification: `git diff --check` passed.
 - Supervisor required reading completed: `docs/technical-solution.md`, `docs/agent-coordination.md`, `docs/status-board.md`, and all files under `docs/tasks/`.
 - Repository inspection found backend/frontend scaffold, Docker Compose, generated OpenAPI snapshot, dependency folders, and build output.
 - `git status --short` is available; the workspace currently contains uncommitted Task02/Task03 implementation files and Supervisor review documents.
@@ -293,4 +330,4 @@ Task10 Auth Login is approved. The project is ready for final Supervisor integra
 
 ## Next Recommended Action
 
-Proceed to final Supervisor integration review. Decide whether to require full `docker compose up --build` runtime validation before external handoff; current evidence is Docker config validation plus local SQLite runtime E2E and Task10 login smoke.
+Dispatch Task 11 first if expanded task metadata is required before richer owner workflows. Task 12 and Task 13 can follow in parallel only if they avoid editing the same owner page container; defer final expanded-scope readiness until Tasks 11-19 are either approved or explicitly descoped.

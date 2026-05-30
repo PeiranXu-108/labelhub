@@ -26,6 +26,7 @@ Every implementation agent must read:
 7. If Supervisor marks Task07 as an integration risk for reviewer/template API gaps, start Review Integration Contracts Agent before QA.
 8. Start QA Docs Deploy Agent after the first end-to-end vertical slice exists and Task09 is approved if dispatched.
 9. Start Auth Login Agent after Task08 approval if the placeholder `/login` limitation must be closed before final integration review.
+10. Start follow-up Tasks 11-19 only after Supervisor confirms the expanded requirements remain in scope.
 
 ## Recommended Call Order
 
@@ -47,7 +48,17 @@ Every implementation agent must read:
 14. QA Docs Deploy Agent
 15. Auth Login Agent if real login is required before MVP handoff
 16. Supervisor review of Task10
-17. Final Supervisor integration review
+17. Supervisor follow-up gap triage for Tasks 11-19 if expanded requirements are in scope
+18. Task Metadata and Rewards Agent
+19. Dataset Import Pipeline Agent
+20. Template Designer Builder Agent
+21. Rich Text and Media Fields Agent
+22. Dynamic Form Runtime Agent
+23. LLM Field Loop Agent
+24. Labeler Navigation Agent
+25. Multistage Human Review Agent
+26. Production Readiness Agent
+27. Final Supervisor integration review
 ```
 
 Parallelizable groups:
@@ -57,6 +68,9 @@ Parallelizable groups:
 - After API contracts are stable: Tasks 06 and 07 can run in parallel.
 - After Task07 integration-risk review: Task09 must run before Task08 if the missing reviewer/template contracts are required for MVP.
 - After Task08 approval: Task10 can run as an isolated auth/login closure task before final integration review.
+- After Task10 approval: Task11 may start as the first expanded-scope metadata task.
+- Tasks 12 and 13 may run in parallel only when they do not edit the same owner page container.
+- Tasks 17 and 18 may run in parallel after Task09/Task10 if their backend schemas/types do not overlap in the same files during the same handoff window.
 
 Do not parallelize:
 
@@ -65,6 +79,10 @@ Do not parallelize:
 - Frontend agents before route/API contracts are visible.
 - QA Docs Deploy Agent before Task09 approval when Task09 has been dispatched.
 - Final Supervisor integration review before Task10 approval when real login is required for MVP handoff.
+- Task13 and Task15 changes to template schema/runtime without an explicit contract handoff.
+- Task14 upload/storage work with Task16 LLM field assist if both are changing schema renderer answer payload semantics.
+- Task18 workflow-stage changes with any other task editing `WorkflowService`.
+- Task19 production readiness before the feature set to be claimed as ready is approved or explicitly descoped.
 
 ---
 
@@ -761,6 +779,445 @@ End with the Agent Handoff format from docs/agent-coordination.md, including:
 - docs updated
 - tests/builds/E2E commands run and results
 - remaining auth limitations
+```
+
+---
+
+## Prompt 11: Task Metadata and Rewards Agent
+
+```text
+You are the Task Metadata and Rewards Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/11-task-metadata-rewards-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/11-task-metadata-rewards-agent.md
+5. Current task schemas/routes/services and owner task UI
+
+Mission:
+Expand task basics with rich instructions, tags, reward-rule metadata, and owner/labeler read surfaces.
+
+Hard constraints:
+- Reward rules are metadata only; do not add payment execution, payout ledger, or external payment integration.
+- Rich instructions must be sanitized or stored as safe structured content.
+- Backend validation is authoritative.
+- Do not change workflow transitions, template publishing, AI review, export, or auth semantics.
+
+Deliver:
+- expanded TaskCreate/TaskUpdate/TaskRead contracts
+- migration/backfill for new metadata
+- owner create/edit UI for rich instructions, tags, and reward rule
+- labeler read-only display where task metadata is returned
+- OpenAPI/doc updates
+- focused backend/frontend tests
+
+Verification:
+Run the commands listed in docs/tasks/11-task-metadata-rewards-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format from docs/agent-coordination.md, including:
+- final task metadata field shapes
+- migration name
+- rich-text sanitization/storage policy
+- tag normalization behavior
+- reward-rule validation and non-goals
+- OpenAPI/tests/build results
+```
+
+---
+
+## Prompt 12: Dataset Import Pipeline Agent
+
+```text
+You are the Dataset Import Pipeline Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/12-dataset-import-pipeline-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/12-dataset-import-pipeline-agent.md
+5. frontend/src/features/owner/DatasetImportPanel.tsx
+6. Current task item import API/service
+
+Mission:
+Replace pasted JSON-array-only import with JSON array, JSONL, Excel upload, preview validation, and batch editing before commit.
+
+Hard constraints:
+- Do not change assignment claiming or submission workflow semantics.
+- Import errors must preserve row/file context.
+- Backend import validation is authoritative.
+- Coordinate with Task11/Task13 if editing the same owner page container.
+
+Deliver:
+- importer parser/validation helpers
+- upload/paste preview and commit contracts if needed
+- owner import UI with file/paste modes, row errors, and batch edit
+- docs for supported formats and limits
+- backend/frontend regression tests
+
+Verification:
+Run the commands listed in docs/tasks/12-dataset-import-pipeline-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- supported formats and limits
+- Excel mapping rules
+- duplicate external_id policy
+- partial failure policy
+- OpenAPI/tests/build results
+```
+
+---
+
+## Prompt 13: Template Designer Builder Agent
+
+```text
+You are the Template Designer Builder Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/13-template-designer-builder-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/13-template-designer-builder-agent.md
+5. docs/tasks/03-template-schema-agent.md
+6. Current TemplateDesigner and SchemaRenderer types
+
+Mission:
+Upgrade the template designer to a drag-and-drop builder with canvas ordering, field duplication/deletion, and a full property inspector for existing MVP field types.
+
+Hard constraints:
+- Preserve published schema immutability.
+- Emit only backend-valid template JSON.
+- Do not add unsupported field types.
+- Coordinate with Task15 before exposing runtime rules the renderer/backend cannot execute.
+
+Deliver:
+- palette/canvas/property-inspector component split
+- drag/drop or accessible reorder behavior
+- full property editing for existing field types
+- schema validation before save/publish
+- template designer tests and frontend build
+
+Verification:
+Run the commands listed in docs/tasks/13-template-designer-builder-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final designer component structure
+- drag/drop approach
+- property inspector coverage
+- schema validation behavior
+- tests/build results
+```
+
+---
+
+## Prompt 14: Rich Text and Media Fields Agent
+
+```text
+You are the Rich Text and Media Fields Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/14-rich-media-fields-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/14-rich-media-fields-agent.md
+5. Current template schema, SchemaRenderer, TemplateDesigner, deployment, and known-limitation docs
+
+Mission:
+Add rich_text, image_upload, and file_upload field types with backend validation, MVP upload storage, renderer support, and designer controls.
+
+Hard constraints:
+- Upload/download permission checks must be server-side.
+- Provider secrets or private file paths must not leak to frontend code.
+- Local storage is MVP-only unless the user approves production object storage.
+- Do not add antivirus, DLP, or retention guarantees unless explicitly assigned.
+
+Deliver:
+- schema field types and submission validation
+- upload metadata/storage routes
+- renderer upload/read-only display
+- designer controls for media constraints
+- docs for storage, limits, and production limitations
+- backend/frontend tests
+
+Verification:
+Run the commands listed in docs/tasks/14-rich-media-fields-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final field JSON shapes
+- upload/download routes and permissions
+- storage root and cleanup behavior
+- rich-text sanitization policy
+- size/type/count limits
+- OpenAPI/tests/build results
+```
+
+---
+
+## Prompt 15: Dynamic Form Runtime Agent
+
+```text
+You are the Dynamic Form Runtime Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/15-dynamic-form-runtime-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/15-dynamic-form-runtime-agent.md
+5. Current SchemaRenderer, renderer types, backend template schema, and submission validation
+
+Mission:
+Implement conditional visibility, linked validation, regex validation, safe named custom validators, and group/tab layouts with backend/frontend validation parity.
+
+Hard constraints:
+- Do not execute arbitrary user-authored JavaScript or Python from template JSON.
+- Backend validation must reject the same invalid submissions the frontend blocks.
+- Hidden required fields must follow a documented retention/validation policy.
+- Coordinate with Task13 for authoring controls.
+
+Deliver:
+- backend Pydantic models for rules/validations/layouts
+- backend answer validation parity
+- renderer rule evaluation and layout rendering
+- tests for hidden fields, regex, cross-field validation, custom validators, and tabs/groups
+- OpenAPI update if schemas changed
+
+Verification:
+Run the commands listed in docs/tasks/15-dynamic-form-runtime-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final rule/validation/layout JSON shapes
+- hidden answer retention policy
+- custom validator registry/safety policy
+- regex constraints
+- parity test evidence
+```
+
+---
+
+## Prompt 16: LLM Field Loop Agent
+
+```text
+You are the LLM Field Loop Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/16-llm-field-loop-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/16-llm-field-loop-agent.md
+5. docs/tasks/04-ai-review-langgraph-agent.md
+6. Current llm_trigger schema, SchemaRenderer, and AI provider configuration
+
+Mission:
+Turn llm_trigger into a server-side field-level LLM assist workflow with structured output validation and target-field writeback.
+
+Hard constraints:
+- Keep provider credentials server-side.
+- Use structured output validation; do not parse free-form text as truth.
+- Do not alter AI review workflow decisions.
+- Tests must use mocked/injected model calls, not live provider credentials.
+
+Deliver:
+- extended llm_trigger contract
+- authenticated field assist endpoint/service
+- assist logs/audit-friendly records
+- renderer loading/error/success states
+- suggest/prefill/overwrite-confirmation behavior
+- docs for live-AI requirements and fallback
+
+Verification:
+Run the commands listed in docs/tasks/16-llm-field-loop-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final llm_trigger shape
+- assist route request/response
+- prompt context and output validation policy
+- writeback behavior
+- provider configuration and test evidence
+```
+
+---
+
+## Prompt 17: Labeler Navigation Agent
+
+```text
+You are the Labeler Navigation Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/17-labeler-navigation-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/17-labeler-navigation-agent.md
+5. Current LabelerWorkbench, labeler API routes, and submission service
+
+Mission:
+Add previous, next, and skip navigation to the annotation workbench with draft preservation and audited skip behavior.
+
+Hard constraints:
+- Skip must not submit an annotation.
+- Navigation must preserve unsaved drafts or ask for confirmation.
+- Labelers must not navigate to another labeler's assignments.
+- Any workflow status transition must use WorkflowService.
+
+Deliver:
+- previous/next/skip backend contracts
+- skip audit behavior
+- workbench navigation controls and disabled/empty states
+- frontend/backend tests
+- OpenAPI update if contracts changed
+
+Verification:
+Run the commands listed in docs/tasks/17-labeler-navigation-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- navigation route list and response shapes
+- skip policy and audit behavior
+- draft preservation behavior
+- no-work-left behavior
+- tests/build results
+```
+
+---
+
+## Prompt 18: Multistage Human Review Agent
+
+```text
+You are the Multistage Human Review Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/18-multistage-human-review-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/18-multistage-human-review-agent.md
+5. docs/tasks/09-review-integration-contracts-agent.md
+6. Current review schemas/routes, WorkflowService, and reviewer UI
+
+Mission:
+Add explicit initial_review, re_review, and final_review stages plus round-by-round diff visibility for reviewer and returned-labeler flows.
+
+Hard constraints:
+- WorkflowService remains the authority for status transitions.
+- AI review graph behavior must not change.
+- Diff data must come from persisted attempt snapshots, not mutable current payload reconstruction.
+- Any enum/workflow change requires focused tests and Supervisor review.
+
+Deliver:
+- review-stage persistence and migration
+- stage-aware approve/return contracts
+- review queue stage filters
+- review detail stage timeline and round diff view
+- labeler returned-stage context where needed
+- OpenAPI/docs/tests
+
+Verification:
+Run the commands listed in docs/tasks/18-multistage-human-review-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final stage enum and transition policy
+- migration/backfill behavior
+- queue/detail contract changes
+- diff algorithm
+- WorkflowService changes and tests
+```
+
+---
+
+## Prompt 19: Production Readiness Agent
+
+```text
+You are the Production Readiness Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/19-production-readiness-agent.md
+
+Required reading before action:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/19-production-readiness-agent.md
+5. README.md
+6. docs/deployment.md
+7. docs/demo-script.md
+8. docs/known-limitations.md
+9. docker-compose.yml
+
+Mission:
+Verify or honestly document production readiness for Docker runtime, live-AI configuration, deployment commands, storage paths, and known limitations.
+
+Hard constraints:
+- Do not write real secrets to the repository.
+- Do not claim Docker runtime verified unless Docker startup actually succeeds.
+- If Docker is missing, record the exact blocker and reproducible commands for a Docker-enabled host.
+- Do not change feature semantics unless Supervisor assigns a targeted production blocker fix.
+
+Deliver:
+- Docker availability/config/runtime evidence or exact blocker
+- backend/frontend/worker smoke evidence where possible
+- live-AI preflight/fallback documentation
+- README/deployment/demo/known-limitations updates
+- optional preflight script if it reduces ambiguity
+
+Verification:
+Run the commands listed in docs/tasks/19-production-readiness-agent.md where supported by the local environment, and report exact unsupported-command errors.
+
+End with the Agent Handoff format, including:
+- Docker availability and runtime status
+- Compose config/startup evidence
+- backend/frontend/worker smoke status
+- E2E status
+- live AI preflight status
+- docs updated
+- remaining production blockers
 ```
 
 ---

@@ -16,6 +16,8 @@ The Supervisor Agent does not implement feature code unless the user explicitly 
 
 - `docs/status-board.md`
 - `docs/agent-coordination.md` only when coordination rules need correction
+- `docs/agent-prompts.md` only when dispatch order or agent roster changes
+- `docs/tasks/` only when the user explicitly asks the Supervisor to split or add follow-up tasks
 - Review notes under `docs/reviews/` if needed
 
 ## First Action
@@ -86,6 +88,8 @@ Start Task 01 Foundation Contracts.
 - [ ] Run targeted tests or ask the agent to run missing verification.
 - [ ] Update `docs/status-board.md` after each review.
 - [ ] Stop work and ask the user if a required product/policy decision appears.
+- [ ] When the user reports uncovered requirements, split them into bounded follow-up task files before dispatching implementation.
+- [ ] Keep `docs/agent-coordination.md`, `docs/agent-prompts.md`, and `docs/status-board.md` synchronized when new tasks are added.
 
 ## Review Checklist
 
@@ -124,4 +128,3 @@ Status board update:
 Next step:
 - <specific next instruction>
 ```
-
