@@ -1,6 +1,7 @@
-import { Alert, Button, Input, Space, Tag, Typography } from "antd";
+import { Button, Input, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
+import { useOperationMessage } from "../feedback";
 import { TemplateDesigner } from "../template";
 import { publishTemplate, saveTemplateDraft } from "./api";
 import { StudioPanel } from "../studio";
@@ -24,10 +25,10 @@ const emptySchema: TemplateSchemaDocument = {
 };
 
 export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspaceProps) {
+  const showOperationError = useOperationMessage();
   const [schema, setSchema] = useState<TemplateSchemaDocument>(template?.schema_payload ?? emptySchema);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setSchema(template?.schema_payload ?? emptySchema);
@@ -35,11 +36,10 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
 
   async function handleSaveDraft() {
     setSaving(true);
-    setError(null);
     try {
       onSaved(await saveTemplateDraft(taskId, schema));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存模板草稿失败。");
+      showOperationError(err, "保存模板草稿失败。");
     } finally {
       setSaving(false);
     }
@@ -47,11 +47,10 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
 
   async function handlePublish() {
     setPublishing(true);
-    setError(null);
     try {
       onSaved(await publishTemplate(taskId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "发布模板失败。");
+      showOperationError(err, "发布模板失败。");
     } finally {
       setPublishing(false);
     }
@@ -77,7 +76,6 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
           </Button>
         </Space>
       </div>
-      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
       <label className="schema-control template-title-control">
         <span>模板标题</span>
         <Input value={schema.title} onChange={(event) => setSchema({ ...schema, title: event.target.value })} />

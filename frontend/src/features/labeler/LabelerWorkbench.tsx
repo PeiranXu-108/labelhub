@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
+import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
@@ -22,6 +23,7 @@ function sameAnswers(left: AnswerPayload, right: AnswerPayload) {
 
 export function LabelerWorkbench() {
   const { assignmentId } = useParams();
+  const showOperationError = useOperationMessage();
   const [assignment, setAssignment] = useState<AssignmentDetailRead | null>(null);
   const [template, setTemplate] = useState<TemplateSchemaRead | null>(null);
   const [submission, setSubmission] = useState<SubmissionRead | null>(null);
@@ -53,7 +55,7 @@ export function LabelerWorkbench() {
       editedRef.current = false;
       setAutosaveState("idle");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载作业失败。");
+      setError(normalizeError(err, "加载作业失败。"));
     } finally {
       setLoading(false);
     }
@@ -83,7 +85,7 @@ export function LabelerWorkbench() {
           }
         })
         .catch((err) => {
-          setError(err instanceof Error ? err.message : "自动保存草稿失败。");
+          showOperationError(err, "自动保存草稿失败。");
           setAutosaveState("error");
         });
     }, AUTOSAVE_DEBOUNCE_MS);
@@ -102,7 +104,6 @@ export function LabelerWorkbench() {
       return;
     }
     setSubmitting(true);
-    setError(null);
     try {
       const saved = await submitAssignment(assignmentId, nextAnswers);
       setSubmission(saved);
@@ -112,7 +113,7 @@ export function LabelerWorkbench() {
       editedRef.current = false;
       setAutosaveState("saved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "提交作业失败。");
+      showOperationError(err, "提交作业失败。");
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +164,6 @@ export function LabelerWorkbench() {
           }
         />
 
-        {error ? <Alert className="section-alert" message={error} type="error" /> : null}
         {isReturned ? (
           <Alert
             message="退回提交修订"

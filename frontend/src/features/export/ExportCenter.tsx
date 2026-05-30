@@ -1,6 +1,7 @@
 import { Alert, Button, Checkbox, Input, Radio, Space, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
+import { normalizeError, useOperationMessage } from "../feedback";
 import { createExportJob, downloadExportJob, listExportJobs } from "../owner/api";
 import { formatLabel } from "../i18n/labels";
 import type { ExportFormat, ExportJobRead } from "../owner/types";
@@ -22,6 +23,7 @@ const defaultMapping = JSON.stringify(
 );
 
 export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps) {
+  const showOperationError = useOperationMessage();
   const [format, setFormat] = useState<ExportFormat>("csv");
   const [mappingText, setMappingText] = useState(defaultMapping);
   const [includeReviewMetadata, setIncludeReviewMetadata] = useState(true);
@@ -39,7 +41,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
     setLoading(true);
     listExportJobs(taskId)
       .then(setLocalJobs)
-      .catch((err) => setError(err instanceof Error ? err.message : "加载导出任务失败。"))
+      .catch((err) => setError(normalizeError(err, "加载导出任务失败。")))
       .finally(() => setLoading(false));
   }, [jobs, taskId]);
 
@@ -71,7 +73,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
       setLocalJobs(nextJobs);
       onJobsChanged?.(nextJobs);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建导出任务失败。");
+      showOperationError(err, "创建导出任务失败。");
     } finally {
       setSubmitting(false);
     }
@@ -91,7 +93,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
       anchor.remove();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "下载导出文件失败。");
+      showOperationError(err, "下载导出文件失败。");
     } finally {
       setDownloadingId(null);
     }

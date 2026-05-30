@@ -1,6 +1,7 @@
 import { Alert, Button, Form, Input, InputNumber, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
 
+import { useOperationMessage } from "../feedback";
 import { saveReviewConfig } from "./api";
 import type { ReviewConfig } from "./types";
 
@@ -15,6 +16,7 @@ type ReviewConfigForm = Omit<ReviewConfig, "criteria"> & {
 };
 
 export function ReviewConfigEditor({ taskId, config, onSaved }: ReviewConfigEditorProps) {
+  const showOperationError = useOperationMessage();
   const [form] = Form.useForm<ReviewConfigForm>();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -56,7 +58,7 @@ export function ReviewConfigEditor({ taskId, config, onSaved }: ReviewConfigEdit
       });
       onSaved(saved);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存审核配置失败。");
+      showOperationError(err, "保存审核配置失败。");
     } finally {
       setSubmitting(false);
     }

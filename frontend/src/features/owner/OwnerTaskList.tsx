@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { createTask, listTasks, transitionTask, updateTask } from "./api";
 import { TaskDrawer } from "./TaskDrawer";
 import type { TaskCreate, TaskRead, TaskStatus } from "./types";
+import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 
@@ -16,6 +17,7 @@ const statusColors: Record<TaskStatus, string> = {
 };
 
 export function OwnerTaskList() {
+  const showOperationError = useOperationMessage();
   const [tasks, setTasks] = useState<TaskRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -30,7 +32,7 @@ export function OwnerTaskList() {
     try {
       setTasks(await listTasks());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载任务失败");
+      setError(normalizeError(err, "加载任务失败"));
     } finally {
       setLoading(false);
     }
@@ -153,7 +155,7 @@ export function OwnerTaskList() {
       setDrawerOpen(false);
       setEditingTask(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存任务失败");
+      showOperationError(err, "保存任务失败");
     } finally {
       setSubmitting(false);
     }
@@ -166,7 +168,7 @@ export function OwnerTaskList() {
       const updated = await transitionTask(taskId, action);
       setTasks((current) => current.map((task) => (task.id === taskId ? updated : task)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : `任务操作失败：${formatLabel(action)}`);
+      showOperationError(err, `任务操作失败：${formatLabel(action)}`);
     } finally {
       setTransitioningId(null);
     }

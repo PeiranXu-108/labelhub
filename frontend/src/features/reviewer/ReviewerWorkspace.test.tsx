@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { App as AntApp } from "antd";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -306,6 +307,35 @@ describe("reviewer workspace", () => {
     expect(screen.getByText(/negative/i)).toBeInTheDocument();
     expect(screen.getAllByText("提交").length).toBeGreaterThan(0);
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
+  });
+
+  it("shows approve API failures as a localized top message", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/submissions/sub-1")) return jsonResponse(detail);
+      if (url.endsWith("/review/submissions/sub-1/approve")) {
+        return jsonResponse(
+          { detail: { message: "Cannot apply approve to submission in submitted" } },
+          409,
+        );
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <AntApp>
+        <MemoryRouter initialEntries={["/review/submissions/sub-1"]}>
+          <Routes>
+            <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </AntApp>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /批\s*准/ }));
+
+    expect(await screen.findByText("当前状态为已提交，不能批准。")).toBeInTheDocument();
+    expect(screen.queryByText("Cannot apply approve to submission in submitted")).not.toBeInTheDocument();
   });
 
   it("renders the agent workflow timeline on reviewer detail", async () => {

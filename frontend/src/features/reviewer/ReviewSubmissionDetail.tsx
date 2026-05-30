@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
+import { normalizeError, useOperationMessage } from "../feedback";
 import { formatKnownText, formatLabel } from "../i18n/labels";
 import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
@@ -11,6 +12,7 @@ import type { AIReviewRead, ReviewSubmissionDetail as ReviewSubmissionDetailType
 
 export function ReviewSubmissionDetail() {
   const { submissionId } = useParams();
+  const showOperationError = useOperationMessage();
   const [detail, setDetail] = useState<ReviewSubmissionDetailType | null>(null);
   const [returnOpen, setReturnOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export function ReviewSubmissionDetail() {
       const detailResult = await getReviewSubmission(submissionId);
       setDetail(detailResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载提交详情失败。");
+      setError(normalizeError(err, "加载提交详情失败。"));
     } finally {
       setLoading(false);
     }
@@ -48,13 +50,12 @@ export function ReviewSubmissionDetail() {
       return;
     }
     setMutating(true);
-    setError(null);
     try {
       const updated = await approveSubmission(submissionId);
       const refreshed = await getReviewSubmission(submissionId);
       setDetail({ ...refreshed, submission: updated });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "批准提交失败。");
+      showOperationError(err, "批准提交失败。");
     } finally {
       setMutating(false);
     }
@@ -65,14 +66,13 @@ export function ReviewSubmissionDetail() {
       return;
     }
     setMutating(true);
-    setError(null);
     try {
       const updated = await returnSubmission(submissionId, reason);
       const refreshed = await getReviewSubmission(submissionId);
       setDetail({ ...refreshed, submission: updated });
       setReturnOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "退回提交失败。");
+      showOperationError(err, "退回提交失败。");
     } finally {
       setMutating(false);
     }
@@ -127,8 +127,6 @@ export function ReviewSubmissionDetail() {
             </StatusPill>
           }
         />
-
-        {error ? <Alert className="section-alert" message={error} type="error" /> : null}
 
         <StudioPanel>
           <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">

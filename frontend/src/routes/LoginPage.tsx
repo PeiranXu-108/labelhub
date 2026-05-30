@@ -1,10 +1,11 @@
-import { Alert, Button, Form, Input, Typography } from "antd";
+import { Button, Form, Input, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { defaultRouteForRole, login } from "../features/auth/api";
 import { setAccessToken } from "../features/auth/token";
 import type { LoginCredentials, UserSummary } from "../features/auth/types";
+import { useOperationMessage } from "../features/feedback";
 import { MetricStrip } from "../features/studio";
 
 type LoginPageProps = {
@@ -14,7 +15,7 @@ type LoginPageProps = {
 
 export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const showOperationError = useOperationMessage();
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -24,7 +25,6 @@ export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
   }, [currentUser, navigate]);
 
   async function handleSubmit(values: LoginCredentials) {
-    setError(null);
     setSubmitting(true);
     try {
       const response = await login(values);
@@ -32,7 +32,7 @@ export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
       onAuthenticated?.(response.user);
       navigate(defaultRouteForRole(response.user.role), { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "无法登录");
+      showOperationError(err, "无法登录");
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +79,6 @@ export function LoginPage({ currentUser, onAuthenticated }: LoginPageProps) {
                 使用你的 LabelHub 账号继续当前角色的工作流。
               </Typography.Paragraph>
             </div>
-            {error ? <Alert className="section-alert" type="error" message={error} /> : null}
             <Form<LoginCredentials> layout="vertical" onFinish={handleSubmit}>
               <Form.Item
                 label="邮箱"

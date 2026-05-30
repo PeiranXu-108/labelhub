@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { claimTask, listMarketplaceTasks, listOwnSubmissions } from "./api";
+import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import type { TaskRead } from "../owner/types";
 import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
@@ -10,6 +11,7 @@ import type { SubmissionRead } from "./types";
 
 export function LabelerMarketplace() {
   const navigate = useNavigate();
+  const showOperationError = useOperationMessage();
   const [tasks, setTasks] = useState<TaskRead[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionRead[]>([]);
   const [query, setQuery] = useState("");
@@ -29,7 +31,7 @@ export function LabelerMarketplace() {
       setTasks(taskResult);
       setSubmissions(submissionResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载标注任务市场失败。");
+      setError(normalizeError(err, "加载标注任务市场失败。"));
     } finally {
       setLoading(false);
     }
@@ -63,7 +65,7 @@ export function LabelerMarketplace() {
       const claim = await claimTask(taskId);
       navigate(`/labeler/assignments/${claim.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "认领任务数据项失败。");
+      showOperationError(err, "认领任务数据项失败。");
     } finally {
       setClaimingId(null);
     }

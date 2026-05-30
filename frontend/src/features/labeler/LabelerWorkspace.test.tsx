@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { App as AntApp } from "antd";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -230,6 +231,41 @@ describe("labeler workspace", () => {
       expect.stringContaining("/labeler/assignments/assignment-1/submit"),
       expect.anything(),
     );
+  });
+
+  it("shows repeated submit API failures as a localized top message", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/draft")) {
+        return jsonResponse({ ...submission, answer_payload: { sentiment: "positive" } });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/submit")) {
+        return jsonResponse(
+          { detail: { message: "Cannot apply submit to submission in submitted" } },
+          409,
+        );
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <AntApp>
+        <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+          <Routes>
+            <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </AntApp>,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Positive"));
+    fireEvent.click(screen.getByRole("button", { name: /提\s*交/ }));
+
+    expect(await screen.findByText("当前状态为已提交，不能重复提交。")).toBeInTheDocument();
+    expect(screen.queryByText("Cannot apply submit to submission in submitted")).not.toBeInTheDocument();
   });
 
   it("shows the reviewer return reason for returned revisions", async () => {

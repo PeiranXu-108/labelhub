@@ -3,6 +3,7 @@ import type { Key } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { normalizeError, useOperationMessage } from "../feedback";
 import type { SubmissionRead } from "../labeler/types";
 import { formatLabel } from "../i18n/labels";
 import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
@@ -20,6 +21,7 @@ const reviewableStatuses = [
 ];
 
 export function ReviewQueue() {
+  const showOperationError = useOperationMessage();
   const [queueItems, setQueueItems] = useState<ReviewQueueItemRead[]>([]);
   const [selectedIds, setSelectedIds] = useState<Key[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -48,7 +50,7 @@ export function ReviewQueue() {
     try {
       setQueueItems(await listReviewQueue(queueFilters));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载审核队列失败。");
+      setError(normalizeError(err, "加载审核队列失败。"));
     } finally {
       setLoading(false);
     }
@@ -65,7 +67,7 @@ export function ReviewQueue() {
       const updated = await approveSubmission(submissionId);
       replaceSubmissions([updated]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "批准提交失败。");
+      showOperationError(err, "批准提交失败。");
     } finally {
       setMutating(null);
     }
@@ -82,7 +84,7 @@ export function ReviewQueue() {
       replaceSubmissions(updated);
       setSelectedIds([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "批量批准提交失败。");
+      showOperationError(err, "批量批准提交失败。");
     } finally {
       setMutating(null);
     }
@@ -103,7 +105,7 @@ export function ReviewQueue() {
       setSelectedIds([]);
       setReturnTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "退回提交失败。");
+      showOperationError(err, "退回提交失败。");
     } finally {
       setMutating(null);
     }

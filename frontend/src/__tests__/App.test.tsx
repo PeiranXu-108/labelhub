@@ -100,7 +100,8 @@ describe("App auth routes", () => {
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "bad-password" } });
     fireEvent.click(screen.getByRole("button", { name: /登\s*录/ }));
 
-    expect(await screen.findByText("Invalid email or password")).toBeInTheDocument();
+    expect(await screen.findByText("邮箱或密码不正确。")).toBeInTheDocument();
+    expect(screen.queryByText("Invalid email or password")).not.toBeInTheDocument();
     expect(localStorage.getItem("labelhub.accessToken")).toBeNull();
   });
 

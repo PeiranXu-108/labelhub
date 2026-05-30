@@ -1,6 +1,7 @@
 import { Alert, Button, Input, Space, Table, Typography } from "antd";
 import { useState } from "react";
 
+import { useOperationMessage } from "../feedback";
 import { importItems } from "./api";
 import type { ItemImportEntry, TaskItemRead } from "./types";
 
@@ -21,6 +22,7 @@ const sample = JSON.stringify(
 );
 
 export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelProps) {
+  const showOperationError = useOperationMessage();
   const [value, setValue] = useState(sample);
   const [preview, setPreview] = useState<ItemImportEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +60,21 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
   }
 
   async function handleImport() {
+    let items: ItemImportEntry[];
     try {
-      const items = preview.length > 0 ? preview : parseItems();
-      setSubmitting(true);
-      setError(null);
+      items = preview.length > 0 ? preview : parseItems();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "数据集 JSON 无效。");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
       const imported = await importItems(taskId, items);
       onImported(imported);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "导入数据项失败。");
+      showOperationError(err, "导入数据项失败。");
     } finally {
       setSubmitting(false);
     }

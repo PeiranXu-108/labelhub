@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ExportCenter } from "../../features/export/ExportCenter";
+import { normalizeError } from "../../features/feedback";
 import type { TaskAgentWorkflowSummaryRead } from "../../features/agent-workflow/types";
 import { DatasetImportPanel } from "../../features/owner/DatasetImportPanel";
 import {
@@ -72,7 +73,7 @@ export function OwnerTaskDetailRoute() {
       setExports(exportResult);
       setAgentWorkflow(workflowResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载任务运营数据失败。");
+      setError(normalizeError(err, "加载任务运营数据失败。"));
     } finally {
       setLoading(false);
     }

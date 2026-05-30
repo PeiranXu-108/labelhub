@@ -1,5 +1,5 @@
 import { XProvider } from "@ant-design/x/lib";
-import { Button, ConfigProvider, Space, Spin, Typography } from "antd";
+import { App as AntdApp, Button, ConfigProvider, Space, Spin, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
@@ -174,64 +174,66 @@ export default function App() {
       }}
     >
       <XProvider>
-        <AppShell user={authState.user} navigationItems={navigationItems} onLogout={handleLogout}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route
-            path="/login"
-            element={<LoginPage currentUser={authState.user} onAuthenticated={handleAuthenticated} />}
-          />
-          <Route
-            path="/owner/tasks"
-            element={
-              <RequireRole authState={authState} roles={["owner"]}>
-                <OwnerTasksRoute />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/owner/tasks/:taskId"
-            element={
-              <RequireRole authState={authState} roles={["owner"]}>
-                <OwnerTaskDetailRoute />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/labeler/tasks"
-            element={
-              <RequireRole authState={authState} roles={["labeler"]}>
-                <LabelerTasksRoute />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/labeler/assignments/:assignmentId"
-            element={
-              <RequireRole authState={authState} roles={["labeler"]}>
-                <LabelerAssignmentRoute />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/review/queue"
-            element={
-              <RequireRole authState={authState} roles={["reviewer"]}>
-                <ReviewQueueRoute />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/review/submissions/:submissionId"
-            element={
-              <RequireRole authState={authState} roles={["reviewer"]}>
-                <ReviewSubmissionRoute />
-              </RequireRole>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        </AppShell>
+        <AntdApp message={{ duration: 4, maxCount: 3, top: 76 }}>
+          <AppShell user={authState.user} navigationItems={navigationItems} onLogout={handleLogout}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route
+                path="/login"
+                element={<LoginPage currentUser={authState.user} onAuthenticated={handleAuthenticated} />}
+              />
+              <Route
+                path="/owner/tasks"
+                element={
+                  <RequireRole authState={authState} roles={["owner"]}>
+                    <OwnerTasksRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/owner/tasks/:taskId"
+                element={
+                  <RequireRole authState={authState} roles={["owner"]}>
+                    <OwnerTaskDetailRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/labeler/tasks"
+                element={
+                  <RequireRole authState={authState} roles={["labeler"]}>
+                    <LabelerTasksRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/labeler/assignments/:assignmentId"
+                element={
+                  <RequireRole authState={authState} roles={["labeler"]}>
+                    <LabelerAssignmentRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/review/queue"
+                element={
+                  <RequireRole authState={authState} roles={["reviewer"]}>
+                    <ReviewQueueRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/review/submissions/:submissionId"
+                element={
+                  <RequireRole authState={authState} roles={["reviewer"]}>
+                    <ReviewSubmissionRoute />
+                  </RequireRole>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AppShell>
+        </AntdApp>
       </XProvider>
     </ConfigProvider>
   );
