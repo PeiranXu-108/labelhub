@@ -1,7 +1,8 @@
-import { Statistic, Table, Tag, Typography } from "antd";
+import { Table, Tag } from "antd";
 
 import type { TaskAgentWorkflowSummaryRead } from "./types";
 import { formatKnownText, formatLabel } from "../i18n/labels";
+import { MetricStrip, StudioPanel } from "../studio";
 
 type TaskAgentWorkflowSummaryProps = {
   summary: TaskAgentWorkflowSummaryRead | null;
@@ -22,16 +23,15 @@ export function TaskAgentWorkflowSummary({ summary }: TaskAgentWorkflowSummaryPr
     }) ?? [];
 
   return (
-    <section className="ops-card" aria-labelledby="agent-workflow-summary-heading">
-      <Typography.Title id="agent-workflow-summary-heading" level={3}>
-        Agent 工作流
-      </Typography.Title>
-      <div className="metric-grid">
-        <Statistic title="待处理 Agent 工作" value={summary?.pending_count ?? 0} />
-        <Statistic title="失败 Agent 运行" value={summary?.failed_count ?? 0} />
-        <Statistic title="AI 决策" value={decisionRows.reduce((total, row) => total + row.count, 0)} />
-        <Statistic title="已跟踪提交" value={statusRows.reduce((total, row) => total + row.count, 0)} />
-      </div>
+    <StudioPanel title="Agent 工作流" className="ops-card">
+      <MetricStrip
+        items={[
+          { label: "待处理 Agent 工作", value: summary?.pending_count ?? 0, tone: "warning" },
+          { label: "失败 Agent 运行", value: summary?.failed_count ?? 0, tone: summary?.failed_count ? "danger" : "good" },
+          { label: "AI 决策", value: decisionRows.reduce((total, row) => total + row.count, 0), tone: "accent" },
+          { label: "已跟踪提交", value: statusRows.reduce((total, row) => total + row.count, 0) },
+        ]}
+      />
       <div className="dashboard-tables">
         <Table
           columns={[
@@ -66,7 +66,7 @@ export function TaskAgentWorkflowSummary({ summary }: TaskAgentWorkflowSummaryPr
         rowKey="submission_id"
         size="small"
       />
-    </section>
+    </StudioPanel>
   );
 }
 

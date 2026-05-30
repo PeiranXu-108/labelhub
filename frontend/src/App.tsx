@@ -1,7 +1,8 @@
-import { Button, Layout, Spin, Typography } from "antd";
+import { XProvider } from "@ant-design/x/lib";
+import { Button, ConfigProvider, Space, Spin, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { defaultRouteForRole, getCurrentUser } from "./features/auth/api";
 import { clearAccessToken, getAccessToken } from "./features/auth/token";
@@ -13,6 +14,13 @@ import { OwnerTaskDetailRoute } from "./routes/owner/OwnerTaskDetailRoute";
 import { OwnerTasksRoute } from "./routes/owner/OwnerTasksRoute";
 import { ReviewQueueRoute } from "./routes/review/ReviewQueueRoute";
 import { ReviewSubmissionRoute } from "./routes/review/ReviewSubmissionRoute";
+import {
+  AppShell,
+  AssistantRail,
+  MetricStrip,
+  StudioPanel,
+} from "./features/studio";
+import { defaultAssistantPrompts } from "./features/studio/assistant";
 
 type AuthState =
   | { status: "checking"; user: null }
@@ -27,13 +35,50 @@ const navigationByRole: Partial<Record<UserRole, { path: string; label: string }
 
 function HomePage() {
   return (
-    <main className="page-shell">
-      <section className="intro-panel">
-        <Typography.Title level={1}>LabelHub</Typography.Title>
-        <Typography.Paragraph>
-          面向任务创建、数据标注、AI 审核、人工审核和数据导出的工作流平台。
-        </Typography.Paragraph>
+    <main className="page-shell studio-home-shell">
+      <section className="home-hero">
+        <div className="home-hero-copy">
+          <Typography.Title level={1}>LabelHub Studio</Typography.Title>
+          <Typography.Paragraph>
+            把任务创建、数据标注、AI 审核、人工审核和数据导出放进一个更安静、更聪明的生产工作台。
+          </Typography.Paragraph>
+          <div className="home-intent-box" aria-label="LabelHub 意图入口">
+            <span>今天想先完成什么？</span>
+            <div className="home-prompt-actions">
+              {defaultAssistantPrompts.map((prompt) => (
+                <Button key={prompt.key}>{prompt.label}</Button>
+              ))}
+            </div>
+          </div>
+          <MetricStrip
+            items={[
+              { label: "工作流", value: "5 步", detail: "创建到导出", tone: "accent" },
+              { label: "审核方式", value: "AI + 人工", detail: "分流复核", tone: "good" },
+              { label: "交付物", value: "CSV / JSONL", detail: "可追溯导出" },
+            ]}
+          />
+        </div>
+        <AssistantRail
+          title="LabelHub Assistant"
+          context="在业务页面中，我会结合当前任务、模板、提交和审核状态给出本地建议。"
+        />
       </section>
+      <div className="home-panel-grid">
+        <StudioPanel title="负责人" description="创建任务、导入数据、发布模板，并跟踪 Agent 审核产线。">
+          <Space wrap>
+            <Button type="primary" href="/owner/tasks">
+              进入任务运营
+            </Button>
+            <Button href="/login">登录</Button>
+          </Space>
+        </StudioPanel>
+        <StudioPanel title="标注员" description="认领任务、填写结构化答案，并通过自动保存减少重复劳动。">
+          <Typography.Text type="secondary">工作台将原始数据、模板字段和助手建议并排呈现。</Typography.Text>
+        </StudioPanel>
+        <StudioPanel title="审核员" description="用 AI 分数、审计轨迹和人工决策面板更快完成复核。">
+          <Typography.Text type="secondary">批量通过、退回原因和历史尝试保留原有接口契约。</Typography.Text>
+        </StudioPanel>
+      </div>
     </main>
   );
 }
@@ -115,26 +160,21 @@ export default function App() {
   }
 
   return (
-    <Layout className="app-layout">
-      <Layout.Header className="app-header">
-        <Link className="brand" to="/">
-          LabelHub
-        </Link>
-        <nav className="app-nav" aria-label="主导航">
-          {navigationItems.map((item) => (
-            <Link key={item.path} to={item.path}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        {authState.user ? (
-          <div className="auth-summary">
-            <span>{authState.user.name}</span>
-            <Button onClick={handleLogout}>退出登录</Button>
-          </div>
-        ) : null}
-      </Layout.Header>
-      <Layout.Content>
+    <ConfigProvider
+      theme={{
+        token: {
+          borderRadius: 10,
+          colorBgBase: "#f7f6f2",
+          colorPrimary: "#181816",
+          colorText: "#191816",
+          colorTextSecondary: "#6d675e",
+          fontFamily:
+            "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+        },
+      }}
+    >
+      <XProvider>
+        <AppShell user={authState.user} navigationItems={navigationItems} onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route
@@ -191,7 +231,8 @@ export default function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </Layout.Content>
-    </Layout>
+        </AppShell>
+      </XProvider>
+    </ConfigProvider>
   );
 }

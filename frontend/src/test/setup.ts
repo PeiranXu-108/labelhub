@@ -1,4 +1,129 @@
 import "@testing-library/jest-dom/vitest";
+import React from "react";
+import { vi } from "vitest";
+
+vi.mock("@ant-design/x/lib", () => {
+  function XProvider({ children }: { children: React.ReactNode }) {
+    return React.createElement(React.Fragment, null, children);
+  }
+
+  function Welcome({ title, description, icon, extra, className }: Record<string, React.ReactNode>) {
+    return React.createElement(
+      "div",
+      { className },
+      icon,
+      title ? React.createElement("div", null, title) : null,
+      description ? React.createElement("p", null, description) : null,
+      extra,
+    );
+  }
+
+  function Prompts({
+    title,
+    items = [],
+    onItemClick,
+    className,
+  }: {
+    title?: React.ReactNode;
+    items?: Array<{ key: string; label?: React.ReactNode; description?: React.ReactNode }>;
+    onItemClick?: (info: { data: { key: string; label?: React.ReactNode; description?: React.ReactNode } }) => void;
+    className?: string;
+  }) {
+    return React.createElement(
+      "div",
+      { className },
+      title ? React.createElement("h5", null, title) : null,
+      items.map((item) =>
+        React.createElement(
+          "div",
+          { key: item.key, onClick: () => onItemClick?.({ data: item }) },
+          item.label,
+          item.description ? React.createElement("small", null, item.description) : null,
+        ),
+      ),
+    );
+  }
+
+  function Sender({
+    value,
+    placeholder,
+    onChange,
+    onSubmit,
+    className,
+  }: {
+    value?: string;
+    placeholder?: string;
+    onChange?: (value: string) => void;
+    onSubmit?: (value: string) => void;
+    className?: string;
+  }) {
+    return React.createElement(
+      "form",
+      {
+        className,
+        onSubmit: (event: React.FormEvent) => {
+          event.preventDefault();
+          onSubmit?.(value ?? "");
+        },
+      },
+      React.createElement("textarea", {
+        placeholder,
+        value,
+        onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => onChange?.(event.target.value),
+      }),
+      React.createElement("button", { type: "submit" }, "发送"),
+    );
+  }
+
+  function Bubble({ content }: { content?: React.ReactNode }) {
+    return React.createElement("div", null, content);
+  }
+
+  Bubble.List = function BubbleList({
+    items = [],
+    className,
+  }: {
+    items?: Array<{ key?: string | number; content?: React.ReactNode }>;
+    className?: string;
+  }) {
+    return React.createElement(
+      "div",
+      { className },
+      items.map((item, index) => React.createElement("div", { key: item.key ?? index }, item.content)),
+    );
+  };
+
+  function ThoughtChain({
+    items = [],
+    className,
+  }: {
+    items?: Array<{ key?: string; title?: React.ReactNode; description?: React.ReactNode; extra?: React.ReactNode }>;
+    className?: string;
+  }) {
+    return React.createElement(
+      "div",
+      { className },
+      items.map((item, index) =>
+        React.createElement(
+          "div",
+          { key: item.key ?? index },
+          item.title,
+          item.description,
+          item.extra,
+        ),
+      ),
+    );
+  }
+
+  return {
+    XProvider,
+    Welcome,
+    Prompts,
+    Sender,
+    Bubble,
+    ThoughtChain,
+  };
+});
 
 const storage = new Map<string, string>();
 

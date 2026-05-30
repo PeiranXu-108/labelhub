@@ -1,8 +1,9 @@
-import { Statistic, Table, Tag, Typography } from "antd";
+import { Table, Tag } from "antd";
 
 import { TaskAgentWorkflowSummary } from "../agent-workflow/TaskAgentWorkflowSummary";
 import type { TaskAgentWorkflowSummaryRead } from "../agent-workflow/types";
 import { formatLabel } from "../i18n/labels";
+import { MetricStrip, StudioPanel } from "../studio";
 import type { ExportJobRead, TaskItemRead, TaskRead, TemplateSchemaRead } from "./types";
 
 type TaskDashboardProps = {
@@ -19,16 +20,15 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
 
   return (
     <div className="dashboard-stack">
-      <section className="ops-card" aria-labelledby="result-dashboard-heading">
-        <Typography.Title id="result-dashboard-heading" level={3}>
-          结果看板
-        </Typography.Title>
-        <div className="metric-grid">
-          <Statistic title="已导入数据项" value={items.length} />
-          <Statistic title="模板版本" value={template?.version ?? 0} />
-          <Statistic title="导出任务" value={exports.length} />
-          <Statistic title="任务状态" value={formatLabel(task.status)} />
-        </div>
+      <StudioPanel title="结果看板" className="ops-card">
+        <MetricStrip
+          items={[
+            { label: "已导入数据项", value: items.length, tone: "accent" },
+            { label: "模板版本", value: template?.version ?? 0 },
+            { label: "导出任务", value: exports.length },
+            { label: "任务状态", value: formatLabel(task.status), tone: task.status === "published" ? "good" : "neutral" },
+          ]}
+        />
         <div className="dashboard-tables">
           <Table
             columns={[
@@ -51,7 +51,7 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
             size="small"
           />
         </div>
-      </section>
+      </StudioPanel>
       <TaskAgentWorkflowSummary summary={agentWorkflow} />
     </div>
   );

@@ -52,7 +52,8 @@ describe("App auth routes", () => {
   it("renders the default app shell without crashing", () => {
     renderApp("/");
 
-    expect(screen.getByRole("heading", { name: "LabelHub" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "LabelHub Studio" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "总结待审核风险" })).toBeInTheDocument();
   });
 
   it("redirects protected routes to login when no token is stored", async () => {

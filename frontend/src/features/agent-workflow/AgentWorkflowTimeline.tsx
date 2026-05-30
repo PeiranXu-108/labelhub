@@ -1,7 +1,10 @@
-import { Alert, Descriptions, Space, Tag, Timeline, Typography } from "antd";
+import { ThoughtChain } from "@ant-design/x/lib";
+import { Alert, Descriptions, Space, Tag, Typography } from "antd";
 
 import type { AgentWorkflowRead, AgentWorkflowStepRead } from "./types";
 import { formatKnownText, formatLabel } from "../i18n/labels";
+import { StatusPill, StudioPanel } from "../studio";
+import { workflowThoughtItems } from "../studio/assistant";
 
 type AgentWorkflowTimelineProps = {
   workflow: AgentWorkflowRead | null;
@@ -25,34 +28,52 @@ export function AgentWorkflowTimeline({ workflow, compact = false }: AgentWorkfl
     : workflow.steps;
 
   return (
-    <section className="ops-card" aria-labelledby="agent-workflow-heading">
-      <div className="panel-toolbar compact">
-        <div>
-          <Typography.Title id="agent-workflow-heading" level={compact ? 3 : 2}>
-            Agent 工作流
-          </Typography.Title>
-          <Typography.Text type="secondary">当前状态：{formatLabel(workflow.current_status)}</Typography.Text>
-        </div>
-        <Tag>{formatLabel(workflow.current_status)}</Tag>
-      </div>
-      <Timeline
-        items={visibleSteps.map((step) => ({
-          color: timelineColor(step.status),
-          children: <AgentWorkflowStep step={step} compact={compact} />,
-        }))}
+    <StudioPanel
+      className="ops-card agent-workflow-panel"
+      title="Agent 工作流"
+      description={`当前状态：${formatLabel(workflow.current_status)}`}
+      actions={<StatusPill status={workflow.current_status}>{formatLabel(workflow.current_status)}</StatusPill>}
+    >
+      <ThoughtChain
+        className="agent-thought-surface"
+        items={workflowThoughtItems(
+          visibleSteps.map((step) => ({
+            key: step.key,
+            label: (
+              <Space wrap>
+                <Typography.Text strong>{formatKnownText(step.label)}</Typography.Text>
+                <Tag color={statusColors[step.status] ?? "default"}>{formatLabel(step.status)}</Tag>
+                {step.actor_role ? <Tag>{formatLabel(step.actor_role)}</Tag> : null}
+              </Space>
+            ),
+            status: step.status,
+            summary: <AgentWorkflowStep step={step} compact={compact} showHeader={false} />,
+          })),
+        )}
+        size={compact ? "small" : "middle"}
       />
-    </section>
+    </StudioPanel>
   );
 }
 
-function AgentWorkflowStep({ step, compact }: { step: AgentWorkflowStepRead; compact: boolean }) {
+function AgentWorkflowStep({
+  step,
+  compact,
+  showHeader = true,
+}: {
+  step: AgentWorkflowStepRead;
+  compact: boolean;
+  showHeader?: boolean;
+}) {
   return (
     <Space direction="vertical" size={compact ? 2 : 6}>
-      <Space wrap>
-        <Typography.Text strong>{formatKnownText(step.label)}</Typography.Text>
-        <Tag color={statusColors[step.status] ?? "default"}>{formatLabel(step.status)}</Tag>
-        {step.actor_role ? <Tag>{formatLabel(step.actor_role)}</Tag> : null}
-      </Space>
+      {showHeader ? (
+        <Space wrap>
+          <Typography.Text strong>{formatKnownText(step.label)}</Typography.Text>
+          <Tag color={statusColors[step.status] ?? "default"}>{formatLabel(step.status)}</Tag>
+          {step.actor_role ? <Tag>{formatLabel(step.actor_role)}</Tag> : null}
+        </Space>
+      ) : null}
       {step.summary ? <Typography.Text>{formatKnownText(step.summary)}</Typography.Text> : null}
       {step.timestamp ? (
         <Typography.Text type="secondary">{new Date(step.timestamp).toLocaleString()}</Typography.Text>
@@ -68,19 +89,6 @@ function AgentWorkflowStep({ step, compact }: { step: AgentWorkflowStepRead; com
       ) : null}
     </Space>
   );
-}
-
-function timelineColor(status: string) {
-  if (status === "complete") {
-    return "green";
-  }
-  if (status === "active") {
-    return "blue";
-  }
-  if (status === "failed") {
-    return "red";
-  }
-  return "gray";
 }
 
 function formatMetadataValue(value: unknown) {

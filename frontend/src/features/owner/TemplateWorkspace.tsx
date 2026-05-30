@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { TemplateDesigner } from "../template";
 import { publishTemplate, saveTemplateDraft } from "./api";
+import { StudioPanel } from "../studio";
 import type { TemplateSchemaRead } from "./types";
 import type { TemplateSchemaDocument } from "../schema-renderer";
 
@@ -57,12 +58,9 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
   }
 
   return (
-    <section className="ops-card" aria-labelledby="template-heading">
+    <StudioPanel className="ops-card template-workspace" title="模板设计器">
       <div className="panel-toolbar compact">
         <div>
-          <Typography.Title id="template-heading" level={3}>
-            模板设计器
-          </Typography.Title>
           <Space>
             <Tag color={template?.is_published ? "green" : "gold"}>
               {template?.is_published ? "已发布" : "草稿"}
@@ -85,6 +83,6 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
         <Input value={schema.title} onChange={(event) => setSchema({ ...schema, title: event.target.value })} />
       </label>
       <TemplateDesigner initialSchema={schema} onChange={setSchema} />
-    </section>
+    </StudioPanel>
   );
 }

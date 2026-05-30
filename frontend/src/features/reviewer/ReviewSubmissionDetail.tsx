@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { formatKnownText, formatLabel } from "../i18n/labels";
+import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type { AIReviewRead, ReviewSubmissionDetail as ReviewSubmissionDetailType } from "./types";
@@ -104,133 +105,145 @@ export function ReviewSubmissionDetail() {
   }
 
   return (
-    <section className="owner-section" aria-labelledby="review-detail-heading">
-      <Space direction="vertical" size={4}>
-        <Link to="/review/queue">返回审核队列</Link>
-        <Typography.Title id="review-detail-heading" level={1}>
-          提交详情
-        </Typography.Title>
-        <Typography.Text type="secondary">{detail.task.name}</Typography.Text>
-      </Space>
+    <section className="studio-with-rail" aria-labelledby="review-detail-heading">
+      <div className="studio-main-column">
+        <StudioPageHeader
+          title={<span id="review-detail-heading">提交详情</span>}
+          description={detail.task.name}
+          backLink={<Link to="/review/queue">返回审核队列</Link>}
+          actions={
+            <Space>
+              <Button loading={mutating} type="primary" onClick={() => void approve()}>
+                批准
+              </Button>
+              <Button danger loading={mutating} onClick={() => setReturnOpen(true)}>
+                退回
+              </Button>
+            </Space>
+          }
+          meta={
+            <StatusPill status={detail.submission.status}>
+              当前状态：{formatLabel(detail.submission.status)}
+            </StatusPill>
+          }
+        />
 
-      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
+        {error ? <Alert className="section-alert" message={error} type="error" /> : null}
 
-      <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">
-        <Descriptions.Item label="提交">{detail.submission.id}</Descriptions.Item>
-        <Descriptions.Item label="状态">
-          <Tag>{formatLabel(detail.submission.status)}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="尝试次数">{detail.submission.attempt}</Descriptions.Item>
-        <Descriptions.Item label="标注员">{detail.submission.labeler_id}</Descriptions.Item>
-        <Descriptions.Item label="Schema 版本">{detail.submission.schema_version}</Descriptions.Item>
-        <Descriptions.Item label="冻结模板">
-          冻结模板版本 {detail.template_schema.version}
-        </Descriptions.Item>
-        <Descriptions.Item label="提交时间">
-          {detail.submission.submitted_at ? new Date(detail.submission.submitted_at).toLocaleString() : "未提交"}
-        </Descriptions.Item>
-      </Descriptions>
+        <StudioPanel>
+          <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">
+            <Descriptions.Item label="提交">{detail.submission.id}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag>{formatLabel(detail.submission.status)}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="尝试次数">{detail.submission.attempt}</Descriptions.Item>
+            <Descriptions.Item label="标注员">{detail.submission.labeler_id}</Descriptions.Item>
+            <Descriptions.Item label="Schema 版本">{detail.submission.schema_version}</Descriptions.Item>
+            <Descriptions.Item label="冻结模板">
+              冻结模板版本 {detail.template_schema.version}
+            </Descriptions.Item>
+            <Descriptions.Item label="提交时间">
+              {detail.submission.submitted_at ? new Date(detail.submission.submitted_at).toLocaleString() : "未提交"}
+            </Descriptions.Item>
+          </Descriptions>
+        </StudioPanel>
 
-      <div className="section-actions">
-        <Button loading={mutating} type="primary" onClick={() => void approve()}>
-          批准
-        </Button>
-        <Button danger loading={mutating} onClick={() => setReturnOpen(true)}>
-          退回
-        </Button>
-      </div>
+        <AgentWorkflowTimeline workflow={detail.agent_workflow} />
 
-      <AgentWorkflowTimeline workflow={detail.agent_workflow} />
+        <div className="review-detail-grid">
+          <JsonCard title="原始数据项内容" value={detail.item.payload} />
+          <JsonCard title="答案内容" value={detail.submission.answer_payload} />
+        </div>
 
-      <div className="review-detail-grid">
-        <JsonCard title="原始数据项内容" value={detail.item.payload} />
-        <JsonCard title="答案内容" value={detail.submission.answer_payload} />
-      </div>
+        <StudioPanel title="AI 审核">
+          {aiReviews.length > 0 ? (
+            <div className="ai-review-grid">
+              {aiReviews.map((review) => (
+                <AIReviewCard key={review.id} review={review} />
+              ))}
+            </div>
+          ) : (
+            <Space direction="vertical">
+              <Alert message="当前审核详情 API 尚未暴露 AI 分数数据。" type="info" />
+              <Alert message="当前审核详情 API 尚未暴露 Prompt 快照。" type="info" />
+            </Space>
+          )}
+        </StudioPanel>
 
-      <section className="ops-card">
-        <Typography.Title level={2}>AI 审核</Typography.Title>
-        {aiReviews.length > 0 ? (
-          <div className="ai-review-grid">
-            {aiReviews.map((review) => (
-              <AIReviewCard key={review.id} review={review} />
-            ))}
-          </div>
-        ) : (
-          <Space direction="vertical">
-            <Alert message="当前审核详情 API 尚未暴露 AI 分数数据。" type="info" />
-            <Alert message="当前审核详情 API 尚未暴露 Prompt 快照。" type="info" />
-          </Space>
-        )}
-      </section>
+        <StudioPanel title="人工审核">
+          {humanReviews.length > 0 ? (
+            <div className="ai-review-grid">
+              {humanReviews.map((review) => (
+                <section className="schema-field" key={review.id}>
+                  <Descriptions column={1} size="small">
+                    <Descriptions.Item label="决策">{formatLabel(review.decision)}</Descriptions.Item>
+                    <Descriptions.Item label="审核员">{review.reviewer_id}</Descriptions.Item>
+                    <Descriptions.Item label="创建时间">{new Date(review.created_at).toLocaleString()}</Descriptions.Item>
+                  </Descriptions>
+                  {review.reason ? <Typography.Text>{review.reason}</Typography.Text> : null}
+                  <JsonViewer value={review.review_metadata} />
+                </section>
+              ))}
+            </div>
+          ) : (
+            <Alert message="此提交暂无人工审核记录。" type="info" />
+          )}
+        </StudioPanel>
 
-      <section className="ops-card">
-        <Typography.Title level={2}>人工审核</Typography.Title>
-        {humanReviews.length > 0 ? (
-          <div className="ai-review-grid">
-            {humanReviews.map((review) => (
-              <section className="schema-field" key={review.id}>
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="决策">{formatLabel(review.decision)}</Descriptions.Item>
-                  <Descriptions.Item label="审核员">{review.reviewer_id}</Descriptions.Item>
-                  <Descriptions.Item label="创建时间">{new Date(review.created_at).toLocaleString()}</Descriptions.Item>
-                </Descriptions>
-                {review.reason ? <Typography.Text>{review.reason}</Typography.Text> : null}
-                <pre className="json-panel">{JSON.stringify(review.review_metadata, null, 2)}</pre>
-              </section>
-            ))}
-          </div>
-        ) : (
-          <Alert message="此提交暂无人工审核记录。" type="info" />
-        )}
-      </section>
+        <StudioPanel title="审计时间线">
+          {auditLogs.length > 0 ? (
+            <Timeline
+              items={auditLogs.map((entry) => ({
+                children: (
+                  <Space direction="vertical" size={0}>
+                    <Typography.Text strong>{formatKnownText(entry.action)}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      {formatLabel(entry.from_status ?? "none")} 到 {formatLabel(entry.to_status ?? "none")}，操作人：{formatLabel(entry.actor_role)}
+                    </Typography.Text>
+                    {entry.reason ? <Typography.Text>{entry.reason}</Typography.Text> : null}
+                    <Typography.Text type="secondary">{new Date(entry.created_at).toLocaleString()}</Typography.Text>
+                  </Space>
+                ),
+              }))}
+            />
+          ) : (
+            <Alert message="此提交暂无审计记录。" type="info" />
+          )}
+        </StudioPanel>
 
-      <section className="ops-card">
-        <Typography.Title level={2}>审计时间线</Typography.Title>
-        {auditLogs.length > 0 ? (
-          <Timeline
-            items={auditLogs.map((entry) => ({
-              children: (
-                <Space direction="vertical" size={0}>
-                  <Typography.Text strong>{formatKnownText(entry.action)}</Typography.Text>
+        <StudioPanel title="历史尝试">
+          {detail.previous_attempts.length ? (
+            <div className="ai-review-grid">
+              {detail.previous_attempts.map((attempt) => (
+                <section className="schema-field" key={attempt.id}>
+                  <Typography.Text strong>第 {attempt.attempt} 次尝试</Typography.Text>
                   <Typography.Text type="secondary">
-                    {formatLabel(entry.from_status ?? "none")} 到 {formatLabel(entry.to_status ?? "none")}，操作人：{formatLabel(entry.actor_role)}
+                    Schema 版本 {attempt.schema_version}，提交时间 {new Date(attempt.submitted_at).toLocaleString()}
                   </Typography.Text>
-                  {entry.reason ? <Typography.Text>{entry.reason}</Typography.Text> : null}
-                  <Typography.Text type="secondary">{new Date(entry.created_at).toLocaleString()}</Typography.Text>
-                </Space>
-              ),
-            }))}
-          />
-        ) : (
-          <Alert message="此提交暂无审计记录。" type="info" />
-        )}
-      </section>
+                  <JsonViewer value={attempt.answer_payload} />
+                </section>
+              ))}
+            </div>
+          ) : (
+            <Alert message="此提交暂无历史提交尝试。" type="info" />
+          )}
+        </StudioPanel>
 
-      <section className="ops-card">
-        <Typography.Title level={2}>历史尝试</Typography.Title>
-        {detail.previous_attempts.length ? (
-          <div className="ai-review-grid">
-            {detail.previous_attempts.map((attempt) => (
-              <section className="schema-field" key={attempt.id}>
-                <Typography.Text strong>第 {attempt.attempt} 次尝试</Typography.Text>
-                <Typography.Text type="secondary">
-                  Schema 版本 {attempt.schema_version}，提交时间 {new Date(attempt.submitted_at).toLocaleString()}
-                </Typography.Text>
-                <pre className="json-panel">{JSON.stringify(attempt.answer_payload, null, 2)}</pre>
-              </section>
-            ))}
-          </div>
-        ) : (
-          <Alert message="此提交暂无历史提交尝试。" type="info" />
-        )}
-      </section>
-
-      <ReturnReasonModal
-        loading={mutating}
-        open={returnOpen}
-        title="退回提交"
-        onCancel={() => setReturnOpen(false)}
-        onConfirm={(reason) => void returnWithReason(reason)}
+        <ReturnReasonModal
+          loading={mutating}
+          open={returnOpen}
+          title="退回提交"
+          onCancel={() => setReturnOpen(false)}
+          onConfirm={(reason) => void returnWithReason(reason)}
+        />
+      </div>
+      <AssistantRail
+        context="审核详情助手会把 AI 分数、Prompt 快照、人工审核和审计轨迹整理为复核建议。"
+        facts={[
+          { label: "AI 审核", value: aiReviews.length },
+          { label: "人工审核", value: humanReviews.length },
+          { label: "历史尝试", value: detail.previous_attempts.length },
+        ]}
       />
     </section>
   );
@@ -238,10 +251,9 @@ export function ReviewSubmissionDetail() {
 
 function JsonCard({ title, value }: { title: string; value: unknown }) {
   return (
-    <section className="ops-card">
-      <Typography.Title level={2}>{title}</Typography.Title>
-      <pre className="json-panel">{JSON.stringify(value, null, 2)}</pre>
-    </section>
+    <StudioPanel title={title}>
+      <JsonViewer value={value} />
+    </StudioPanel>
   );
 }
 
@@ -257,7 +269,7 @@ function AIReviewCard({ review }: { review: AIReviewRead }) {
       <Typography.Text strong>Prompt 快照</Typography.Text>
       <pre className="json-panel">{review.prompt_snapshot ?? "未提供 Prompt 快照。"}</pre>
       <Typography.Text strong>结构化响应</Typography.Text>
-      <pre className="json-panel">{JSON.stringify(review.structured_response, null, 2)}</pre>
+      <JsonViewer value={review.structured_response} />
     </section>
   );
 }

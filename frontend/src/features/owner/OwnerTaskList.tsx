@@ -6,6 +6,7 @@ import { createTask, listTasks, transitionTask, updateTask } from "./api";
 import { TaskDrawer } from "./TaskDrawer";
 import type { TaskCreate, TaskRead, TaskStatus } from "./types";
 import { formatLabel } from "../i18n/labels";
+import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 
 const statusColors: Record<TaskStatus, string> = {
   draft: "default",
@@ -172,33 +173,48 @@ export function OwnerTaskList() {
   }
 
   return (
-    <section className="owner-section" aria-labelledby="owner-heading">
-      <div className="panel-toolbar">
-        <div>
-          <Typography.Title id="owner-heading" level={1}>
-            负责人任务
-          </Typography.Title>
-          <Typography.Text type="secondary">创建任务、发布工作流状态，并进入任务运营面板。</Typography.Text>
-        </div>
+    <section className="studio-with-rail" aria-labelledby="owner-heading">
+      <div className="studio-main-column">
+        <StudioPageHeader
+          title={<span id="owner-heading">负责人任务</span>}
+          description="创建任务、发布工作流状态，并进入任务运营面板。"
+          actions={
         <Button type="primary" onClick={openCreate}>
           新建任务
         </Button>
+          }
+          meta={
+            <Space wrap>
+              <StatusPill status="published">已发布 {tasks.filter((task) => task.status === "published").length}</StatusPill>
+              <StatusPill status="draft">草稿 {tasks.filter((task) => task.status === "draft").length}</StatusPill>
+            </Space>
+          }
+        />
+        <StudioPanel className="owner-section table-studio-panel">
+          {error ? <Alert className="section-alert" message={error} type="error" /> : null}
+          <Table
+            columns={columns}
+            dataSource={tasks}
+            loading={loading}
+            pagination={{ pageSize: 8 }}
+            rowKey="id"
+            size="middle"
+          />
+        </StudioPanel>
+        <TaskDrawer
+          open={drawerOpen}
+          submitting={submitting}
+          task={editingTask}
+          onClose={() => setDrawerOpen(false)}
+          onSubmit={submitTask}
+        />
       </div>
-      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
-      <Table
-        columns={columns}
-        dataSource={tasks}
-        loading={loading}
-        pagination={{ pageSize: 8 }}
-        rowKey="id"
-        size="middle"
-      />
-      <TaskDrawer
-        open={drawerOpen}
-        submitting={submitting}
-        task={editingTask}
-        onClose={() => setDrawerOpen(false)}
-        onSubmit={submitTask}
+      <AssistantRail
+        context="负责人视角会优先关注任务状态、模板发布、数据导入和可导出的已批准结果。"
+        facts={[
+          { label: "任务总数", value: tasks.length },
+          { label: "可发布", value: tasks.filter((task) => task.status === "draft" || task.status === "paused").length },
+        ]}
       />
     </section>
   );

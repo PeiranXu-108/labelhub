@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { formatLabel } from "../i18n/labels";
+import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
 import type { AnswerPayload } from "../schema-renderer";
@@ -148,75 +149,90 @@ export function LabelerWorkbench() {
   const returnReason = assignment.latest_human_review?.reason;
 
   return (
-    <section className="owner-section" aria-labelledby="assignment-heading">
-      <Space direction="vertical" size={4}>
-        <Link to="/labeler/tasks">返回标注任务</Link>
-        <Typography.Title id="assignment-heading" level={1}>
-          标注工作台
-        </Typography.Title>
-        <Typography.Text type="secondary">{assignment.task.name}</Typography.Text>
-      </Space>
-
-      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
-      {isReturned ? (
-        <Alert
-          message="退回提交修订"
-          description={
-            returnReason
-              ? `这是第 ${submission.attempt} 次尝试。审核员原因：${returnReason}`
-              : `这是第 ${submission.attempt} 次尝试。请查看退回状态，修正标注后重新提交。`
+    <section className="studio-with-rail" aria-labelledby="assignment-heading">
+      <div className="studio-main-column">
+        <StudioPageHeader
+          title={<span id="assignment-heading">标注工作台</span>}
+          description={assignment.task.name}
+          backLink={<Link to="/labeler/tasks">返回标注任务</Link>}
+          meta={
+            <Space wrap>
+              <StatusPill status={submission.status}>{formatLabel(submission.status)}</StatusPill>
+              <StatusPill status={autosaveState}>{formatLabel(autosaveState)}</StatusPill>
+            </Space>
           }
-          type="warning"
-          showIcon
         />
-      ) : null}
-      {versionMismatch ? (
-        <Alert
-          message="模板快照不匹配"
-          description={`此提交引用的是 schema 版本 ${submission.schema_version}，但作业响应返回的是版本 ${template.version}。`}
-          type="warning"
-          showIcon
-        />
-      ) : null}
 
-      <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">
-        <Descriptions.Item label="作业">{assignment.id}</Descriptions.Item>
-        <Descriptions.Item label="提交">{submission.id}</Descriptions.Item>
-        <Descriptions.Item label="状态">
-          <Tag>{formatLabel(submission.status)}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="尝试次数">{submission.attempt}</Descriptions.Item>
-        <Descriptions.Item label="Schema 版本">{submission.schema_version}</Descriptions.Item>
-        <Descriptions.Item label="自动保存">
-          <Tag color={autosaveState === "error" ? "red" : autosaveState === "saved" ? "green" : "blue"}>
-            {formatLabel(autosaveState)}
-          </Tag>
-        </Descriptions.Item>
-      </Descriptions>
-
-      <AgentWorkflowTimeline compact workflow={agentWorkflow} />
-
-      <div className="workbench-grid">
-        <section className="ops-card">
-          <Typography.Title level={2}>数据项内容</Typography.Title>
-          <pre className="json-panel">{JSON.stringify(assignment.item.payload, null, 2)}</pre>
-        </section>
-        <section className="ops-card">
-          <SchemaRenderer
-            key={`${template.id}-${submission.id}`}
-            schema={template.schema_payload}
-            item={{
-              id: assignment.item.id,
-              external_id: assignment.item.external_id,
-              payload: assignment.item.payload,
-            }}
-            initialAnswers={answers}
-            onChange={handleChange}
-            onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
+        {error ? <Alert className="section-alert" message={error} type="error" /> : null}
+        {isReturned ? (
+          <Alert
+            message="退回提交修订"
+            description={
+              returnReason
+                ? `这是第 ${submission.attempt} 次尝试。审核员原因：${returnReason}`
+                : `这是第 ${submission.attempt} 次尝试。请查看退回状态，修正标注后重新提交。`
+            }
+            type="warning"
+            showIcon
           />
-          {submitting ? <Typography.Text type="secondary">正在提交当前答案...</Typography.Text> : null}
-        </section>
+        ) : null}
+        {versionMismatch ? (
+          <Alert
+            message="模板快照不匹配"
+            description={`此提交引用的是 schema 版本 ${submission.schema_version}，但作业响应返回的是版本 ${template.version}。`}
+            type="warning"
+            showIcon
+          />
+        ) : null}
+
+        <StudioPanel>
+          <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }} size="small">
+            <Descriptions.Item label="作业">{assignment.id}</Descriptions.Item>
+            <Descriptions.Item label="提交">{submission.id}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag>{formatLabel(submission.status)}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="尝试次数">{submission.attempt}</Descriptions.Item>
+            <Descriptions.Item label="Schema 版本">{submission.schema_version}</Descriptions.Item>
+            <Descriptions.Item label="自动保存">
+              <Tag color={autosaveState === "error" ? "red" : autosaveState === "saved" ? "green" : "blue"}>
+                {formatLabel(autosaveState)}
+              </Tag>
+            </Descriptions.Item>
+          </Descriptions>
+        </StudioPanel>
+
+        <AgentWorkflowTimeline compact workflow={agentWorkflow} />
+
+        <div className="workbench-grid">
+          <StudioPanel title="数据项内容">
+            <JsonViewer value={assignment.item.payload} />
+          </StudioPanel>
+          <StudioPanel>
+            <SchemaRenderer
+              key={`${template.id}-${submission.id}`}
+              schema={template.schema_payload}
+              item={{
+                id: assignment.item.id,
+                external_id: assignment.item.external_id,
+                payload: assignment.item.payload,
+              }}
+              initialAnswers={answers}
+              onChange={handleChange}
+              onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
+            />
+            {submitting ? <Typography.Text type="secondary">正在提交当前答案...</Typography.Text> : null}
+          </StudioPanel>
+        </div>
       </div>
+      <AssistantRail
+        context="标注工作台助手会关注退回原因、必填字段、Schema 版本和自动保存状态。"
+        facts={[
+          { label: "尝试次数", value: submission.attempt },
+          { label: "Schema", value: submission.schema_version },
+          { label: "自动保存", value: formatLabel(autosaveState) },
+        ]}
+      />
     </section>
   );
 }

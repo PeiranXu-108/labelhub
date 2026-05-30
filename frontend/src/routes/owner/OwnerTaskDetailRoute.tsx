@@ -16,6 +16,8 @@ import {
 import { ReviewConfigEditor } from "../../features/owner/ReviewConfigEditor";
 import { TaskDashboard } from "../../features/owner/TaskDashboard";
 import { TemplateWorkspace } from "../../features/owner/TemplateWorkspace";
+import { AssistantRail, StudioPageHeader, StatusPill } from "../../features/studio";
+import { formatLabel } from "../../features/i18n/labels";
 import type {
   ExportJobRead,
   ReviewConfig,
@@ -110,53 +112,70 @@ export function OwnerTaskDetailRoute() {
 
   return (
     <main className="page-shell owner-shell">
-      <section className="owner-section">
-        <Space direction="vertical" size={4}>
-          <Link to="/owner/tasks">返回任务列表</Link>
-          <Typography.Title level={1}>{task.name}</Typography.Title>
-          <Typography.Text type="secondary">{task.description || "暂无描述"}</Typography.Text>
-        </Space>
-        <Tabs
-          className="owner-tabs"
-          items={[
-            {
-              key: "dashboard",
-              label: "看板",
-              children: (
-                <TaskDashboard
-                  agentWorkflow={agentWorkflow}
-                  exports={exports}
-                  items={items}
-                  task={task}
-                  template={template}
-                />
-              ),
-            },
-            {
-              key: "dataset",
-              label: "数据集",
-              children: (
-                <DatasetImportPanel
-                  taskId={taskId}
-                  onImported={(imported) => setItems((current) => [...imported, ...current])}
-                />
-              ),
-            },
-            {
-              key: "template",
-              label: "模板",
-              children: <TemplateWorkspace taskId={taskId} template={template} onSaved={setTemplate} />,
-            },
-            {
-              key: "review",
-              label: "审核配置",
-              children: <ReviewConfigEditor config={config} taskId={taskId} onSaved={setConfig} />,
-            },
-            {
-              key: "exports",
-              label: "导出",
-              children: <ExportCenter jobs={exports} taskId={taskId} onJobsChanged={setExports} />,
-            },
+      <section className="studio-with-rail">
+        <div className="studio-main-column owner-section">
+          <StudioPageHeader
+            title={task.name}
+            description={task.description || "暂无描述"}
+            backLink={<Link to="/owner/tasks">返回任务列表</Link>}
+            meta={
+              <Space wrap>
+                <StatusPill status={task.status}>{formatLabel(task.status)}</StatusPill>
+                <Typography.Text type="secondary">数据项 {items.length}</Typography.Text>
+                <Typography.Text type="secondary">导出 {exports.length}</Typography.Text>
+              </Space>
+            }
+          />
+          <Tabs
+            className="owner-tabs"
+            items={[
+              {
+                key: "dashboard",
+                label: "看板",
+                children: (
+                  <TaskDashboard
+                    agentWorkflow={agentWorkflow}
+                    exports={exports}
+                    items={items}
+                    task={task}
+                    template={template}
+                  />
+                ),
+              },
+              {
+                key: "dataset",
+                label: "数据集",
+                children: (
+                  <DatasetImportPanel
+                    taskId={taskId}
+                    onImported={(imported) => setItems((current) => [...imported, ...current])}
+                  />
+                ),
+              },
+              {
+                key: "template",
+                label: "模板",
+                children: <TemplateWorkspace taskId={taskId} template={template} onSaved={setTemplate} />,
+              },
+              {
+                key: "review",
+                label: "审核配置",
+                children: <ReviewConfigEditor config={config} taskId={taskId} onSaved={setConfig} />,
+              },
+              {
+                key: "exports",
+                label: "导出",
+                children: <ExportCenter jobs={exports} taskId={taskId} onJobsChanged={setExports} />,
+              },
+            ]}
+          />
+        </div>
+        <AssistantRail
+          context="任务运营助手会围绕数据集、模板、审核配置和导出状态提供下一步建议。"
+          facts={[
+            { label: "数据项", value: items.length },
+            { label: "模板版本", value: template?.version ?? 0 },
+            { label: "导出任务", value: exports.length },
           ]}
         />
       </section>
