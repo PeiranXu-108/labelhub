@@ -2,10 +2,113 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.domain.enums import UserRole
+from app.domain.enums import TaskStatus, UserRole
 import app.services.submissions as submissions_module
-from app.models import TemplateSchema
+from app.models import Task, TemplateSchema
 from tests.conftest import auth_headers
+
+
+def test_marketplace_excludes_published_tasks_without_unassigned_items(
+    client: TestClient, db_session: Session
+) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    exhausted_task = client.post("/tasks", headers=owner_headers, json={"name": "Exhausted task"}).json()
+    ready_task = client.post("/tasks", headers=owner_headers, json={"name": "Ready task"}).json()
+    for task in [exhausted_task, ready_task]:
+        client.post(
+            f"/tasks/{task['id']}/items/import",
+            headers=owner_headers,
+            json={"items": [{"external_id": f"{task['id']}-row-1", "payload": {"text": "one"}}]},
+        )
+        db_session.add(
+            TemplateSchema(
+                task_id=task["id"],
+                version=1,
+                title="Ready schema",
+                schema_payload={"version": 1, "fields": []},
+                is_published=True,
+                created_by=task["created_by"],
+            )
+        )
+    db_session.commit()
+    client.post(f"/tasks/{exhausted_task['id']}/publish", headers=owner_headers)
+    client.post(f"/tasks/{ready_task['id']}/publish", headers=owner_headers)
+    client.post(
+        f"/labeler/tasks/{exhausted_task['id']}/claim",
+        headers=auth_headers(UserRole.LABELER, user_id="other-labeler"),
+    )
+
+    response = client.get("/labeler/tasks", headers=auth_headers(UserRole.LABELER))
+
+    assert response.status_code == 200
+    assert [task["id"] for task in response.json()] == [ready_task["id"]]
+
+
+def test_marketplace_includes_owner_published_ready_tasks(
+    client: TestClient, db_session: Session
+) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = client.post("/tasks", headers=owner_headers, json={"name": "Ready for labelers"}).json()
+    client.post(
+        f"/tasks/{task['id']}/items/import",
+        headers=owner_headers,
+        json={"items": [{"external_id": "row-1", "payload": {"text": "one"}}]},
+    )
+    db_session.add(
+        TemplateSchema(
+            task_id=task["id"],
+            version=1,
+            title="Ready schema",
+            schema_payload={"version": 1, "fields": []},
+            is_published=True,
+            created_by=task["created_by"],
+        )
+    )
+    db_session.commit()
+    publish = client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
+
+    response = client.get("/labeler/tasks", headers=auth_headers(UserRole.LABELER))
+
+    assert publish.status_code == 200
+    assert response.status_code == 200
+    assert [listed_task["id"] for listed_task in response.json()] == [task["id"]]
+
+
+def test_marketplace_excludes_published_tasks_without_published_template(
+    client: TestClient, db_session: Session
+) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    missing_template_task = client.post(
+        "/tasks",
+        headers=owner_headers,
+        json={"name": "Missing template"},
+    ).json()
+    ready_task = client.post("/tasks", headers=owner_headers, json={"name": "Ready task"}).json()
+    for task in [missing_template_task, ready_task]:
+        client.post(
+            f"/tasks/{task['id']}/items/import",
+            headers=owner_headers,
+            json={"items": [{"external_id": f"{task['id']}-row-1", "payload": {"text": "one"}}]},
+        )
+    db_session.add(
+        TemplateSchema(
+            task_id=ready_task["id"],
+            version=1,
+            title="Ready schema",
+            schema_payload={"version": 1, "fields": []},
+            is_published=True,
+            created_by=ready_task["created_by"],
+        )
+    )
+    db_missing_template_task = db_session.get(Task, missing_template_task["id"])
+    db_missing_template_task.status = TaskStatus.PUBLISHED
+    db_session.commit()
+    client.post(f"/tasks/{ready_task['id']}/publish", headers=owner_headers)
+
+    response = client.get("/labeler/tasks", headers=auth_headers(UserRole.LABELER))
+
+    assert response.status_code == 200
+    assert [task["id"] for task in response.json()] == [ready_task["id"]]
 
 
 def test_claiming_item_requires_published_task(client: TestClient) -> None:
@@ -24,7 +127,9 @@ def test_claiming_item_requires_published_task(client: TestClient) -> None:
     assert response.json()["detail"]["code"] == "TASK_NOT_PUBLISHED"
 
 
-def test_claiming_item_requires_published_template(client: TestClient) -> None:
+def test_claiming_item_requires_published_template(
+    client: TestClient, db_session: Session
+) -> None:
     owner_headers = auth_headers(UserRole.OWNER)
     task = client.post(
         "/tasks",
@@ -36,7 +141,9 @@ def test_claiming_item_requires_published_template(client: TestClient) -> None:
         headers=owner_headers,
         json={"items": [{"external_id": "row-1", "payload": {"text": "one"}}]},
     )
-    client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
+    db_task = db_session.get(Task, task["id"])
+    db_task.status = TaskStatus.PUBLISHED
+    db_session.commit()
 
     response = client.post(
         f"/labeler/tasks/{task['id']}/claim",
@@ -57,7 +164,6 @@ def test_claiming_item_respects_assignment_ownership(
         headers=owner_headers,
         json={"items": [{"external_id": "row-1", "payload": {"text": "one"}}]},
     )
-    client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
     db_session.add(
         TemplateSchema(
             task_id=task["id"],
@@ -69,6 +175,7 @@ def test_claiming_item_respects_assignment_ownership(
         )
     )
     db_session.commit()
+    client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
 
     first = client.post(
         f"/labeler/tasks/{task['id']}/claim",

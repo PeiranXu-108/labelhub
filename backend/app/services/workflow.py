@@ -2,10 +2,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.domain.enums import SubmissionAction, SubmissionStatus, TaskAction, TaskStatus, UserRole
-from app.models import AuditLog, Submission, Task
+from app.models import Assignment, AuditLog, Submission, Task, TaskItem, TemplateSchema
 
 
 class WorkflowError(Exception):
@@ -137,6 +138,8 @@ class WorkflowService:
                 "INVALID_TASK_TRANSITION",
                 f"Cannot apply {action.value} to task in {current_status.value}",
             )
+        if action == TaskAction.PUBLISH:
+            self._ensure_task_publishable(task.id)
 
         task.status = next_status
         self.db.add(
@@ -154,3 +157,29 @@ class WorkflowService:
         )
         self.db.flush()
         return task
+
+    def _ensure_task_publishable(self, task_id: str) -> None:
+        has_unassigned_item = self.db.scalar(
+            select(
+                exists().where(
+                    TaskItem.task_id == task_id,
+                    ~exists().where(Assignment.item_id == TaskItem.id),
+                )
+            )
+        )
+        if not has_unassigned_item:
+            raise WorkflowError(
+                "TASK_ITEMS_REQUIRED",
+                "Task must have at least one unassigned item before publishing",
+            )
+
+        has_published_template = self.db.scalar(
+            select(
+                exists().where(
+                    TemplateSchema.task_id == task_id,
+                    TemplateSchema.is_published.is_(True),
+                )
+            )
+        )
+        if not has_published_template:
+            raise WorkflowError("TEMPLATE_REQUIRED", "Task must have a published template")

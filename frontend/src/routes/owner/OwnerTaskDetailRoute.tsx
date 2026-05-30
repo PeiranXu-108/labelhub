@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ExportCenter } from "../../features/export/ExportCenter";
-import { normalizeError } from "../../features/feedback";
 import type { TaskAgentWorkflowSummaryRead } from "../../features/agent-workflow/types";
+import { normalizeError, useOperationMessage } from "../../features/feedback";
 import { DatasetImportPanel } from "../../features/owner/DatasetImportPanel";
 import {
   getReviewConfig,
@@ -13,6 +13,7 @@ import {
   getTemplate,
   listExportJobs,
   listItems,
+  transitionTask,
 } from "../../features/owner/api";
 import { ReviewConfigEditor } from "../../features/owner/ReviewConfigEditor";
 import { TaskDashboard } from "../../features/owner/TaskDashboard";
@@ -40,13 +41,16 @@ const defaultReviewConfig: ReviewConfig = {
 
 export function OwnerTaskDetailRoute() {
   const { taskId } = useParams();
+  const showOperationError = useOperationMessage();
   const [task, setTask] = useState<TaskRead | null>(null);
   const [items, setItems] = useState<TaskItemRead[]>([]);
   const [config, setConfig] = useState<ReviewConfig>(defaultReviewConfig);
   const [template, setTemplate] = useState<TemplateSchemaRead | null>(null);
   const [exports, setExports] = useState<ExportJobRead[]>([]);
   const [agentWorkflow, setAgentWorkflow] = useState<TaskAgentWorkflowSummaryRead | null>(null);
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -82,6 +86,27 @@ export function OwnerTaskDetailRoute() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const publishBlocker =
+    items.length === 0
+      ? "需要先导入至少一个数据项。"
+      : template?.is_published
+        ? null
+        : "需要先发布标注模板。";
+
+  async function handlePublish() {
+    if (!taskId || task?.status === "published" || publishBlocker) {
+      return;
+    }
+    setPublishing(true);
+    try {
+      setTask(await transitionTask(taskId, "publish"));
+    } catch (err) {
+      showOperationError(err, "发布任务失败。");
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   if (!taskId) {
     return (
@@ -119,16 +144,46 @@ export function OwnerTaskDetailRoute() {
             title={task.name}
             description={task.description || "暂无描述"}
             backLink={<Link to="/owner/tasks">返回任务列表</Link>}
+            actions={
+              task.status === "draft" || task.status === "paused" ? (
+                <Space wrap>
+                  {items.length === 0 ? <Button onClick={() => setActiveTab("dataset")}>导入数据</Button> : null}
+                  {items.length > 0 && !template?.is_published ? (
+                    <Button onClick={() => setActiveTab("template")}>发布模板</Button>
+                  ) : null}
+                  <Button
+                    disabled={Boolean(publishBlocker)}
+                    loading={publishing}
+                    type="primary"
+                    onClick={handlePublish}
+                  >
+                    发布任务
+                  </Button>
+                </Space>
+              ) : null
+            }
             meta={
               <Space wrap>
                 <StatusPill status={task.status}>{formatLabel(task.status)}</StatusPill>
                 <Typography.Text type="secondary">数据项 {items.length}</Typography.Text>
+                <Typography.Text type="secondary">
+                  模板 {template?.is_published ? `已发布 v${template.version}` : "未发布"}
+                </Typography.Text>
                 <Typography.Text type="secondary">导出 {exports.length}</Typography.Text>
               </Space>
             }
           />
+          {(task.status === "draft" || task.status === "paused") && publishBlocker ? (
+            <Alert
+              className="section-alert"
+              message={publishBlocker}
+              type="warning"
+            />
+          ) : null}
           <Tabs
+            activeKey={activeTab}
             className="owner-tabs"
+            onChange={setActiveTab}
             items={[
               {
                 key: "dashboard",

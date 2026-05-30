@@ -16,9 +16,22 @@ type TemplateWorkspaceProps = {
 
 const emptySchema: TemplateSchemaDocument = {
   version: 1,
-  title: "未命名模板",
+  title: "基础标注模板",
   layout: { type: "single", groups: [] },
-  fields: [],
+  fields: [
+    {
+      id: "source",
+      type: "show_item",
+      label: "原始数据",
+      source: "item.payload.text",
+    },
+    {
+      id: "answer",
+      type: "textarea",
+      label: "标注结果",
+      required: true,
+    },
+  ],
   llmTools: [],
   validations: [],
   visibilityRules: [],
@@ -48,6 +61,7 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
   async function handlePublish() {
     setPublishing(true);
     try {
+      await saveTemplateDraft(taskId, schema);
       onSaved(await publishTemplate(taskId));
     } catch (err) {
       showOperationError(err, "发布模板失败。");
@@ -68,10 +82,10 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
           </Space>
         </div>
         <Space>
-          <Button loading={saving} onClick={handleSaveDraft}>
+          <Button disabled={publishing} loading={saving} onClick={handleSaveDraft}>
             保存草稿
           </Button>
-          <Button loading={publishing} type="primary" onClick={handlePublish}>
+          <Button disabled={saving} loading={publishing} type="primary" onClick={handlePublish}>
             发布模板
           </Button>
         </Space>

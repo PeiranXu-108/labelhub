@@ -108,13 +108,8 @@ describe("owner console", () => {
     });
   });
 
-  it("publishes a draft task through the task transition endpoint", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      if (String(input).endsWith("/tasks/task-1/publish")) {
-        return jsonResponse({ ...task, status: "published" });
-      }
-      return jsonResponse([task]);
-    });
+  it("routes draft tasks to setup instead of publishing from the list", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([task]));
 
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -123,7 +118,50 @@ describe("owner console", () => {
     );
 
     const row = await screen.findByRole("row", { name: /Sentiment QA/i });
-    fireEvent.click(within(row).getByRole("button", { name: /发\s*布/ }));
+
+    expect(within(row).queryByRole("button", { name: /发\s*布/ })).not.toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "配置" })).toHaveAttribute("href", "/owner/tasks/task-1");
+  });
+
+  it("publishes a ready draft task from the task detail route", async () => {
+    const readyTemplate = {
+      id: "schema-1",
+      task_id: "task-1",
+      version: 1,
+      title: "Sentiment schema",
+      schema_payload: { version: 1, title: "Sentiment schema", layout: { type: "single", groups: [] }, fields: [], llmTools: [], validations: [], visibilityRules: [] },
+      is_published: true,
+      created_by: "owner-1",
+      created_at: "2026-05-23T00:00:00Z",
+      published_at: "2026-05-23T00:00:00Z",
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/tasks/task-1/publish")) {
+        return jsonResponse({ ...task, status: "published" });
+      }
+      if (String(input).endsWith("/tasks/task-1")) return jsonResponse(task);
+      if (String(input).endsWith("/tasks/task-1/items")) {
+        return jsonResponse([{ id: "item-1", task_id: "task-1", external_id: "row-1", payload: { text: "one" }, status: "available", created_at: "2026-05-23T00:00:00Z" }]);
+      }
+      if (String(input).endsWith("/tasks/task-1/template")) return jsonResponse(readyTemplate);
+      if (String(input).endsWith("/tasks/task-1/review-config")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/exports")) return jsonResponse([]);
+      if (String(input).endsWith("/tasks/task-1/agent-workflow")) return jsonResponse(null, 404);
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={["/owner/tasks/task-1"]}
+      >
+        <Routes>
+          <Route path="/owner/tasks/:taskId" element={<OwnerTaskDetailRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "发布任务" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -131,6 +169,7 @@ describe("owner console", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+    await waitFor(() => expect(screen.getAllByText("已发布").length).toBeGreaterThan(0));
   });
 
   it("validates review criteria JSON before saving config", async () => {

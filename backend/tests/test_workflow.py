@@ -87,7 +87,16 @@ def test_task_transition_uses_workflow_service_and_writes_audit_log(
     db_session.add(owner)
     db_session.flush()
     task = Task(name="Task transition", status=TaskStatus.DRAFT, created_by=owner.id)
-    db_session.add(task)
+    item = TaskItem(task=task, external_id="item-1", payload={"text": "hello"})
+    schema = TemplateSchema(
+        task=task,
+        version=1,
+        title="Schema v1",
+        schema_payload={"version": 1, "fields": []},
+        is_published=True,
+        created_by=owner.id,
+    )
+    db_session.add_all([task, item, schema])
     db_session.flush()
     service = WorkflowService(db_session)
 

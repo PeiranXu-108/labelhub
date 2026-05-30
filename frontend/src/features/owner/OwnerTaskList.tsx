@@ -89,14 +89,9 @@ export function OwnerTaskList() {
               编辑
             </Button>
             {record.status === "draft" || record.status === "paused" ? (
-              <Button
-                loading={transitioningId === record.id}
-                size="small"
-                type="primary"
-                onClick={() => runTransition(record.id, "publish")}
-              >
-                发布
-              </Button>
+              <Link className="ant-btn ant-btn-primary ant-btn-sm" to={`/owner/tasks/${record.id}`}>
+                配置
+              </Link>
             ) : null}
             {record.status === "published" ? (
               <Button
@@ -179,7 +174,7 @@ export function OwnerTaskList() {
       <div className="studio-main-column">
         <StudioPageHeader
           title={<span id="owner-heading">负责人任务</span>}
-          description="创建任务、发布工作流状态，并进入任务运营面板。"
+          description="创建任务，并进入运营面板完成数据、模板和发布准备。"
           actions={
         <Button type="primary" onClick={openCreate}>
           新建任务
@@ -215,7 +210,7 @@ export function OwnerTaskList() {
         context="负责人视角会优先关注任务状态、模板发布、数据导入和可导出的已批准结果。"
         facts={[
           { label: "任务总数", value: tasks.length },
-          { label: "可发布", value: tasks.filter((task) => task.status === "draft" || task.status === "paused").length },
+          { label: "待配置", value: tasks.filter((task) => task.status === "draft" || task.status === "paused").length },
         ]}
       />
     </section>

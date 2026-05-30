@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskStatus, UserRole
-from app.models import Assignment, HumanReview, Submission, Task, TemplateSchema
+from app.models import Assignment, HumanReview, Submission, Task, TaskItem, TemplateSchema
 from app.schemas.agent_workflow import AgentWorkflowRead
 from app.schemas.labeler import AssignmentDetailRead, ClaimRead
 from app.schemas.submission import DraftSaveRequest, SubmissionRead, SubmitRequest
@@ -33,7 +33,31 @@ def marketplace(
     db: Session = Depends(get_db),
     _actor: Actor = Depends(require_role(UserRole.LABELER)),
 ) -> list[Task]:
-    return list(db.scalars(select(Task).where(Task.status == TaskStatus.PUBLISHED)))
+    has_unassigned_item = (
+        select(TaskItem.id)
+        .where(
+            TaskItem.task_id == Task.id,
+            ~exists().where(Assignment.item_id == TaskItem.id),
+        )
+        .exists()
+    )
+    has_published_template = (
+        select(TemplateSchema.id)
+        .where(
+            TemplateSchema.task_id == Task.id,
+            TemplateSchema.is_published.is_(True),
+        )
+        .exists()
+    )
+    return list(
+        db.scalars(
+            select(Task).where(
+                Task.status == TaskStatus.PUBLISHED,
+                has_unassigned_item,
+                has_published_template,
+            )
+        )
+    )
 
 
 @router.post("/tasks/{task_id}/claim", response_model=ClaimRead, status_code=201)
