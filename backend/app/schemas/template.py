@@ -7,6 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 FIELD_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 ITEM_SOURCE_PATTERN = re.compile(r"^item\.payload(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
+MIME_TYPE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$", re.IGNORECASE)
+FILE_EXTENSION_PATTERN = re.compile(r"^\.[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
+MAX_UPLOAD_FILE_SIZE_BYTES = 25 * 1024 * 1024
+MAX_UPLOAD_COUNT = 10
+DEFAULT_IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+DEFAULT_FILE_MIME_TYPES = ["application/pdf", "text/plain"]
+IMAGE_MIME_TYPES = set(DEFAULT_IMAGE_MIME_TYPES)
 
 
 class TemplateOption(BaseModel):
@@ -52,6 +59,22 @@ class TextField(BaseTemplateField):
 
 class TextareaField(TextField):
     type: Literal["textarea"]
+
+
+class RichTextField(BaseTemplateField):
+    type: Literal["rich_text"]
+    placeholder: str | None = Field(default=None, max_length=255)
+    min_length: int | None = Field(default=None, alias="minLength", ge=0)
+    max_length: int | None = Field(default=None, alias="maxLength", ge=1)
+    plain_text_fallback: bool = Field(default=True, alias="plainTextFallback")
+
+    @model_validator(mode="after")
+    def validate_rich_text_range(self) -> "RichTextField":
+        if self.min_length is not None and self.max_length is not None and self.max_length < self.min_length:
+            raise ValueError("rich_text maxLength must be greater than or equal to minLength")
+        if not self.plain_text_fallback:
+            raise ValueError("rich_text plainTextFallback must remain true")
+        return self
 
 
 class NumberField(BaseTemplateField):
@@ -113,17 +136,85 @@ class LlmTriggerField(BaseTemplateField):
         return value
 
 
+class UploadField(BaseTemplateField):
+    accepted_mime_types: list[str] = Field(
+        default_factory=lambda: DEFAULT_FILE_MIME_TYPES.copy(),
+        alias="acceptedMimeTypes",
+        min_length=1,
+        max_length=20,
+    )
+    max_file_size_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        alias="maxFileSizeBytes",
+        ge=1,
+        le=MAX_UPLOAD_FILE_SIZE_BYTES,
+    )
+    max_count: int = Field(default=1, alias="maxCount", ge=1, le=MAX_UPLOAD_COUNT)
+
+    @field_validator("accepted_mime_types")
+    @classmethod
+    def normalize_mime_types(cls, value: list[str]) -> list[str]:
+        normalized = [entry.strip().lower() for entry in value]
+        if any(not entry for entry in normalized):
+            raise ValueError("acceptedMimeTypes cannot contain empty values")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("acceptedMimeTypes values must be unique")
+        if any(not MIME_TYPE_PATTERN.match(entry) for entry in normalized):
+            raise ValueError("acceptedMimeTypes entries must be concrete MIME types")
+        return normalized
+
+
+class ImageUploadField(UploadField):
+    type: Literal["image_upload"]
+    accepted_mime_types: list[str] = Field(
+        default_factory=lambda: DEFAULT_IMAGE_MIME_TYPES.copy(),
+        alias="acceptedMimeTypes",
+        min_length=1,
+        max_length=20,
+    )
+    max_file_size_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        alias="maxFileSizeBytes",
+        ge=1,
+        le=MAX_UPLOAD_FILE_SIZE_BYTES,
+    )
+
+    @model_validator(mode="after")
+    def validate_image_mime_types(self) -> "ImageUploadField":
+        if any(mime_type not in IMAGE_MIME_TYPES for mime_type in self.accepted_mime_types):
+            raise ValueError("image_upload acceptedMimeTypes must be image MIME types")
+        return self
+
+
+class FileUploadField(UploadField):
+    type: Literal["file_upload"]
+    accepted_extensions: list[str] = Field(default_factory=list, alias="acceptedExtensions", max_length=20)
+
+    @field_validator("accepted_extensions")
+    @classmethod
+    def normalize_extensions(cls, value: list[str]) -> list[str]:
+        normalized = [entry.strip().lower() for entry in value]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("acceptedExtensions values must be unique")
+        if any(not FILE_EXTENSION_PATTERN.match(entry) for entry in normalized):
+            raise ValueError("acceptedExtensions entries must start with a dot")
+        return normalized
+
+
 TemplateField = Annotated[
     ShowItemField
     | TextField
     | TextareaField
+    | RichTextField
     | NumberField
     | RadioField
     | CheckboxGroupField
     | SelectField
     | RatingField
     | JsonField
-    | LlmTriggerField,
+    | LlmTriggerField
+    | ImageUploadField
+    | FileUploadField,
     Field(discriminator="type"),
 ]
 

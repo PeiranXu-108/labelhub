@@ -9,6 +9,7 @@ from app.api.routes.labeler import router as labeler_router
 from app.api.routes.review import router as review_router
 from app.api.routes.tasks import router as tasks_router
 from app.api.routes.templates import router as templates_router
+from app.api.routes.uploads import router as uploads_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -34,4 +35,5 @@ app.include_router(templates_router)
 app.include_router(labeler_router)
 app.include_router(review_router)
 app.include_router(exports_router)
+app.include_router(uploads_router)
 app.include_router(audit_router)

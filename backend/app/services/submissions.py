@@ -103,14 +103,15 @@ class SubmissionService:
         if submission.status != SubmissionStatus.DRAFT:
             raise WorkflowError("INVALID_TRANSITION", "Only draft submissions can be edited")
         try:
-            TemplateService(self.db).validate_submission_payload(
+            normalized_payload = TemplateService(self.db).validate_submission_payload(
                 submission.template_schema,
                 answer_payload,
                 require_required=False,
+                submission=submission,
             )
         except SubmissionValidationError as exc:
             raise WorkflowError("INVALID_SUBMISSION_PAYLOAD", str(exc)) from exc
-        submission.answer_payload = answer_payload
+        submission.answer_payload = normalized_payload
         self._audit("submission", submission.id, "save_draft", actor)
         self.db.commit()
         self.db.refresh(submission)
@@ -122,14 +123,15 @@ class SubmissionService:
         assignment = self.get_owned_assignment(assignment_id, actor)
         submission = assignment.submission
         try:
-            TemplateService(self.db).validate_submission_payload(
+            normalized_payload = TemplateService(self.db).validate_submission_payload(
                 submission.template_schema,
                 answer_payload,
                 require_required=True,
+                submission=submission,
             )
         except SubmissionValidationError as exc:
             raise WorkflowError("INVALID_SUBMISSION_PAYLOAD", str(exc)) from exc
-        submission.answer_payload = answer_payload
+        submission.answer_payload = normalized_payload
         submission = self.workflow.transition_submission(
             submission.id, SubmissionAction.SUBMIT, actor
         )
@@ -141,7 +143,7 @@ class SubmissionService:
                 attempt=submission.attempt,
                 template_schema_id=submission.template_schema_id,
                 schema_version=submission.schema_version,
-                answer_payload=answer_payload,
+                answer_payload=normalized_payload,
                 submitted_at=submission.submitted_at,
             )
         )

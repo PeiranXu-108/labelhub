@@ -75,6 +75,7 @@ Optional:
 
 ```text
 LABELHUB_EXPORT_STORAGE_PATH=storage/exports
+LABELHUB_UPLOAD_STORAGE_PATH=storage/uploads
 ```
 
 ## Local Smoke Deployment
@@ -85,10 +86,12 @@ For a disposable SQLite smoke run:
 cd backend
 env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_e2e.sqlite \
 LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_e2e_exports \
+LABELHUB_UPLOAD_STORAGE_PATH=/private/tmp/labelhub_e2e_uploads \
 ./.venv313/bin/alembic upgrade head
 
 env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_e2e.sqlite \
 LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_e2e_exports \
+LABELHUB_UPLOAD_STORAGE_PATH=/private/tmp/labelhub_e2e_uploads \
 ./.venv313/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -105,6 +108,7 @@ Then run:
 cd frontend
 LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_e2e.sqlite \
 LABELHUB_EXPORT_STORAGE_PATH=/private/tmp/labelhub_e2e_exports \
+LABELHUB_UPLOAD_STORAGE_PATH=/private/tmp/labelhub_e2e_uploads \
 BACKEND_URL=http://127.0.0.1:8000 \
 FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
@@ -114,6 +118,9 @@ npm run e2e
 
 - Replace `LABELHUB_JWT_SECRET_KEY` with a managed secret.
 - Use a persistent export storage mount or object storage adapter before storing valuable data.
+- Upload storage defaults to local filesystem storage under `LABELHUB_UPLOAD_STORAGE_PATH` (`storage/uploads` by default). Files are stored under `<storage_root>/<task_id>/<assignment_id>/`; cleanup is manual for the MVP, and deleting database rows does not automatically remove local files.
+- Replace local upload storage with a production object storage design before production file/image collection.
+- Task 14 upload storage does not provide antivirus scanning, DLP, content moderation, automatic retention, or legal hold guarantees.
 - Replace demo credentials and define production identity policy before exposing the app to non-demo users.
 - MVP auth intentionally excludes self-registration, password reset, OAuth, SSO, refresh tokens, and production account lifecycle policy.
 - Configure `LLM_API_KEY` and provider settings before live AI review.

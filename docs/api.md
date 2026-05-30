@@ -105,17 +105,111 @@ Partial failure policy: preview can show mixed valid and invalid rows, but commi
 
 Published template schemas are immutable. Submissions store `template_schema_id` and `schema_version`.
 
+Task 14 rich/media field additions:
+
+```json
+{
+  "id": "rationale",
+  "type": "rich_text",
+  "label": "Rationale",
+  "required": true,
+  "placeholder": "Use safe markdown",
+  "minLength": 3,
+  "maxLength": 500,
+  "plainTextFallback": true
+}
+```
+
+```json
+{
+  "id": "screenshots",
+  "type": "image_upload",
+  "label": "Screenshots",
+  "required": true,
+  "acceptedMimeTypes": ["image/png", "image/jpeg"],
+  "maxFileSizeBytes": 1048576,
+  "maxCount": 2
+}
+```
+
+```json
+{
+  "id": "attachments",
+  "type": "file_upload",
+  "label": "Attachments",
+  "acceptedMimeTypes": ["application/pdf", "text/plain"],
+  "acceptedExtensions": [".pdf", ".txt"],
+  "maxFileSizeBytes": 2097152,
+  "maxCount": 3
+}
+```
+
+Field limits are backend-enforced: `maxFileSizeBytes` must be 1 byte through 25 MiB, `maxCount` must be 1 through 10, image MIME types are limited to `image/png`, `image/jpeg`, `image/webp`, and `image/gif`, and file extensions must start with a dot. Rich-text answers use safe markdown only; raw HTML tags, JavaScript URLs, HTML data URLs, and inline event-handler patterns are rejected. The backend derives `plainText` and does not trust a client-provided fallback.
+
 ## Labeler APIs
 
 - `GET /labeler/tasks`: labeler lists published marketplace tasks, including read-only task instructions, tags, reward policy, and quality rules when configured.
 - `POST /labeler/tasks/{task_id}/claim`: labeler claims the next available item.
 - `GET /labeler/assignments/{assignment_id}`: labeler reads assignment detail, frozen template snapshot, current submission, task metadata, item, and latest human return reason.
 - `GET /labeler/assignments/{assignment_id}/agent-workflow`: labeler reads the agent workflow for their own assignment.
+- `POST /labeler/assignments/{assignment_id}/uploads`: labeler uploads one file for an upload field using multipart form data with `field_id` and `file`.
 - `PUT /labeler/assignments/{assignment_id}/draft`: labeler saves draft answers with `{ "answer_payload": ... }`.
 - `POST /labeler/assignments/{assignment_id}/submit`: labeler submits required answers with `{ "answer_payload": ... }`.
 - `GET /labeler/submissions`: labeler lists own submissions.
 
-Backend submission validation rejects unknown fields, invalid option values, and missing required fields with `INVALID_SUBMISSION_PAYLOAD`.
+Upload responses return public-safe metadata only:
+
+```json
+{
+  "id": "asset-id",
+  "task_id": "task-id",
+  "assignment_id": "assignment-id",
+  "submission_id": "submission-id",
+  "uploader_id": "labeler-id",
+  "field_id": "screenshots",
+  "filename": "shot.png",
+  "content_type": "image/png",
+  "size_bytes": 12345,
+  "download_url": "/uploads/asset-id/download",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+```
+
+Submission answer shapes:
+
+```json
+{
+  "rationale": {
+    "format": "markdown",
+    "content": "**Good** evidence",
+    "plainText": "Good evidence"
+  },
+  "screenshots": [
+    {
+      "assetId": "asset-id",
+      "filename": "shot.png",
+      "contentType": "image/png",
+      "sizeBytes": 12345,
+      "downloadUrl": "/uploads/asset-id/download"
+    }
+  ]
+}
+```
+
+Backend submission validation rejects unknown fields, invalid option values, missing required fields, unsafe rich text, upload count/size/type violations, and upload asset IDs that do not belong to the assignment/submission with `INVALID_SUBMISSION_PAYLOAD`.
+
+## Upload APIs
+
+- `GET /uploads/{asset_id}/download`: downloads uploaded image/file content after server-side permission checks.
+
+Upload permission behavior:
+
+- Uploads require a labeler token and the labeler must own the assignment.
+- Uploads are accepted only while the submission is draft or returned.
+- Uploads validate the target field against the frozen template snapshot.
+- Downloads are allowed for the uploader labeler, the task owner, and reviewers.
+- Unrelated labelers are denied with `PERMISSION_DENIED`.
+- API responses never expose local storage paths or stored filenames.
 
 ## Review APIs
 

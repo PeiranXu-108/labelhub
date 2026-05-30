@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
+Tasks 13 and 14 are approved. Follow-up Tasks 15-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
 
 ## Active Agents
 
@@ -24,7 +24,7 @@ Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain draft
 | Task Metadata and Rewards Agent | `docs/tasks/11-task-metadata-rewards-agent.md` | complete | `docs/handoffs/2026-05-31-task11-task-metadata-rewards-handoff.md` | approved |
 | Dataset Import Pipeline Agent | `docs/tasks/12-dataset-import-pipeline-agent.md` | complete | `docs/handoffs/2026-05-31-task12-dataset-import-pipeline-handoff.md` | approved |
 | Template Designer Builder Agent | `docs/tasks/13-template-designer-builder-agent.md` | complete | `docs/handoffs/2026-05-31-task13-template-designer-builder-handoff.md` | approved |
-| Rich Text and Media Fields Agent | `docs/tasks/14-rich-media-fields-agent.md` | drafted / not started | none | pending dispatch |
+| Rich Text and Media Fields Agent | `docs/tasks/14-rich-media-fields-agent.md` | complete | `docs/handoffs/2026-05-31-task14-rich-media-fields-handoff.md` | approved |
 | Dynamic Form Runtime Agent | `docs/tasks/15-dynamic-form-runtime-agent.md` | drafted / not started | none | pending dispatch |
 | LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | drafted / not started | none | pending dispatch |
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | drafted / not started | none | pending dispatch |
@@ -70,8 +70,13 @@ Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain draft
 - Dataset import preview API is `POST /tasks/{task_id}/items/import/preview`.
 - Dataset import preview formats are `json_array`, `jsonl`, and `xlsx`; default limits are 5,000 rows and 5 MiB unless overridden by `LABELHUB_IMPORT_MAX_ROWS` and `LABELHUB_IMPORT_MAX_FILE_BYTES`.
 - Dataset import commit remains `POST /tasks/{task_id}/items/import`, is owner-only, and is all-or-nothing after backend validation.
-- Task 13 template designer authoring remains limited to Task03 MVP field types and `layout.type = "single"`; runtime layout groups, visibility rules, and custom validations remain deferred to Task15.
+- Task 13/14 template designer authoring supports Task03 MVP fields plus `rich_text`, `image_upload`, and `file_upload`, with `layout.type = "single"`; runtime layout groups, visibility rules, and custom validations remain deferred to Task15.
 - Task 13 frontend validation gates draft save/publish for backend max-length/range/reference parity, but backend template validation remains authoritative.
+- Task 14 upload APIs are `POST /labeler/assignments/{assignment_id}/uploads` and `GET /uploads/{asset_id}/download`.
+- Task 14 upload metadata is persisted in `upload_assets`; API responses expose public-safe metadata and relative download URLs, never local storage paths or stored filenames.
+- Task 14 upload storage root defaults to `storage/uploads`, overrideable by `LABELHUB_UPLOAD_STORAGE_PATH`; local filesystem storage is MVP-only with manual cleanup.
+- Task 14 rich-text answers are stored as safe structured markdown with backend-derived `plainText`; backend rejects unsafe markup patterns and does not trust client-provided fallback text.
+- Task 14 upload validation enforces required/count/size/type/extension/asset-ownership constraints against the frozen template snapshot and submission context.
 
 ## Open Decisions
 
@@ -115,7 +120,7 @@ Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain draft
 | 11 Task Metadata and Rewards | Task Metadata and Rewards Agent | complete | Tasks 02, 06, 10 | Approved; rich instructions, normalized tags, metadata-only reward rules, quality rules, owner UI, labeler read surfaces, OpenAPI, docs, migration, and validation regression tests verified. |
 | 12 Dataset Import Pipeline | Dataset Import Pipeline Agent | complete | Tasks 02, 06, 10 | Approved; JSON array/JSONL/XLSX preview, row-level validation, batch editing, all-or-nothing commit, OpenAPI, docs, and tests verified. |
 | 13 Template Designer Builder | Template Designer Builder Agent | complete | Tasks 03, 06 | Approved; drag/drop template builder, accessible reorder fallback, duplication/deletion, full MVP property inspector, frontend validation parity, preview, backend validation regression, handoff, and review fixes verified. |
-| 14 Rich Text and Media Fields | Rich Text and Media Fields Agent | drafted / not started | Tasks 03, 06, preferably Task 13 | Add rich text, image upload, file upload schema/support and MVP storage contracts. |
+| 14 Rich Text and Media Fields | Rich Text and Media Fields Agent | complete | Tasks 03, 06, preferably Task 13 | Approved; rich text, image/file upload schema support, authenticated upload/download routes, local MVP storage, renderer/designer controls, OpenAPI, docs, migration, and regression tests verified. |
 | 15 Dynamic Form Runtime | Dynamic Form Runtime Agent | drafted / not started | Tasks 03, 13 | Execute conditional visibility, linked validation, regex/custom validators, and group/tab layouts. |
 | 16 LLM Field Loop | LLM Field Loop Agent | drafted / not started | Tasks 03, 04, preferably Task 15 | Close `llm_trigger` loop with server-side model calls, structured output, and target-field writeback. |
 | 17 Labeler Navigation | Labeler Navigation Agent | drafted / not started | Tasks 07, 09, 10 | Add previous/next/skip navigation with draft preservation and skip audit. |
@@ -151,17 +156,29 @@ Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain draft
 - Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
 - Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
-- Tasks 11-19 expand scope beyond the previously approved MVP; do not declare expanded-scope readiness until each dispatched task has a handoff and Supervisor approval.
+- Tasks 11-14 are approved expanded-scope features; do not declare expanded-scope readiness until remaining Tasks 15-19 each have a handoff and Supervisor approval.
 - Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
 - Task 11 validation risk is resolved: non-string JSON values for text fields are rejected instead of being coerced with `str(value)`.
 - Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
 - Task 13 approved with layout/visibility/runtime-rule authoring disabled; Task 15 must keep renderer/backend runtime semantics aligned before exposing those controls.
-- Task 14 and Task 16 must keep storage and LLM provider credentials server-side; no frontend secrets or public upload URLs.
+- Task 14 approved server-side upload/download with local MVP storage only; production object storage, scanning, retention, and sensitive-data policy remain open, and Task 16 must keep LLM provider credentials server-side.
 - Task 18 may touch `WorkflowService`; any stage/status change must be reviewed as a workflow contract change.
 - Task 19 must not mark Docker runtime verified unless `docker compose up --build` actually runs on a Docker-enabled host.
 
 ## Latest Verification
 
+- Task 14 handoff reviewed from `docs/handoffs/2026-05-31-task14-rich-media-fields-handoff.md`.
+- Task 14 review found and re-review confirmed fixed P2 frontend/backend upload-list parity for the 20-entry MIME/extension caps.
+- Task 14 verification: `cd backend && ./.venv313/bin/pytest tests/test_template_schema.py tests/test_uploads.py -q` passed, 14 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 14 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 91 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 14 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed and regenerated `frontend/src/api/openapi.json`.
+- Task 14 verification: `python -m json.tool frontend/src/api/openapi.json` could not run because this host has no `python` executable on PATH; `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task14-update-openapi-python3.json` passed.
+- Task 14 verification: `cd frontend && npm test -- --run src/features/template/TemplateDesigner.test.tsx` passed, 11 tests.
+- Task 14 verification: `cd frontend && npm test -- --run src/features/schema-renderer src/features/template src/features/reviewer` passed, 3 files and 21 tests, with existing React Router future-flag warnings.
+- Task 14 verification: `cd frontend && npm test -- --run` passed, 10 files and 55 tests, with existing React Router future-flag warnings.
+- Task 14 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 14 verification: `git diff --check` passed.
+- Task 14 migration smoke: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task14_update_review.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0005`.
 - Task 13 handoff reviewed from `docs/handoffs/2026-05-31-task13-template-designer-builder-handoff.md`.
 - Task 13 review fixes resolved P2 client validation parity and P3 arbitrary canvas-drop reorder.
 - Task 13 verification: `cd frontend && npm test -- --run src/features/template/TemplateDesigner.test.tsx` passed, 9 tests.
@@ -378,4 +395,4 @@ Task13 Template Designer Builder is approved. Follow-up Tasks 14-19 remain draft
 
 ## Next Recommended Action
 
-Dispatch Task 15 Dynamic Form Runtime Agent if conditional visibility, linked validations, and layout semantics are the next priority. Dispatch Task 14 Rich Text and Media Fields first only if media upload/schema support should land before runtime rules.
+Dispatch Task 15 Dynamic Form Runtime Agent if conditional visibility, linked validations, and layout semantics are the next priority.

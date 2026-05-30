@@ -1,12 +1,17 @@
-import { Button, Checkbox, Input, InputNumber, Radio, Rate, Select, Space, Typography } from "antd";
-import { useMemo, useState } from "react";
+import { Alert, Button, Checkbox, Input, InputNumber, Radio, Rate, Select, Space, Typography } from "antd";
+import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 
+import { fetchWithAuth, readError } from "../auth/http";
 import type {
   AnswerPayload,
+  FileUploadField,
+  ImageUploadField,
   OptionField,
   RendererItem,
+  RichTextField,
   TemplateField,
   TemplateSchemaDocument,
+  UploadAssetAnswer,
 } from "./types";
 
 export type SchemaRendererProps = {
@@ -14,6 +19,9 @@ export type SchemaRendererProps = {
   item: RendererItem;
   initialAnswers?: AnswerPayload;
   readOnly?: boolean;
+  uploadContext?: {
+    assignmentId: string;
+  };
   onChange?: (answers: AnswerPayload) => void;
   onSubmit?: (answers: AnswerPayload) => void;
 };
@@ -34,7 +42,13 @@ function resolveItemPath(item: RendererItem, source: string): unknown {
 }
 
 function isEmpty(value: unknown): boolean {
-  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+  if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
+    return true;
+  }
+  if (isRichTextAnswer(value)) {
+    return !value.content.trim();
+  }
+  return false;
 }
 
 function displayValue(value: unknown): string {
@@ -50,6 +64,50 @@ function displayValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function plainTextFromMarkdown(markdown: string) {
+  return markdown
+    .replace(/[*_`>#\-[\]()!]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
+function richTextAnswer(content: string) {
+  return {
+    format: "markdown",
+    content,
+    plainText: plainTextFromMarkdown(content),
+  };
+}
+
+function isRichTextAnswer(value: unknown): value is { format: "markdown"; content: string; plainText?: string } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      (value as { format?: unknown }).format === "markdown" &&
+      typeof (value as { content?: unknown }).content === "string",
+  );
+}
+
+function uploadAssets(value: unknown): UploadAssetAnswer[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isUploadAssetAnswer);
+}
+
+function isUploadAssetAnswer(value: unknown): value is UploadAssetAnswer {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      typeof (value as UploadAssetAnswer).assetId === "string" &&
+      typeof (value as UploadAssetAnswer).filename === "string" &&
+      typeof (value as UploadAssetAnswer).contentType === "string" &&
+      typeof (value as UploadAssetAnswer).sizeBytes === "number" &&
+      typeof (value as UploadAssetAnswer).downloadUrl === "string",
+  );
+}
+
 export function validateAnswers(
   schema: TemplateSchemaDocument,
   answers: AnswerPayload,
@@ -61,6 +119,23 @@ export function validateAnswers(
     }
     if (field.required && isEmpty(answers[field.id])) {
       errors[field.id] = `请填写${field.label}`;
+      return;
+    }
+    if (field.type === "rich_text" && !isEmpty(answers[field.id])) {
+      const currentAnswer = answers[field.id];
+      const answer = richTextAnswer(isRichTextAnswer(currentAnswer) ? currentAnswer.content : "");
+      if (field.minLength != null && answer.plainText.length < field.minLength) {
+        errors[field.id] = `${field.label}至少需要 ${field.minLength} 个字符`;
+      }
+      if (field.maxLength != null && answer.plainText.length > field.maxLength) {
+        errors[field.id] = `${field.label}不能超过 ${field.maxLength} 个字符`;
+      }
+    }
+    if ((field.type === "image_upload" || field.type === "file_upload") && !isEmpty(answers[field.id])) {
+      const assets = uploadAssets(answers[field.id]);
+      if (assets.length > field.maxCount) {
+        errors[field.id] = `${field.label}最多上传 ${field.maxCount} 个文件`;
+      }
     }
   });
   return errors;
@@ -71,6 +146,7 @@ export function SchemaRenderer({
   item,
   initialAnswers,
   readOnly = false,
+  uploadContext,
   onChange,
   onSubmit,
 }: SchemaRendererProps) {
@@ -82,14 +158,16 @@ export function SchemaRenderer({
   );
 
   function updateAnswer(fieldId: string, value: unknown) {
-    const nextAnswers = { ...answers, [fieldId]: value };
-    setAnswers(nextAnswers);
+    setAnswers((currentAnswers) => {
+      const nextAnswers = { ...currentAnswers, [fieldId]: value };
+      onChange?.(nextAnswers);
+      return nextAnswers;
+    });
     setErrors((current) => {
       const nextErrors = { ...current };
       delete nextErrors[fieldId];
       return nextErrors;
     });
-    onChange?.(nextAnswers);
   }
 
   function handleSubmit() {
@@ -106,7 +184,7 @@ export function SchemaRenderer({
       <div className="schema-renderer-fields">
         {schema.fields.map((field) => (
           <div className="schema-field" key={field.id}>
-            {renderField(field, item, answers, updateAnswer, readOnly)}
+            {renderField(field, item, answers, updateAnswer, readOnly, uploadContext)}
             {errors[field.id] ? <div className="field-error">{errors[field.id]}</div> : null}
           </div>
         ))}
@@ -126,6 +204,7 @@ function renderField(
   answers: AnswerPayload,
   updateAnswer: (fieldId: string, value: unknown) => void,
   readOnly: boolean,
+  uploadContext: SchemaRendererProps["uploadContext"] | undefined,
 ) {
   if (field.type === "show_item") {
     return (
@@ -161,6 +240,42 @@ function renderField(
           onChange={(event) => updateAnswer(field.id, event.target.value)}
         />
       </label>
+    );
+  }
+
+  if (field.type === "rich_text") {
+    const currentAnswer = answers[field.id];
+    const value = isRichTextAnswer(currentAnswer) ? currentAnswer.content : "";
+    if (readOnly) {
+      return (
+        <div className="schema-control">
+          <span>{field.label}</span>
+          <pre className="show-item-value">{value}</pre>
+        </div>
+      );
+    }
+    return (
+      <label className="schema-control">
+        <span>{field.label}</span>
+        <Input.TextArea
+          aria-label={field.label}
+          placeholder={field.placeholder ?? undefined}
+          value={value}
+          onChange={(event) => updateAnswer(field.id, richTextAnswer(event.target.value))}
+        />
+      </label>
+    );
+  }
+
+  if (field.type === "image_upload" || field.type === "file_upload") {
+    return (
+      <MediaUploadControl
+        field={field}
+        readOnly={readOnly}
+        uploadContext={uploadContext}
+        value={uploadAssets(answers[field.id])}
+        onChange={(value) => updateAnswer(field.id, value)}
+      />
     );
   }
 
@@ -274,3 +389,209 @@ function renderOptions(field: OptionField) {
     </Radio>
   ));
 }
+
+type MediaUploadControlProps = {
+  field: ImageUploadField | FileUploadField;
+  readOnly: boolean;
+  uploadContext: SchemaRendererProps["uploadContext"] | undefined;
+  value: UploadAssetAnswer[];
+  onChange: (value: UploadAssetAnswer[]) => void;
+};
+
+function MediaUploadControl({
+  field,
+  readOnly,
+  uploadContext,
+  value,
+  onChange,
+}: MediaUploadControlProps) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const accept = [...field.acceptedMimeTypes, ...(field.type === "file_upload" ? field.acceptedExtensions ?? [] : [])]
+    .filter(Boolean)
+    .join(",");
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length || readOnly) {
+      return;
+    }
+    if (!uploadContext) {
+      setError("当前页面缺少上传上下文。");
+      return;
+    }
+    setError(null);
+    setUploading(true);
+    try {
+      const remainingSlots = Math.max(0, field.maxCount - value.length);
+      const selectedFiles = files.slice(0, remainingSlots);
+      const uploaded = await Promise.all(
+        selectedFiles.map((file) => uploadAsset(uploadContext.assignmentId, field.id, file)),
+      );
+      onChange([...value, ...uploaded]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "上传失败。");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeAsset(assetId: string) {
+    onChange(value.filter((asset) => asset.assetId !== assetId));
+  }
+
+  return (
+    <div className="schema-control media-upload-control">
+      <span>{field.label}</span>
+      {field.helpText ? <Typography.Text type="secondary">{field.helpText}</Typography.Text> : null}
+      {field.type === "image_upload" ? (
+        <div className="media-preview-grid">
+          {value.map((asset) => (
+            <div className="media-asset" key={asset.assetId}>
+              <AuthenticatedImage asset={asset} label={field.label} />
+              <Typography.Text>{asset.filename}</Typography.Text>
+              {!readOnly ? (
+                <Button size="small" onClick={() => removeAsset(asset.assetId)}>
+                  移除
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="media-file-list">
+          {value.map((asset) => (
+            <div className="media-file-row" key={asset.assetId}>
+              <Typography.Text>{asset.filename}</Typography.Text>
+              <Typography.Text type="secondary">{formatBytes(asset.sizeBytes)}</Typography.Text>
+              <Button size="small" onClick={() => void downloadAsset(asset)}>
+                下载 {asset.filename}
+              </Button>
+              {!readOnly ? (
+                <Button size="small" onClick={() => removeAsset(asset.assetId)}>
+                  移除
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {!readOnly && value.length < field.maxCount ? (
+        <label className="media-upload-input">
+          <span>上传 {field.label}</span>
+          <input
+            aria-label={`上传 ${field.label}`}
+            accept={accept || undefined}
+            disabled={uploading}
+            multiple={field.maxCount > 1}
+            type="file"
+            onChange={(event) => void handleFileChange(event)}
+          />
+        </label>
+      ) : null}
+      {!readOnly ? (
+        <Typography.Text type="secondary">
+          最多 {field.maxCount} 个文件，单个不超过 {formatBytes(field.maxFileSizeBytes)}
+        </Typography.Text>
+      ) : null}
+      {error ? <Alert message={error} type="error" /> : null}
+    </div>
+  );
+}
+
+function AuthenticatedImage({ asset, label }: { asset: UploadAssetAnswer; label: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    fetchWithAuth(asset.downloadUrl, { method: "GET" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(await readError(response));
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!active) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          setError(true);
+        }
+      });
+    return () => {
+      active = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [asset.downloadUrl]);
+
+  if (error) {
+    return <Typography.Text type="secondary">图片预览不可用</Typography.Text>;
+  }
+  if (!src) {
+    return <Typography.Text type="secondary">加载预览...</Typography.Text>;
+  }
+  return <img alt={`${label} preview ${asset.filename}`} className="media-image-preview" src={src} />;
+}
+
+async function uploadAsset(assignmentId: string, fieldId: string, file: File): Promise<UploadAssetAnswer> {
+  const form = new FormData();
+  form.append("field_id", fieldId);
+  form.append("file", file);
+  const response = await fetchWithAuth(`/labeler/assignments/${assignmentId}/uploads`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  const payload = (await response.json()) as UploadAssetResponse;
+  return {
+    assetId: payload.id,
+    filename: payload.filename,
+    contentType: payload.content_type,
+    sizeBytes: payload.size_bytes,
+    downloadUrl: payload.download_url,
+  };
+}
+
+async function downloadAsset(asset: UploadAssetAnswer) {
+  const response = await fetchWithAuth(asset.downloadUrl, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = asset.filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function formatBytes(sizeBytes: number) {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KiB`;
+  }
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+type UploadAssetResponse = {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  download_url: string;
+};

@@ -221,6 +221,7 @@ export function LabelerWorkbench() {
                 payload: assignment.item.payload,
               }}
               initialAnswers={answers}
+              uploadContext={{ assignmentId: assignment.id }}
               onChange={handleChange}
               onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
             />

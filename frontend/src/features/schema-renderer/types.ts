@@ -8,6 +8,9 @@ export type TemplateFieldType =
   | "select"
   | "rating"
   | "json"
+  | "rich_text"
+  | "image_upload"
+  | "file_upload"
   | "llm_trigger";
 
 export type TemplateOption = {
@@ -56,6 +59,37 @@ export type JsonField = BaseTemplateField & {
   type: "json";
 };
 
+export type RichTextField = BaseTemplateField & {
+  type: "rich_text";
+  placeholder?: string | null;
+  minLength?: number | null;
+  maxLength?: number | null;
+  plainTextFallback?: boolean;
+};
+
+export type UploadAssetAnswer = {
+  assetId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  downloadUrl: string;
+};
+
+export type ImageUploadField = BaseTemplateField & {
+  type: "image_upload";
+  acceptedMimeTypes: string[];
+  maxFileSizeBytes: number;
+  maxCount: number;
+};
+
+export type FileUploadField = BaseTemplateField & {
+  type: "file_upload";
+  acceptedMimeTypes: string[];
+  acceptedExtensions?: string[];
+  maxFileSizeBytes: number;
+  maxCount: number;
+};
+
 export type LlmTriggerField = BaseTemplateField & {
   type: "llm_trigger";
   promptTemplate: string;
@@ -69,6 +103,9 @@ export type TemplateField =
   | OptionField
   | RatingField
   | JsonField
+  | RichTextField
+  | ImageUploadField
+  | FileUploadField
   | LlmTriggerField;
 
 export type TemplateSchemaDocument = {

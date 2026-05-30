@@ -309,6 +309,83 @@ describe("reviewer workspace", () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
   });
 
+  it("renders uploaded file and image answers through read-only media controls", async () => {
+    const mediaDetail = {
+      ...detail,
+      submission: {
+        ...submission,
+        answer_payload: {
+          screenshots: [
+            {
+              assetId: "asset-image",
+              filename: "shot.png",
+              contentType: "image/png",
+              sizeBytes: 7,
+              downloadUrl: "/uploads/asset-image/download",
+            },
+          ],
+          attachments: [
+            {
+              assetId: "asset-file",
+              filename: "evidence.txt",
+              contentType: "text/plain",
+              sizeBytes: 8,
+              downloadUrl: "/uploads/asset-file/download",
+            },
+          ],
+        },
+      },
+      template_schema: {
+        ...template,
+        schema_payload: {
+          ...template.schema_payload,
+          fields: [
+            {
+              id: "screenshots",
+              type: "image_upload",
+              label: "Screenshots",
+              acceptedMimeTypes: ["image/png"],
+              maxFileSizeBytes: 1024,
+              maxCount: 2,
+            },
+            {
+              id: "attachments",
+              type: "file_upload",
+              label: "Attachments",
+              acceptedMimeTypes: ["text/plain"],
+              acceptedExtensions: [".txt"],
+              maxFileSizeBytes: 1024,
+              maxCount: 1,
+            },
+          ],
+        },
+      },
+    };
+    const createObjectUrl = vi.fn(() => "blob:asset-image");
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/submissions/sub-1")) return jsonResponse(mediaDetail);
+      if (url.endsWith("/uploads/asset-image/download")) {
+        return Promise.resolve(new Response(new Blob(["preview"], { type: "image/png" }), { status: 200 }));
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/submissions/sub-1"]}>
+        <Routes>
+          <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByAltText("Screenshots preview shot.png")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下载 evidence.txt" })).toBeInTheDocument();
+  });
+
   it("shows approve API failures as a localized top message", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);

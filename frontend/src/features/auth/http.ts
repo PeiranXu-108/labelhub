@@ -11,7 +11,7 @@ type RequestOptions = {
 
 type FetchOptions = {
   method: string;
-  body?: string;
+  body?: BodyInit | null;
   json?: boolean;
   auth?: boolean;
 };

@@ -191,6 +191,30 @@ class Submission(TimestampMixin, Base):
     )
 
 
+class UploadAsset(Base):
+    __tablename__ = "upload_assets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
+    assignment_id: Mapped[str | None] = mapped_column(ForeignKey("assignments.id"), index=True)
+    submission_id: Mapped[str | None] = mapped_column(ForeignKey("submissions.id"), index=True)
+    uploader_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    field_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    task: Mapped[Task] = relationship()
+    assignment: Mapped[Assignment | None] = relationship()
+    submission: Mapped[Submission | None] = relationship()
+    uploader: Mapped[User] = relationship()
+
+
 class SubmissionAttempt(Base):
     __tablename__ = "submission_attempts"
     __table_args__ = (

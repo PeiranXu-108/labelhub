@@ -35,6 +35,54 @@ def _schema_payload(*, title: str = "Quality template", required: bool = True) -
     }
 
 
+def _rich_media_schema_payload() -> dict:
+    return {
+        "version": 1,
+        "title": "Rich media template",
+        "layout": {"type": "single", "groups": []},
+        "fields": [
+            {
+                "id": "raw_text",
+                "type": "show_item",
+                "label": "Raw text",
+                "source": "item.payload.text",
+            },
+            {
+                "id": "rationale",
+                "type": "rich_text",
+                "label": "Rationale",
+                "required": True,
+                "helpText": "Use safe markdown only.",
+                "placeholder": "Write the evidence and rationale.",
+                "minLength": 3,
+                "maxLength": 500,
+            },
+            {
+                "id": "screenshots",
+                "type": "image_upload",
+                "label": "Screenshots",
+                "required": True,
+                "acceptedMimeTypes": ["image/png", "image/jpeg"],
+                "maxFileSizeBytes": 1_048_576,
+                "maxCount": 2,
+            },
+            {
+                "id": "attachments",
+                "type": "file_upload",
+                "label": "Attachments",
+                "required": True,
+                "acceptedMimeTypes": ["application/pdf", "text/plain"],
+                "acceptedExtensions": [".pdf", ".txt"],
+                "maxFileSizeBytes": 2_097_152,
+                "maxCount": 3,
+            },
+        ],
+        "llmTools": [],
+        "validations": [],
+        "visibilityRules": [],
+    }
+
+
 def _create_task(client: TestClient, owner_headers: dict[str, str], name: str = "Template task") -> dict:
     return client.post("/tasks", headers=owner_headers, json={"name": name}).json()
 
@@ -166,6 +214,62 @@ def test_full_mvp_designer_schema_is_accepted_by_backend_validation(client: Test
     assert response_fields[9]["targetFieldId"] == "notes"
 
 
+def test_rich_text_and_media_field_schema_is_accepted(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers, name="Rich media schema")
+    payload = _rich_media_schema_payload()
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 201
+    response_fields = response.json()["schema_payload"]["fields"]
+    assert [field["type"] for field in response_fields] == [
+        "show_item",
+        "rich_text",
+        "image_upload",
+        "file_upload",
+    ]
+    assert response_fields[1]["plainTextFallback"] is True
+    assert response_fields[2]["acceptedMimeTypes"] == ["image/png", "image/jpeg"]
+    assert response_fields[2]["maxFileSizeBytes"] == 1_048_576
+    assert response_fields[2]["maxCount"] == 2
+    assert response_fields[3]["acceptedExtensions"] == [".pdf", ".txt"]
+
+
+def test_rich_media_field_constraints_are_rejected(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers, name="Invalid rich media schema")
+    payload = _rich_media_schema_payload()
+    payload["fields"][2]["acceptedMimeTypes"] = ["text/html"]
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 422
+    assert "image_upload acceptedMimeTypes must be image MIME types" in response.text
+
+    payload = _rich_media_schema_payload()
+    payload["fields"][2]["maxFileSizeBytes"] = 0
+    payload["fields"][2]["maxCount"] = 0
+    payload["fields"][3]["acceptedExtensions"] = ["pdf"]
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 422
+    assert "greater than or equal to 1" in response.text
+    assert "acceptedExtensions entries must start with a dot" in response.text
+
+
 def test_publish_creates_immutable_versions(
     client: TestClient, db_session: Session
 ) -> None:
@@ -233,6 +337,72 @@ def test_required_field_missing_in_submission_is_rejected(client: TestClient) ->
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_SUBMISSION_PAYLOAD"
     assert "sentiment" in response.json()["detail"]["message"]
+
+
+def test_required_rich_text_and_upload_fields_missing_in_submission_are_rejected(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    labeler_headers = auth_headers(UserRole.LABELER)
+    task = _create_task(client, owner_headers, name="Required rich media submission")
+    client.post(
+        f"/tasks/{task['id']}/items/import",
+        headers=owner_headers,
+        json={"items": [{"external_id": "row-1", "payload": {"text": "hello"}}]},
+    )
+    client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": _rich_media_schema_payload()},
+    )
+    client.post(f"/tasks/{task['id']}/template/publish", headers=owner_headers)
+    client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
+    assignment = client.post(f"/labeler/tasks/{task['id']}/claim", headers=labeler_headers).json()
+
+    response = client.post(
+        f"/labeler/assignments/{assignment['id']}/submit",
+        headers=labeler_headers,
+        json={"answer_payload": {}},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_SUBMISSION_PAYLOAD"
+    assert "rationale" in response.json()["detail"]["message"]
+    assert "screenshots" in response.json()["detail"]["message"]
+    assert "attachments" in response.json()["detail"]["message"]
+
+
+def test_unsafe_rich_text_submission_is_rejected(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    labeler_headers = auth_headers(UserRole.LABELER)
+    task = _create_task(client, owner_headers, name="Unsafe rich text submission")
+    payload = _rich_media_schema_payload()
+    payload["fields"] = payload["fields"][:2]
+    client.post(
+        f"/tasks/{task['id']}/items/import",
+        headers=owner_headers,
+        json={"items": [{"external_id": "row-1", "payload": {"text": "hello"}}]},
+    )
+    client.post(f"/tasks/{task['id']}/template/draft", headers=owner_headers, json={"schema": payload})
+    client.post(f"/tasks/{task['id']}/template/publish", headers=owner_headers)
+    client.post(f"/tasks/{task['id']}/publish", headers=owner_headers)
+    assignment = client.post(f"/labeler/tasks/{task['id']}/claim", headers=labeler_headers).json()
+
+    response = client.post(
+        f"/labeler/assignments/{assignment['id']}/submit",
+        headers=labeler_headers,
+        json={
+            "answer_payload": {
+                "rationale": {
+                    "format": "markdown",
+                    "content": "<script>alert(1)</script>",
+                    "plainText": "alert(1)",
+                }
+            }
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_SUBMISSION_PAYLOAD"
+    assert "unsafe markup" in response.json()["detail"]["message"]
 
 
 def test_template_draft_openapi_uses_schema_request_key(client: TestClient) -> None:

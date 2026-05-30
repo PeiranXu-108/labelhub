@@ -1,3 +1,3 @@
-from app.storage.local import LocalExportStorage
+from app.storage.local import LocalExportStorage, LocalUploadStorage
 
-__all__ = ["LocalExportStorage"]
+__all__ = ["LocalExportStorage", "LocalUploadStorage"]

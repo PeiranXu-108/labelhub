@@ -342,6 +342,46 @@ body {
   border-radius: 6px;
 }
 
+.media-preview-grid,
+.media-file-list {
+  display: grid;
+  gap: 10px;
+}
+
+.media-preview-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.media-asset,
+.media-file-row {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+}
+
+.media-file-row {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+}
+
+.media-image-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  background: #f5f7fb;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+}
+
+.media-upload-input {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
 .field-error {
   margin-top: 8px;
   color: #c03434;

@@ -126,6 +126,47 @@ describe("TemplateDesigner", () => {
     );
   });
 
+  it("edits rich media field constraints", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [
+            {
+              id: "screenshots",
+              type: "image_upload",
+              label: "Screenshots",
+              acceptedMimeTypes: ["image/png"],
+              maxFileSizeBytes: 1048576,
+              maxCount: 2,
+            },
+          ],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("允许 MIME 类型"), {
+      target: { value: "image/png,image/jpeg" },
+    });
+    fireEvent.change(screen.getByLabelText("最大文件字节数"), {
+      target: { value: "2097152" },
+    });
+    fireEvent.change(screen.getByLabelText("最大文件数"), {
+      target: { value: "3" },
+    });
+
+    expect(latestSchema(onChange).fields[0]).toEqual(
+      expect.objectContaining({
+        type: "image_upload",
+        acceptedMimeTypes: ["image/png", "image/jpeg"],
+        maxFileSizeBytes: 2097152,
+        maxCount: 3,
+      }),
+    );
+  });
+
   it("rejects duplicate option values before save or publish", () => {
     const onChange = vi.fn();
     render(<TemplateDesigner initialSchema={baseSchema} onChange={onChange} />);
@@ -178,6 +219,32 @@ describe("TemplateDesigner", () => {
         "category 的选项 1 标签不能超过 255 个字符",
         "category 的选项 1 值不能超过 255 个字符",
         "assist 的目标字段不能超过 64 个字符",
+      ]),
+    );
+  });
+
+  it("rejects upload constraint list sizes that exceed backend limits", () => {
+    const mimeTypes = Array.from({ length: 21 }, (_, index) => `application/x-labelhub-${index}`);
+    const extensions = Array.from({ length: 21 }, (_, index) => `.lh${index}`);
+    const schema: TemplateSchemaDocument = {
+      ...baseSchema,
+      fields: [
+        {
+          id: "attachments",
+          type: "file_upload",
+          label: "Attachments",
+          acceptedMimeTypes: mimeTypes,
+          acceptedExtensions: extensions,
+          maxFileSizeBytes: 1048576,
+          maxCount: 1,
+        },
+      ],
+    };
+
+    expect(validateTemplateSchema(schema)).toEqual(
+      expect.arrayContaining([
+        "attachments 的 MIME 类型不能超过 20 个",
+        "attachments 的扩展名不能超过 20 个",
       ]),
     );
   });
@@ -271,6 +338,31 @@ describe("TemplateDesigner", () => {
         },
         { id: "quality", type: "rating", label: "Quality", min: 1, max: 5 },
         { id: "metadata", type: "json", label: "Metadata" },
+        {
+          id: "rationale",
+          type: "rich_text",
+          label: "Rationale",
+          placeholder: "Use safe markdown",
+          minLength: 3,
+          maxLength: 500,
+        },
+        {
+          id: "screenshots",
+          type: "image_upload",
+          label: "Screenshots",
+          acceptedMimeTypes: ["image/png", "image/jpeg"],
+          maxFileSizeBytes: 1048576,
+          maxCount: 2,
+        },
+        {
+          id: "attachments",
+          type: "file_upload",
+          label: "Attachments",
+          acceptedMimeTypes: ["application/pdf", "text/plain"],
+          acceptedExtensions: [".pdf", ".txt"],
+          maxFileSizeBytes: 2097152,
+          maxCount: 3,
+        },
         {
           id: "assist",
           type: "llm_trigger",

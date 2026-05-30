@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatKnownText, formatLabel } from "../i18n/labels";
+import { SchemaRenderer } from "../schema-renderer";
 import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
@@ -150,7 +151,18 @@ export function ReviewSubmissionDetail() {
 
         <div className="review-detail-grid">
           <JsonCard title="原始数据项内容" value={detail.item.payload} />
-          <JsonCard title="答案内容" value={detail.submission.answer_payload} />
+          <StudioPanel title="答案内容">
+            <SchemaRenderer
+              schema={detail.template_schema.schema_payload}
+              item={{
+                id: detail.item.id,
+                external_id: detail.item.external_id,
+                payload: detail.item.payload,
+              }}
+              initialAnswers={detail.submission.answer_payload}
+              readOnly
+            />
+          </StudioPanel>
         </div>
 
         <StudioPanel title="AI 审核">

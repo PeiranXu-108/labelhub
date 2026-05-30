@@ -1677,6 +1677,108 @@
         }
       }
     },
+    "/labeler/assignments/{assignment_id}/uploads": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Upload Assignment Asset",
+        "operationId": "upload_assignment_asset_labeler_assignments__assignment_id__uploads_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assignment_asset_labeler_assignments__assignment_id__uploads_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAssetRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/{asset_id}/download": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Download Upload Asset",
+        "operationId": "download_upload_asset_uploads__asset_id__download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "tags": [
@@ -2141,6 +2243,25 @@
         ],
         "title": "BatchReviewRequest"
       },
+      "Body_upload_assignment_asset_labeler_assignments__assignment_id__uploads_post": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_id",
+          "file"
+        ],
+        "title": "Body_upload_assignment_asset_labeler_assignments__assignment_id__uploads_post"
+      },
       "CheckboxGroupField": {
         "properties": {
           "id": {
@@ -2417,6 +2538,82 @@
         ],
         "title": "ExportJobRead"
       },
+      "FileUploadField": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "helpText": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helptext"
+          },
+          "acceptedMimeTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Acceptedmimetypes"
+          },
+          "maxFileSizeBytes": {
+            "type": "integer",
+            "maximum": 26214400.0,
+            "minimum": 1.0,
+            "title": "Maxfilesizebytes",
+            "default": 10485760
+          },
+          "maxCount": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Maxcount",
+            "default": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "file_upload",
+            "title": "Type"
+          },
+          "acceptedExtensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Acceptedextensions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "title": "FileUploadField"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2481,6 +2678,74 @@
           "created_at"
         ],
         "title": "HumanReviewRead"
+      },
+      "ImageUploadField": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "helpText": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helptext"
+          },
+          "acceptedMimeTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Acceptedmimetypes"
+          },
+          "maxFileSizeBytes": {
+            "type": "integer",
+            "maximum": 26214400.0,
+            "minimum": 1.0,
+            "title": "Maxfilesizebytes",
+            "default": 5242880
+          },
+          "maxCount": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Maxcount",
+            "default": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "image_upload",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "title": "ImageUploadField"
       },
       "ImportLimitsRead": {
         "properties": {
@@ -3488,6 +3753,92 @@
         "type": "object",
         "title": "RewardRule"
       },
+      "RichTextField": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "helpText": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helptext"
+          },
+          "type": {
+            "type": "string",
+            "const": "rich_text",
+            "title": "Type"
+          },
+          "placeholder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placeholder"
+          },
+          "minLength": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minlength"
+          },
+          "maxLength": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxlength"
+          },
+          "plainTextFallback": {
+            "type": "boolean",
+            "title": "Plaintextfallback",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "title": "RichTextField"
+      },
       "SelectField": {
         "properties": {
           "id": {
@@ -4229,6 +4580,9 @@
                   "$ref": "#/components/schemas/TextareaField"
                 },
                 {
+                  "$ref": "#/components/schemas/RichTextField"
+                },
+                {
                   "$ref": "#/components/schemas/NumberField"
                 },
                 {
@@ -4248,17 +4602,26 @@
                 },
                 {
                   "$ref": "#/components/schemas/LlmTriggerField"
+                },
+                {
+                  "$ref": "#/components/schemas/ImageUploadField"
+                },
+                {
+                  "$ref": "#/components/schemas/FileUploadField"
                 }
               ],
               "discriminator": {
                 "propertyName": "type",
                 "mapping": {
                   "checkbox_group": "#/components/schemas/CheckboxGroupField",
+                  "file_upload": "#/components/schemas/FileUploadField",
+                  "image_upload": "#/components/schemas/ImageUploadField",
                   "json": "#/components/schemas/JsonField",
                   "llm_trigger": "#/components/schemas/LlmTriggerField",
                   "number": "#/components/schemas/NumberField",
                   "radio": "#/components/schemas/RadioField",
                   "rating": "#/components/schemas/RatingField",
+                  "rich_text": "#/components/schemas/RichTextField",
                   "select": "#/components/schemas/SelectField",
                   "show_item": "#/components/schemas/ShowItemField",
                   "text": "#/components/schemas/TextField",
@@ -4586,6 +4949,84 @@
           "type"
         ],
         "title": "TextareaField"
+      },
+      "UploadAssetRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          },
+          "uploader_id": {
+            "type": "string",
+            "title": "Uploader Id"
+          },
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url",
+            "default": ""
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_id",
+          "assignment_id",
+          "submission_id",
+          "uploader_id",
+          "field_id",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "UploadAssetRead"
       },
       "UserRole": {
         "type": "string",

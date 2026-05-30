@@ -1,8 +1,11 @@
 import type {
   LlmTriggerField,
+  FileUploadField,
+  ImageUploadField,
   NumberField,
   OptionField,
   RatingField,
+  RichTextField,
   ShowItemField,
   TemplateField,
   TemplateFieldType,
@@ -24,6 +27,9 @@ export const fieldPalette: Array<{ type: TemplateFieldType; label: string }> = [
   { type: "select", label: "下拉选择" },
   { type: "rating", label: "评分" },
   { type: "json", label: "JSON" },
+  { type: "rich_text", label: "富文本" },
+  { type: "image_upload", label: "图片上传" },
+  { type: "file_upload", label: "文件上传" },
   { type: "llm_trigger", label: "LLM 触发器" },
 ];
 
@@ -34,6 +40,12 @@ const FIELD_ID_MAX_LENGTH = 64;
 const LABEL_MAX_LENGTH = 255;
 const HELP_TEXT_MAX_LENGTH = 500;
 const PROMPT_TEMPLATE_MAX_LENGTH = 5000;
+const MAX_UPLOAD_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_UPLOAD_COUNT = 10;
+const MAX_UPLOAD_ACCEPTED_LIST_ENTRIES = 20;
+const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const mimeTypePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
+const extensionPattern = /^\.[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
 
 export function validateTemplateSchema(schema: TemplateSchemaDocument): string[] {
   const issues: string[] = [];
@@ -146,6 +158,11 @@ function validateFieldSpecifics(field: TemplateField, fieldName: string, issues:
     return;
   }
 
+  if (isRichTextField(field)) {
+    validateTextConstraints(field, fieldName, issues);
+    return;
+  }
+
   if (isNumberField(field)) {
     if (field.min != null && field.max != null && field.max < field.min) {
       issues.push(`${fieldName} 的最大值不能小于最小值`);
@@ -185,6 +202,70 @@ function validateFieldSpecifics(field: TemplateField, fieldName: string, issues:
     } else if (!fieldIdPattern.test(field.targetFieldId)) {
       issues.push(`${fieldName} 的目标字段必须是有效字段 ID`);
     }
+    return;
+  }
+
+  if (isUploadField(field)) {
+    validateUploadConstraints(field, fieldName, issues);
+  }
+}
+
+function validateTextConstraints(field: RichTextField | TextField, fieldName: string, issues: string[]) {
+  if ((field.placeholder ?? "").length > 255) {
+    issues.push(`${fieldName} 的占位提示不能超过 255 个字符`);
+  }
+  if (field.minLength != null && field.minLength < 0) {
+    issues.push(`${fieldName} 的最小长度不能小于 0`);
+  }
+  if (field.maxLength != null && field.maxLength < 1) {
+    issues.push(`${fieldName} 的最大长度不能小于 1`);
+  }
+  if (field.minLength != null && field.maxLength != null && field.maxLength < field.minLength) {
+    issues.push(`${fieldName} 的最大长度不能小于最小长度`);
+  }
+}
+
+function validateUploadConstraints(field: ImageUploadField | FileUploadField, fieldName: string, issues: string[]) {
+  if (field.acceptedMimeTypes.length === 0) {
+    issues.push(`${fieldName} 至少需要 1 个允许 MIME 类型`);
+  }
+  if (field.acceptedMimeTypes.length > MAX_UPLOAD_ACCEPTED_LIST_ENTRIES) {
+    issues.push(`${fieldName} 的 MIME 类型不能超过 ${MAX_UPLOAD_ACCEPTED_LIST_ENTRIES} 个`);
+  }
+  const mimeTypes = new Set<string>();
+  field.acceptedMimeTypes.forEach((mimeType) => {
+    if (!mimeTypePattern.test(mimeType)) {
+      issues.push(`${fieldName} 的 MIME 类型格式无效`);
+    }
+    if (mimeTypes.has(mimeType)) {
+      issues.push(`${fieldName} 的 MIME 类型不能重复`);
+    }
+    mimeTypes.add(mimeType);
+    if (field.type === "image_upload" && !allowedImageMimeTypes.has(mimeType)) {
+      issues.push(`${fieldName} 只支持图片 MIME 类型`);
+    }
+  });
+  if (field.maxFileSizeBytes < 1 || field.maxFileSizeBytes > MAX_UPLOAD_FILE_SIZE_BYTES) {
+    issues.push(`${fieldName} 的最大文件字节数必须在 1 到 ${MAX_UPLOAD_FILE_SIZE_BYTES} 之间`);
+  }
+  if (field.maxCount < 1 || field.maxCount > MAX_UPLOAD_COUNT) {
+    issues.push(`${fieldName} 的最大文件数必须在 1 到 ${MAX_UPLOAD_COUNT} 之间`);
+  }
+  if (field.type === "file_upload") {
+    const acceptedExtensions = field.acceptedExtensions ?? [];
+    if (acceptedExtensions.length > MAX_UPLOAD_ACCEPTED_LIST_ENTRIES) {
+      issues.push(`${fieldName} 的扩展名不能超过 ${MAX_UPLOAD_ACCEPTED_LIST_ENTRIES} 个`);
+    }
+    const extensions = new Set<string>();
+    acceptedExtensions.forEach((extension) => {
+      if (!extensionPattern.test(extension)) {
+        issues.push(`${fieldName} 的扩展名必须以点号开头`);
+      }
+      if (extensions.has(extension)) {
+        issues.push(`${fieldName} 的扩展名不能重复`);
+      }
+      extensions.add(extension);
+    });
   }
 }
 
@@ -241,6 +322,35 @@ export function createField(type: TemplateFieldType, fields: TemplateField[]): T
       return { ...base, type, label: "下拉选择字段", options: defaultOptions() };
     case "rating":
       return { ...base, type, label: "评分字段", min: 1, max: 5 };
+    case "rich_text":
+      return {
+        ...base,
+        type,
+        label: "富文本字段",
+        placeholder: "支持安全 Markdown",
+        minLength: null,
+        maxLength: 2000,
+        plainTextFallback: true,
+      };
+    case "image_upload":
+      return {
+        ...base,
+        type,
+        label: "图片上传字段",
+        acceptedMimeTypes: ["image/png", "image/jpeg"],
+        maxFileSizeBytes: 5 * 1024 * 1024,
+        maxCount: 1,
+      };
+    case "file_upload":
+      return {
+        ...base,
+        type,
+        label: "文件上传字段",
+        acceptedMimeTypes: ["application/pdf", "text/plain"],
+        acceptedExtensions: [".pdf", ".txt"],
+        maxFileSizeBytes: 10 * 1024 * 1024,
+        maxCount: 1,
+      };
     case "llm_trigger":
       return {
         ...base,
@@ -279,6 +389,10 @@ export function isTextField(field: TemplateField): field is TextField {
   return field.type === "text" || field.type === "textarea";
 }
 
+export function isRichTextField(field: TemplateField): field is RichTextField {
+  return field.type === "rich_text";
+}
+
 export function isNumberField(field: TemplateField): field is NumberField {
   return field.type === "number";
 }
@@ -297,6 +411,10 @@ export function isShowItemField(field: TemplateField): field is ShowItemField {
 
 export function isLlmTriggerField(field: TemplateField): field is LlmTriggerField {
   return field.type === "llm_trigger";
+}
+
+export function isUploadField(field: TemplateField): field is ImageUploadField | FileUploadField {
+  return field.type === "image_upload" || field.type === "file_upload";
 }
 
 export function emptyToNull(value: string): string | null {
@@ -321,6 +439,13 @@ function cloneField(field: TemplateField): TemplateField {
   if (isOptionField(field)) {
     return { ...field, options: field.options.map((option) => ({ ...option })) };
   }
+  if (isUploadField(field)) {
+    return {
+      ...field,
+      acceptedMimeTypes: [...field.acceptedMimeTypes],
+      ...(field.type === "file_upload" ? { acceptedExtensions: [...(field.acceptedExtensions ?? [])] } : {}),
+    } as TemplateField;
+  }
   return { ...field };
 }
 
@@ -336,6 +461,15 @@ function defaultLabel(type: TemplateFieldType): string {
   }
   if (type === "json") {
     return "JSON 字段";
+  }
+  if (type === "rich_text") {
+    return "富文本字段";
+  }
+  if (type === "image_upload") {
+    return "图片上传字段";
+  }
+  if (type === "file_upload") {
+    return "文件上传字段";
   }
   return `${type} 字段`;
 }

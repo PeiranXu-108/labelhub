@@ -7,8 +7,10 @@ import {
   isNumberField,
   isOptionField,
   isRatingField,
+  isRichTextField,
   isShowItemField,
   isTextField,
+  isUploadField,
 } from "./templateDesignerModel";
 
 type TemplatePropertyInspectorProps = {
@@ -172,6 +174,54 @@ function renderSpecificEditor(
     );
   }
 
+  if (isRichTextField(field)) {
+    return (
+      <>
+        <label className="schema-control">
+          <span>占位提示</span>
+          <Input
+            value={field.placeholder ?? ""}
+            onChange={(event) =>
+              onUpdate((current) =>
+                isRichTextField(current)
+                  ? { ...current, placeholder: emptyToNull(event.target.value) }
+                  : current,
+              )
+            }
+          />
+        </label>
+        <div className="inspector-grid">
+          <label className="schema-control">
+            <span>最小长度</span>
+            <InputNumber
+              aria-label="最小长度"
+              min={0}
+              value={field.minLength ?? null}
+              onChange={(value) =>
+                onUpdate((current) =>
+                  isRichTextField(current) ? { ...current, minLength: numberOrNull(value) } : current,
+                )
+              }
+            />
+          </label>
+          <label className="schema-control">
+            <span>最大长度</span>
+            <InputNumber
+              aria-label="最大长度"
+              min={1}
+              value={field.maxLength ?? null}
+              onChange={(value) =>
+                onUpdate((current) =>
+                  isRichTextField(current) ? { ...current, maxLength: numberOrNull(value) } : current,
+                )
+              }
+            />
+          </label>
+        </div>
+      </>
+    );
+  }
+
   if (isNumberField(field)) {
     return (
       <div className="inspector-grid">
@@ -277,6 +327,73 @@ function renderSpecificEditor(
     );
   }
 
+  if (isUploadField(field)) {
+    return (
+      <>
+        <label className="schema-control">
+          <span>允许 MIME 类型</span>
+          <Input
+            aria-label="允许 MIME 类型"
+            value={field.acceptedMimeTypes.join(",")}
+            onChange={(event) =>
+              onUpdate((current) =>
+                isUploadField(current)
+                  ? { ...current, acceptedMimeTypes: csvValues(event.target.value) }
+                  : current,
+              )
+            }
+          />
+        </label>
+        {field.type === "file_upload" ? (
+          <label className="schema-control">
+            <span>允许扩展名</span>
+            <Input
+              aria-label="允许扩展名"
+              value={(field.acceptedExtensions ?? []).join(",")}
+              onChange={(event) =>
+                onUpdate((current) =>
+                  current.type === "file_upload"
+                    ? { ...current, acceptedExtensions: csvValues(event.target.value) }
+                    : current,
+                )
+              }
+            />
+          </label>
+        ) : null}
+        <div className="inspector-grid">
+          <label className="schema-control">
+            <span>最大文件字节数</span>
+            <InputNumber
+              aria-label="最大文件字节数"
+              min={1}
+              value={field.maxFileSizeBytes}
+              onChange={(value) =>
+                onUpdate((current) =>
+                  isUploadField(current)
+                    ? { ...current, maxFileSizeBytes: numberOrNull(value) ?? 1 }
+                    : current,
+                )
+              }
+            />
+          </label>
+          <label className="schema-control">
+            <span>最大文件数</span>
+            <InputNumber
+              aria-label="最大文件数"
+              min={1}
+              value={field.maxCount}
+              onChange={(value) =>
+                onUpdate((current) =>
+                  isUploadField(current) ? { ...current, maxCount: numberOrNull(value) ?? 1 } : current,
+                )
+              }
+            />
+          </label>
+        </div>
+      </>
+    );
+  }
+
   return null;
 }
 
@@ -376,4 +493,11 @@ function numberOrNull(value: string | number | null): number | null {
     return Number(value);
   }
   return null;
+}
+
+function csvValues(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
 }
