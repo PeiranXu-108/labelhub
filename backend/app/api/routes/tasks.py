@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskAction, UserRole
-from app.models import AuditLog, ReviewConfig, Task, TaskItem
+from app.models import ReviewConfig, Task, TaskItem
 from app.schemas.agent_workflow import TaskAgentWorkflowSummaryRead
 from app.schemas.task import (
     ItemImportRequest,
+    ItemImportPreviewRequest,
+    ItemImportPreviewResponse,
     ReviewConfigRead,
     ReviewConfigUpsert,
     TaskCreate,
@@ -29,7 +31,7 @@ def _actor_context(actor: Actor) -> ActorContext:
 
 def _raise_workflow_error(exc: WorkflowError) -> None:
     status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") else status.HTTP_400_BAD_REQUEST
-    raise api_error(exc.code, exc.message, status_code)
+    raise api_error(exc.code, exc.message, status_code, extra=exc.details)
 
 
 @router.get("", response_model=list[TaskRead])
@@ -46,7 +48,7 @@ def create_task(
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_role(UserRole.OWNER)),
 ) -> Task:
-    return TaskService(db).create_task(_actor_context(actor), payload.model_dump())
+    return TaskService(db).create_task(_actor_context(actor), payload.to_task_data())
 
 
 @router.get("/{task_id}", response_model=TaskRead)
@@ -80,24 +82,10 @@ def update_task(
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_role(UserRole.OWNER)),
 ) -> Task:
-    task = db.get(Task, task_id)
-    if task is None:
-        raise api_error("TASK_NOT_FOUND", "Task was not found", status.HTTP_404_NOT_FOUND)
-    for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(task, key, value)
-    db.add(
-        AuditLog(
-            entity_type="task",
-            entity_id=task.id,
-            action="update",
-            actor_id=actor.user_id,
-            actor_role=actor.role.value,
-            details={"fields": list(payload.model_dump(exclude_unset=True).keys())},
-        )
-    )
-    db.commit()
-    db.refresh(task)
-    return task
+    try:
+        return TaskService(db).update_task(task_id, _actor_context(actor), payload.to_update_data())
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
 
 
 @router.post("/{task_id}/publish", response_model=TaskRead)
@@ -158,6 +146,19 @@ def import_items(
             _actor_context(actor),
             [item.model_dump() for item in payload.items],
         )
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post("/{task_id}/items/import/preview", response_model=ItemImportPreviewResponse)
+def preview_import_items(
+    task_id: str,
+    payload: ItemImportPreviewRequest,
+    db: Session = Depends(get_db),
+    _actor: Actor = Depends(require_role(UserRole.OWNER)),
+) -> dict:
+    try:
+        return TaskService(db).preview_import(task_id, payload.model_dump())
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

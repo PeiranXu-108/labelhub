@@ -4,6 +4,7 @@ import { TaskAgentWorkflowSummary } from "../agent-workflow/TaskAgentWorkflowSum
 import type { TaskAgentWorkflowSummaryRead } from "../agent-workflow/types";
 import { formatLabel } from "../i18n/labels";
 import { MetricStrip, StudioPanel } from "../studio";
+import { TaskMetadataPanel } from "../task-metadata/TaskMetadataPanel";
 import type { ExportJobRead, TaskItemRead, TaskRead, TemplateSchemaRead } from "./types";
 
 type TaskDashboardProps = {
@@ -52,6 +53,7 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
           />
         </div>
       </StudioPanel>
+      <TaskMetadataPanel task={task} />
       <TaskAgentWorkflowSummary summary={agentWorkflow} />
     </div>
   );

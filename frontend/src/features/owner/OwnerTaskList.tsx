@@ -54,6 +54,13 @@ export function OwnerTaskList() {
               {record.name}
             </Link>
             <Typography.Text type="secondary">{record.description || "暂无描述"}</Typography.Text>
+            {record.tags.length > 0 ? (
+              <Space wrap size={4}>
+                {record.tags.map((tag) => (
+                  <Tag key={tag}>{tag}</Tag>
+                ))}
+              </Space>
+            ) : null}
           </Space>
         ),
       },
@@ -137,6 +144,11 @@ export function OwnerTaskList() {
         ? await updateTask(editingTask.id, {
             name: payload.name,
             description: payload.description,
+            instruction_rich_text: payload.instruction_rich_text,
+            instruction_plain_text: payload.instruction_plain_text,
+            tags: payload.tags,
+            reward_rule: payload.reward_rule,
+            quality_rules: payload.quality_rules,
             quota_per_labeler: payload.quota_per_labeler,
             deadline_at: payload.deadline_at,
           })

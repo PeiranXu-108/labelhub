@@ -523,6 +523,63 @@
         }
       }
     },
+    "/tasks/{task_id}/items/import/preview": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Preview Import Items",
+        "operationId": "preview_import_items_tasks__task_id__items_import_preview_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemImportPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemImportPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tasks/{task_id}/items": {
       "get": {
         "tags": [
@@ -2209,6 +2266,44 @@
         "type": "object",
         "title": "DraftSaveRequest"
       },
+      "ExcelImportMapping": {
+        "properties": {
+          "external_id_column": {
+            "type": "string",
+            "title": "External Id Column",
+            "default": "external_id"
+          },
+          "payload_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Column",
+            "default": "payload"
+          },
+          "payload_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Columns"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExcelImportMapping"
+      },
       "ExportCreate": {
         "properties": {
           "format": {
@@ -2387,6 +2482,129 @@
         ],
         "title": "HumanReviewRead"
       },
+      "ImportLimitsRead": {
+        "properties": {
+          "max_rows": {
+            "type": "integer",
+            "title": "Max Rows"
+          },
+          "max_file_bytes": {
+            "type": "integer",
+            "title": "Max File Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_rows",
+          "max_file_bytes"
+        ],
+        "title": "ImportLimitsRead"
+      },
+      "ImportPreviewRow": {
+        "properties": {
+          "row_number": {
+            "type": "integer",
+            "title": "Row Number"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowIssue"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowIssue"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row_number"
+        ],
+        "title": "ImportPreviewRow"
+      },
+      "ImportRowIssue": {
+        "properties": {
+          "row_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Number"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ImportRowIssue"
+      },
+      "InstructionRichText": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "markdown",
+            "title": "Format",
+            "default": "markdown"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "InstructionRichText"
+      },
       "ItemImportEntry": {
         "properties": {
           "external_id": {
@@ -2404,13 +2622,107 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Payload"
+          },
+          "source_row": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Row"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "payload"
         ],
         "title": "ItemImportEntry"
+      },
+      "ItemImportPreviewRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "json_array",
+              "jsonl",
+              "xlsx"
+            ],
+            "title": "Format"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "is_base64": {
+            "type": "boolean",
+            "title": "Is Base64",
+            "default": false
+          },
+          "excel_mapping": {
+            "$ref": "#/components/schemas/ExcelImportMapping"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format",
+          "content"
+        ],
+        "title": "ItemImportPreviewRequest"
+      },
+      "ItemImportPreviewResponse": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ImportPreviewRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowIssue"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "valid_count": {
+            "type": "integer",
+            "title": "Valid Count"
+          },
+          "invalid_count": {
+            "type": "integer",
+            "title": "Invalid Count"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ImportLimitsRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "valid_count",
+          "invalid_count",
+          "limits"
+        ],
+        "title": "ItemImportPreviewResponse"
       },
       "ItemImportRequest": {
         "properties": {
@@ -2680,6 +2992,29 @@
           "type"
         ],
         "title": "NumberField"
+      },
+      "QualityRule": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "description"
+        ],
+        "title": "QualityRule"
       },
       "RadioField": {
         "properties": {
@@ -3046,6 +3381,113 @@
         ],
         "title": "ReviewSubmissionDetail"
       },
+      "RewardRule-Input": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fixed_per_accepted_submission",
+              "manual"
+            ],
+            "title": "Mode",
+            "default": "none"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RewardRule"
+      },
+      "RewardRule-Output": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fixed_per_accepted_submission",
+              "manual"
+            ],
+            "title": "Mode",
+            "default": "none"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RewardRule"
+      },
       "SelectField": {
         "properties": {
           "id": {
@@ -3386,6 +3828,47 @@
             ],
             "title": "Description"
           },
+          "instruction_rich_text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionRichText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instruction_plain_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Plain Text"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Tags"
+          },
+          "reward_rule": {
+            "$ref": "#/components/schemas/RewardRule-Input"
+          },
+          "quality_rules": {
+            "items": {
+              "$ref": "#/components/schemas/QualityRule"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Quality Rules"
+          },
           "distribution_strategy": {
             "type": "string",
             "title": "Distribution Strategy",
@@ -3416,6 +3899,7 @@
             "title": "Deadline At"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name"
@@ -3489,6 +3973,44 @@
               }
             ],
             "title": "Description"
+          },
+          "instruction_rich_text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionRichText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instruction_plain_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Plain Text"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "reward_rule": {
+            "$ref": "#/components/schemas/RewardRule-Output"
+          },
+          "quality_rules": {
+            "items": {
+              "$ref": "#/components/schemas/QualityRule"
+            },
+            "type": "array",
+            "title": "Quality Rules"
           },
           "status": {
             "$ref": "#/components/schemas/TaskStatus"
@@ -3586,6 +4108,68 @@
             ],
             "title": "Description"
           },
+          "instruction_rich_text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionRichText"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instruction_plain_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Plain Text"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "reward_rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RewardRule-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality_rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/QualityRule"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Rules"
+          },
           "quota_per_labeler": {
             "anyOf": [
               {
@@ -3611,6 +4195,7 @@
             "title": "Deadline At"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "TaskUpdate"
       },

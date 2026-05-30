@@ -24,11 +24,78 @@ Invalid credentials return `401` with `INVALID_CREDENTIALS`. Missing, invalid, u
 - `POST /tasks/{task_id}/publish`: owner transitions `draft -> published`.
 - `POST /tasks/{task_id}/pause`: owner transitions `published -> paused`.
 - `POST /tasks/{task_id}/end`: owner transitions active task to `ended`.
-- `POST /tasks/{task_id}/items/import`: owner imports raw task items.
+- `POST /tasks/{task_id}/items/import/preview`: owner previews and validates pasted or uploaded dataset content before commit.
+- `POST /tasks/{task_id}/items/import`: owner commits validated raw task items.
 - `GET /tasks/{task_id}/items`: owner or reviewer lists task items.
 - `GET /tasks/{task_id}/review-config`: owner or reviewer reads AI review config.
 - `PUT /tasks/{task_id}/review-config`: owner upserts review config.
 - `GET /tasks/{task_id}/agent-workflow`: owner or reviewer reads task-level agent workflow status counts, AI decision counts, pending/failed counts, and recent submission workflows.
+
+Task create/update/read payloads include expanded metadata:
+
+```json
+{
+  "instruction_rich_text": { "format": "markdown", "content": "Safe markdown instructions" },
+  "instruction_plain_text": "Safe searchable fallback derived by the backend",
+  "tags": ["support qa", "priority"],
+  "reward_rule": {
+    "mode": "none | fixed_per_accepted_submission | manual",
+    "currency": "USD",
+    "amount": "1.25",
+    "description": "Owner-visible policy text"
+  },
+  "quality_rules": [{ "label": "Evidence", "description": "Cite the source text." }]
+}
+```
+
+`instruction_rich_text` is stored as structured safe markdown only; raw HTML tags, JavaScript URLs, HTML data URLs, and inline event handlers are rejected. Tags are trimmed, whitespace-collapsed, lower-cased, and rejected when empty or duplicated after normalization. Reward rules are metadata only: LabelHub validates mode/currency/amount consistency but does not execute payouts, maintain a payout ledger, or call payment providers.
+
+### Dataset Import
+
+Preview request:
+
+```json
+{
+  "format": "json_array | jsonl | xlsx",
+  "content": "UTF-8 text for JSON/JSONL, base64 for XLSX",
+  "filename": "optional-source-name.xlsx",
+  "is_base64": true,
+  "excel_mapping": {
+    "external_id_column": "external_id",
+    "payload_column": "payload",
+    "payload_columns": null
+  }
+}
+```
+
+Preview returns row-level `errors` and `warnings`, `valid_count`, `invalid_count`, and limits. Commit uses:
+
+```json
+{
+  "items": [
+    { "external_id": "row-1", "payload": { "text": "..." }, "source_row": 2 }
+  ]
+}
+```
+
+Supported formats:
+
+- JSON array: either `{ "external_id": "...", "payload": { ... } }` rows, or object rows without `payload`, where all non-`external_id` fields become payload keys.
+- JSONL: one JSON object per non-empty line, using the same row rules as JSON array. Invalid lines include the source line number.
+- XLSX: first worksheet only, first non-empty row as headers, remaining non-empty rows as data.
+
+Excel mapping rules:
+
+- `external_id_column` defaults to `external_id`; blank values import as `null`.
+- If `payload_column` exists and a row has a non-empty value in that column, it must contain a JSON object string and wins over tabular payload columns.
+- Otherwise payload is built from `payload_columns` when provided, or from all columns except `external_id_column` and `payload_column`.
+- Numeric and boolean XLSX cells are preserved as JSON numbers/booleans; date-formatted cells are not interpreted beyond their stored spreadsheet value.
+
+Limits default to `LABELHUB_IMPORT_MAX_ROWS=5000` and `LABELHUB_IMPORT_MAX_FILE_BYTES=5242880` (5 MiB). Backend validation is authoritative even after frontend preview/editing.
+
+Duplicate `external_id` policy: non-empty external IDs must be unique within a task and within the submitted batch. Duplicates are rejected; LabelHub does not overwrite existing items or auto-suffix IDs. Rows with `external_id: null` are allowed more than once.
+
+Partial failure policy: preview can show mixed valid and invalid rows, but commit is all-or-nothing. If any submitted row fails validation or conflicts with an existing `external_id`, no rows from that commit are created. Import errors include row and field context when available.
 
 ## Template APIs
 
@@ -40,9 +107,9 @@ Published template schemas are immutable. Submissions store `template_schema_id`
 
 ## Labeler APIs
 
-- `GET /labeler/tasks`: labeler lists published marketplace tasks.
+- `GET /labeler/tasks`: labeler lists published marketplace tasks, including read-only task instructions, tags, reward policy, and quality rules when configured.
 - `POST /labeler/tasks/{task_id}/claim`: labeler claims the next available item.
-- `GET /labeler/assignments/{assignment_id}`: labeler reads assignment detail, frozen template snapshot, current submission, task, item, and latest human return reason.
+- `GET /labeler/assignments/{assignment_id}`: labeler reads assignment detail, frozen template snapshot, current submission, task metadata, item, and latest human return reason.
 - `GET /labeler/assignments/{assignment_id}/agent-workflow`: labeler reads the agent workflow for their own assignment.
 - `PUT /labeler/assignments/{assignment_id}/draft`: labeler saves draft answers with `{ "answer_payload": ... }`.
 - `POST /labeler/assignments/{assignment_id}/submit`: labeler submits required answers with `{ "answer_payload": ... }`.

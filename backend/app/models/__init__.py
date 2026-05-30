@@ -33,6 +33,10 @@ def enum_column(enum_type: type) -> SAEnum:
     )
 
 
+def default_reward_rule() -> dict:
+    return {"mode": "none", "currency": None, "amount": None, "description": None}
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -64,6 +68,11 @@ class Task(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    instruction_rich_text: Mapped[dict | None] = mapped_column(JSON)
+    instruction_plain_text: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    reward_rule: Mapped[dict] = mapped_column(JSON, default=default_reward_rule, nullable=False)
+    quality_rules: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     status: Mapped[TaskStatus] = mapped_column(
         enum_column(TaskStatus), default=TaskStatus.DRAFT, nullable=False
     )

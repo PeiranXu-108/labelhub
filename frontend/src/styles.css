@@ -175,6 +175,48 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.task-metadata-stack,
+.task-metadata-section,
+.quality-rule-list,
+.import-file-stack,
+.import-issue-list {
+  display: grid;
+  gap: 10px;
+}
+
+.import-mapping-grid,
+.import-batch-tools {
+  display: grid;
+  gap: 12px;
+}
+
+.import-mapping-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.import-batch-tools {
+  grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  align-items: end;
+  padding: 12px;
+  background: #f7f9fc;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+}
+
+.compact-control {
+  gap: 4px;
+}
+
+.import-issue-list {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.task-instructions {
+  margin: 0 !important;
+  white-space: pre-wrap;
+}
+
 .template-title-control {
   max-width: 520px;
 }
@@ -366,10 +408,12 @@ body {
     padding: 24px;
   }
 
-  .designer-grid,
-  .form-grid-2,
-  .form-grid-3,
-  .metric-grid,
+    .designer-grid,
+    .form-grid-2,
+    .form-grid-3,
+    .import-batch-tools,
+    .import-mapping-grid,
+    .metric-grid,
   .dashboard-tables,
   .filter-row,
   .review-filters,

@@ -9,6 +9,16 @@ const task = {
   id: "task-1",
   name: "Sentiment QA",
   description: "Owner workflow",
+  instruction_rich_text: { format: "markdown", content: "Use the rubric before labeling." },
+  instruction_plain_text: "Use the rubric before labeling.",
+  tags: ["support qa", "priority"],
+  reward_rule: {
+    mode: "manual",
+    currency: "USD",
+    amount: null,
+    description: "Settled outside LabelHub.",
+  },
+  quality_rules: [{ label: "Evidence", description: "Cite the conversation." }],
   status: "draft",
   distribution_strategy: "manual",
   quota_per_labeler: 3,
@@ -99,8 +109,66 @@ describe("owner console", () => {
           body: JSON.stringify({
             name: "New task",
             description: "Import review rows",
+            instruction_rich_text: null,
+            instruction_plain_text: null,
+            tags: [],
+            reward_rule: { mode: "none", currency: null, amount: null, description: null },
+            quality_rules: [],
             distribution_strategy: "manual",
             quota_per_labeler: 5,
+            deadline_at: null,
+          }),
+        }),
+      );
+    });
+  });
+
+  it("submits rich instructions, tags, reward rule, and quality rules from the drawer", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/tasks") && init?.method === "POST") {
+        return jsonResponse({ ...task, name: "Rewarded task" }, 201);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <OwnerTasksRoute />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /新\s*建\s*任\s*务/ }));
+    fireEvent.change(screen.getByLabelText("名称"), { target: { value: "Rewarded task" } });
+    fireEvent.change(screen.getByLabelText("标注说明"), { target: { value: "Read **carefully**." } });
+    fireEvent.change(screen.getByLabelText("标签"), { target: { value: "support, urgent" } });
+    fireEvent.change(screen.getByLabelText("质量规则"), { target: { value: "Evidence: cite source text" } });
+    fireEvent.mouseDown(screen.getByLabelText("奖励模式"));
+    fireEvent.click(await screen.findByText("固定通过计件"));
+    fireEvent.change(screen.getByLabelText("币种"), { target: { value: "usd" } });
+    fireEvent.change(screen.getByLabelText("单条奖励金额"), { target: { value: "1.50" } });
+    fireEvent.change(screen.getByLabelText("奖励说明"), { target: { value: "Accepted submissions only" } });
+    fireEvent.click(screen.getByRole("button", { name: /创\s*建\s*任\s*务/ }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/tasks$/),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            name: "Rewarded task",
+            description: null,
+            instruction_rich_text: { format: "markdown", content: "Read **carefully**." },
+            instruction_plain_text: "Read carefully.",
+            tags: ["support", "urgent"],
+            reward_rule: {
+              mode: "fixed_per_accepted_submission",
+              currency: "USD",
+              amount: "1.50",
+              description: "Accepted submissions only",
+            },
+            quality_rules: [{ label: "Evidence", description: "cite source text" }],
+            distribution_strategy: "manual",
+            quota_per_labeler: null,
             deadline_at: null,
           }),
         }),
@@ -243,6 +311,35 @@ describe("owner console", () => {
     expect(screen.getAllByText("AI 决策").length).toBeGreaterThan(0);
     expect(screen.getByText(/deepseek-chat/i)).toBeInTheDocument();
     expect(screen.queryByText(/not exposed by the current owner API contract/i)).not.toBeInTheDocument();
+  });
+
+  it("renders task metadata on the owner dashboard", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/tasks/task-1")) return jsonResponse(task);
+      if (String(input).endsWith("/tasks/task-1/items")) return jsonResponse([]);
+      if (String(input).endsWith("/tasks/task-1/agent-workflow")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/review-config")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/template")) return jsonResponse(null, 404);
+      if (String(input).endsWith("/tasks/task-1/exports")) return jsonResponse([]);
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        initialEntries={["/owner/tasks/task-1"]}
+      >
+        <Routes>
+          <Route path="/owner/tasks/:taskId" element={<OwnerTaskDetailRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("任务元数据")).toBeInTheDocument();
+    expect(screen.getByText("Use the rubric before labeling.")).toBeInTheDocument();
+    expect(screen.getByText("support qa")).toBeInTheDocument();
+    expect(screen.getByText("Settled outside LabelHub.")).toBeInTheDocument();
+    expect(screen.getByText("Evidence: Cite the conversation.")).toBeInTheDocument();
   });
 });
 

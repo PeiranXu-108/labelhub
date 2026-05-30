@@ -61,6 +61,12 @@ export async function readError(response: Response) {
     if (payload?.detail?.message) {
       return payload.detail.message as string;
     }
+    if (Array.isArray(payload?.detail)) {
+      return payload.detail
+        .map((item: unknown) => (isValidationErrorItem(item) ? item.msg : null))
+        .filter((message: string | null): message is string => Boolean(message))
+        .join("; ");
+    }
     if (payload?.detail?.code) {
       return payload.detail.code as string;
     }
@@ -68,4 +74,8 @@ export async function readError(response: Response) {
     return `${response.status} ${response.statusText}`;
   }
   return `${response.status} ${response.statusText}`;
+}
+
+function isValidationErrorItem(item: unknown): item is { msg: string } {
+  return Boolean(item && typeof item === "object" && "msg" in item && typeof item.msg === "string");
 }

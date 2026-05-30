@@ -20,8 +20,16 @@ class Actor:
     role: UserRole
 
 
-def api_error(code: str, message: str, http_status: int = status.HTTP_400_BAD_REQUEST) -> HTTPException:
-    return HTTPException(status_code=http_status, detail={"code": code, "message": message})
+def api_error(
+    code: str,
+    message: str,
+    http_status: int = status.HTTP_400_BAD_REQUEST,
+    extra: dict | None = None,
+) -> HTTPException:
+    detail = {"code": code, "message": message}
+    if extra:
+        detail.update(extra)
+    return HTTPException(status_code=http_status, detail=detail)
 
 
 def get_current_actor(

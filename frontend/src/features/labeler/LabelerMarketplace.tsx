@@ -7,6 +7,7 @@ import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import type { TaskRead } from "../owner/types";
 import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { formatRewardRule } from "../task-metadata/TaskMetadataPanel";
 import type { SubmissionRead } from "./types";
 
 export function LabelerMarketplace() {
@@ -48,7 +49,9 @@ export function LabelerMarketplace() {
       const matchesQuery =
         !normalizedQuery ||
         task.name.toLowerCase().includes(normalizedQuery) ||
-        (task.description ?? "").toLowerCase().includes(normalizedQuery);
+        (task.description ?? "").toLowerCase().includes(normalizedQuery) ||
+        (task.instruction_plain_text ?? "").toLowerCase().includes(normalizedQuery) ||
+        task.tags.some((tag) => tag.includes(normalizedQuery));
       const deadlineTime = task.deadline_at ? new Date(task.deadline_at).getTime() : null;
       const matchesDeadline =
         deadlineFilter === "all" ||
@@ -119,6 +122,29 @@ export function LabelerMarketplace() {
                   <Space direction="vertical" size={0}>
                     <Typography.Text strong>{record.name}</Typography.Text>
                     <Typography.Text type="secondary">{record.description || "暂无描述"}</Typography.Text>
+                    {record.instruction_plain_text ? (
+                      <Typography.Text type="secondary">{record.instruction_plain_text}</Typography.Text>
+                    ) : null}
+                    {record.tags.length > 0 ? (
+                      <Space wrap size={4}>
+                        {record.tags.map((tag) => (
+                          <Tag key={tag}>{tag}</Tag>
+                        ))}
+                      </Space>
+                    ) : null}
+                  </Space>
+                ),
+              },
+              {
+                title: "奖励",
+                dataIndex: "reward_rule",
+                key: "reward_rule",
+                render: (_: unknown, record: TaskRead) => (
+                  <Space direction="vertical" size={0}>
+                    <Typography.Text>{formatRewardRule(record.reward_rule)}</Typography.Text>
+                    {record.reward_rule.description ? (
+                      <Typography.Text type="secondary">{record.reward_rule.description}</Typography.Text>
+                    ) : null}
                   </Space>
                 ),
               },

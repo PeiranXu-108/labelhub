@@ -10,6 +10,16 @@ const task = {
   id: "task-1",
   name: "Support QA",
   description: "Review support conversations",
+  instruction_rich_text: { format: "markdown", content: "Follow the policy notes." },
+  instruction_plain_text: "Follow the policy notes.",
+  tags: ["support qa", "policy"],
+  reward_rule: {
+    mode: "fixed_per_accepted_submission",
+    currency: "USD",
+    amount: "1.25",
+    description: "Accepted submissions only.",
+  },
+  quality_rules: [{ label: "Evidence", description: "Cite the source text." }],
   status: "published",
   distribution_strategy: "AUTO_CLAIM",
   quota_per_labeler: null,
@@ -168,6 +178,44 @@ describe("labeler workspace", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/tasks/task-1/template"))).toBe(false);
+  });
+
+  it("shows task metadata in marketplace and assignment workbench", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/tasks")) return jsonResponse([task]);
+      if (url.endsWith("/labeler/submissions")) return jsonResponse([]);
+      if (url.endsWith("/labeler/assignments/assignment-1")) return jsonResponse(assignmentDetail);
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/labeler/tasks"]}>
+        <Routes>
+          <Route path="/labeler/tasks" element={<LabelerTasksRoute />} />
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Follow the policy notes.")).toBeInTheDocument();
+    expect(screen.getByText("support qa")).toBeInTheDocument();
+    expect(screen.getByText("Accepted submissions only.")).toBeInTheDocument();
+
+    unmount();
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/tasks" element={<LabelerTasksRoute />} />
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("任务说明")).toBeInTheDocument();
+    expect(screen.getByText("Follow the policy notes.")).toBeInTheDocument();
+    expect(screen.getByText("Accepted submissions only.")).toBeInTheDocument();
+    expect(screen.getByText("Evidence: Cite the source text.")).toBeInTheDocument();
   });
 
   it("renders from assignment template snapshot and autosaves changed answers after the debounce window", async () => {

@@ -1,9 +1,16 @@
-import { Alert, Button, Input, Space, Table, Typography } from "antd";
-import { useState } from "react";
+import { Alert, Button, Input, Radio, Space, Table, Tag, Typography } from "antd";
+import type { RadioChangeEvent } from "antd";
+import { useMemo, useState } from "react";
 
-import { useOperationMessage } from "../feedback";
-import { importItems } from "./api";
-import type { ItemImportEntry, TaskItemRead } from "./types";
+import { importItems, previewImportItems } from "./api";
+import type {
+  ExcelImportMapping,
+  ImportFormat,
+  ImportRowIssue,
+  ItemImportPreviewRequest,
+  ItemImportPreviewRow,
+  TaskItemRead,
+} from "./types";
 
 type DatasetImportPanelProps = {
   taskId: string;
@@ -21,63 +28,155 @@ const sample = JSON.stringify(
   2,
 );
 
+type ImportMode = "paste" | "file";
+
+type EditablePreviewRow = ItemImportPreviewRow & {
+  key: string;
+  removed: boolean;
+};
+
+const defaultExcelMapping: ExcelImportMapping = {
+  external_id_column: "external_id",
+  payload_column: "payload",
+  payload_columns: null,
+};
+
 export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelProps) {
-  const showOperationError = useOperationMessage();
-  const [value, setValue] = useState(sample);
-  const [preview, setPreview] = useState<ItemImportEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ImportMode>("paste");
+  const [pasteFormat, setPasteFormat] = useState<ImportFormat>("json_array");
+  const [pasteValue, setPasteValue] = useState(sample);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [excelMapping, setExcelMapping] = useState<ExcelImportMapping>(defaultExcelMapping);
+  const [previewRows, setPreviewRows] = useState<EditablePreviewRow[]>([]);
+  const [previewErrors, setPreviewErrors] = useState<ImportRowIssue[]>([]);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [renameFrom, setRenameFrom] = useState("");
+  const [renameTo, setRenameTo] = useState("");
+  const [previewing, setPreviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  function parseItems() {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error("数据集必须是非空 JSON 数组。");
-    }
-    return parsed.map((entry, index) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        throw new Error(`第 ${index + 1} 个数据项必须是对象。`);
-      }
-      const item = entry as Record<string, unknown>;
-      if (!item.payload || typeof item.payload !== "object" || Array.isArray(item.payload)) {
-        throw new Error(`第 ${index + 1} 个数据项必须包含 payload 对象。`);
-      }
-      return {
-        external_id: typeof item.external_id === "string" ? item.external_id : null,
-        payload: item.payload as Record<string, unknown>,
-      };
-    });
-  }
+  const visibleRows = previewRows.filter((row) => !row.removed);
+  const validRows = visibleRows.filter((row) => row.errors.length === 0);
+  const payloadKeys = useMemo(() => collectPayloadKeys(visibleRows), [visibleRows]);
+  const fileFormat = selectedFile ? detectFileFormat(selectedFile.name) : null;
 
-  function handlePreview() {
+  async function handlePreview() {
+    setPreviewing(true);
+    setPreviewError(null);
+    setCommitError(null);
     try {
-      const items = parseItems();
-      setPreview(items);
-      setError(null);
+      const request = await buildPreviewRequest();
+      const response = await previewImportItems(taskId, request);
+      setPreviewRows(
+        response.rows.map((row, index) => ({
+          ...row,
+          key: `${row.row_number}-${index}`,
+          removed: false,
+        })),
+      );
+      setPreviewErrors(response.errors);
     } catch (err) {
-      setPreview([]);
-      setError(err instanceof Error ? err.message : "数据集 JSON 无效。");
+      setPreviewRows([]);
+      setPreviewErrors([]);
+      setPreviewError(err instanceof Error ? err.message : "导入预览失败。");
+    } finally {
+      setPreviewing(false);
     }
   }
 
   async function handleImport() {
-    let items: ItemImportEntry[];
-    try {
-      items = preview.length > 0 ? preview : parseItems();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "数据集 JSON 无效。");
+    if (validRows.length === 0) {
+      setCommitError("没有可提交的有效行。请先生成预览，或移除/修正无效行。");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setCommitError(null);
     try {
-      const imported = await importItems(taskId, items);
+      const imported = await importItems(
+        taskId,
+        validRows.map((row) => ({
+          external_id: normalizeExternalId(row.external_id),
+          payload: row.payload,
+          source_row: row.row_number,
+        })),
+      );
       onImported(imported);
     } catch (err) {
-      showOperationError(err, "导入数据项失败。");
+      setCommitError(err instanceof Error ? err.message : "导入数据项失败。");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function buildPreviewRequest(): Promise<ItemImportPreviewRequest> {
+    if (mode === "paste") {
+      return {
+        format: pasteFormat,
+        content: pasteValue,
+        is_base64: false,
+        excel_mapping: excelMapping,
+      };
+    }
+
+    if (!selectedFile) {
+      throw new Error("请选择要上传的 .json、.jsonl 或 .xlsx 文件。");
+    }
+
+    const format = detectFileFormat(selectedFile.name);
+    if (!format) {
+      throw new Error("仅支持 .json、.jsonl、.xlsx 文件。");
+    }
+
+    return {
+      format,
+      filename: selectedFile.name,
+      content: format === "xlsx" ? await readFileAsBase64(selectedFile) : await readFileAsText(selectedFile),
+      is_base64: format === "xlsx",
+      excel_mapping: normalizedExcelMapping(excelMapping),
+    };
+  }
+
+  function updateExternalId(rowKey: string, value: string) {
+    setPreviewRows((current) =>
+      current.map((row) => (row.key === rowKey ? { ...row, external_id: normalizeExternalId(value) } : row)),
+    );
+  }
+
+  function updatePayloadCell(rowKey: string, payloadKey: string, value: string) {
+    setPreviewRows((current) =>
+      current.map((row) =>
+        row.key === rowKey
+          ? { ...row, payload: { ...row.payload, [payloadKey]: parseCellValue(value) } }
+          : row,
+      ),
+    );
+  }
+
+  function removeRow(rowKey: string) {
+    setPreviewRows((current) =>
+      current.map((row) => (row.key === rowKey ? { ...row, removed: true } : row)),
+    );
+  }
+
+  function applyPayloadRename() {
+    const source = renameFrom.trim();
+    const target = renameTo.trim();
+    if (!source || !target) {
+      setPreviewError("请输入原 Payload Key 和新 Payload Key。");
+      return;
+    }
+    setPreviewError(null);
+    setPreviewRows((current) =>
+      current.map((row) => {
+        if (row.removed || !Object.prototype.hasOwnProperty.call(row.payload, source)) {
+          return row;
+        }
+        const { [source]: value, ...rest } = row.payload;
+        return { ...row, payload: { ...rest, [target]: value } };
+      }),
+    );
   }
 
   return (
@@ -85,35 +184,302 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
       <Typography.Title id="dataset-import-heading" level={3}>
         数据集导入
       </Typography.Title>
-      {error ? <Alert className="section-alert" message={error} type="error" /> : null}
-      <label className="schema-control">
-        <span>数据项 JSON</span>
-        <Input.TextArea
-          value={value}
-          rows={10}
-          onChange={(event) => setValue(event.target.value)}
+      {previewError ? <Alert className="section-alert" message="解析/验证错误" description={previewError} type="error" /> : null}
+      {previewErrors.length > 0 ? (
+        <Alert
+          className="section-alert"
+          message="解析/验证错误"
+          description={<IssueList issues={previewErrors} />}
+          type="warning"
         />
-      </label>
+      ) : null}
+      {commitError ? <Alert className="section-alert" message="后端创建错误" description={commitError} type="error" /> : null}
+
+      <Radio.Group
+        aria-label="导入方式"
+        value={mode}
+        onChange={(event: RadioChangeEvent) => setMode(event.target.value as ImportMode)}
+      >
+        <Radio value="paste" aria-label="粘贴导入">
+          粘贴导入
+        </Radio>
+        <Radio value="file" aria-label="文件上传">
+          文件上传
+        </Radio>
+      </Radio.Group>
+
+      {mode === "paste" ? (
+        <>
+          <Radio.Group
+            aria-label="粘贴格式"
+            value={pasteFormat}
+            onChange={(event: RadioChangeEvent) => setPasteFormat(event.target.value as ImportFormat)}
+          >
+            <Radio value="json_array">JSON 数组</Radio>
+            <Radio value="jsonl">JSONL</Radio>
+          </Radio.Group>
+          <label className="schema-control">
+            <span>粘贴数据</span>
+            <Input.TextArea
+              value={pasteValue}
+              rows={10}
+              onChange={(event) => setPasteValue(event.target.value)}
+            />
+          </label>
+        </>
+      ) : (
+        <div className="import-file-stack">
+          <label className="schema-control">
+            <span>上传数据文件</span>
+            <input
+              aria-label="上传数据文件"
+              accept=".json,.jsonl,.xlsx"
+              type="file"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          {fileFormat === "xlsx" ? (
+            <div className="import-mapping-grid">
+              <label className="schema-control">
+                <span>外部 ID 列</span>
+                <Input
+                  value={excelMapping.external_id_column}
+                  onChange={(event) =>
+                    setExcelMapping((current) => ({ ...current, external_id_column: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="schema-control">
+                <span>Payload JSON 列</span>
+                <Input
+                  value={excelMapping.payload_column ?? ""}
+                  onChange={(event) =>
+                    setExcelMapping((current) => ({
+                      ...current,
+                      payload_column: event.target.value.trim() || null,
+                    }))
+                  }
+                />
+              </label>
+              <label className="schema-control">
+                <span>Payload 选择列</span>
+                <Input
+                  value={excelMapping.payload_columns?.join(", ") ?? ""}
+                  onChange={(event) =>
+                    setExcelMapping((current) => ({
+                      ...current,
+                      payload_columns: splitColumns(event.target.value),
+                    }))
+                  }
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       <Space className="section-actions">
-        <Button onClick={handlePreview}>预览导入</Button>
-        <Button loading={submitting} type="primary" onClick={handleImport}>
-          导入数据集
+        <Button loading={previewing} onClick={handlePreview}>生成预览</Button>
+        <Button disabled={validRows.length === 0} loading={submitting} type="primary" onClick={handleImport}>
+          提交有效行
         </Button>
       </Space>
+
+      <div className="import-batch-tools">
+        <Typography.Text strong>批量编辑</Typography.Text>
+        <label className="schema-control compact-control">
+          <span>原 Payload Key</span>
+          <Input value={renameFrom} onChange={(event) => setRenameFrom(event.target.value)} />
+        </label>
+        <label className="schema-control compact-control">
+          <span>新 Payload Key</span>
+          <Input value={renameTo} onChange={(event) => setRenameTo(event.target.value)} />
+        </label>
+        <Button onClick={applyPayloadRename}>批量重命名</Button>
+      </div>
+
       <Table
         columns={[
-          { title: "外部 ID", dataIndex: "external_id", key: "external_id", render: (id) => id || "无" },
+          { title: "源行", dataIndex: "row_number", key: "row_number", width: 80 },
           {
-            title: "Payload 字段",
-            key: "payload",
-            render: (_: unknown, record: ItemImportEntry) => Object.keys(record.payload).join(", ") || "无",
+            title: "外部 ID",
+            dataIndex: "external_id",
+            key: "external_id",
+            width: 220,
+            render: (_: unknown, record: EditablePreviewRow) => (
+              <Space direction="vertical" size={4}>
+                <Input
+                  aria-label={`第 ${record.row_number} 行 external_id`}
+                  value={record.external_id ?? ""}
+                  onChange={(event) => updateExternalId(record.key, event.target.value)}
+                />
+                <Typography.Text type="secondary">{record.external_id || "空"}</Typography.Text>
+              </Space>
+            ),
+          },
+          {
+            title: "状态",
+            key: "issues",
+            width: 220,
+            render: (_: unknown, record: EditablePreviewRow) => (
+              <IssueTags errors={record.errors} warnings={record.warnings} />
+            ),
+          },
+          ...payloadKeys.map((payloadKey) => ({
+            title: `payload.${payloadKey}`,
+            key: `payload.${payloadKey}`,
+            width: 180,
+            render: (_: unknown, record: EditablePreviewRow) => (
+              <Input
+                aria-label={`第 ${record.row_number} 行 payload.${payloadKey}`}
+                value={cellToText(record.payload[payloadKey])}
+                onChange={(event) => updatePayloadCell(record.key, payloadKey, event.target.value)}
+              />
+            ),
+          })),
+          {
+            title: "操作",
+            key: "actions",
+            width: 90,
+            render: (_: unknown, record: EditablePreviewRow) => (
+              <Button aria-label={`移除第 ${record.row_number} 行`} size="small" onClick={() => removeRow(record.key)}>
+                移除
+              </Button>
+            ),
           },
         ]}
-        dataSource={preview}
+        dataSource={visibleRows}
         pagination={false}
-        rowKey={(record, index) => record.external_id ?? String(index)}
+        rowKey="key"
+        scroll={{ x: true }}
         size="small"
       />
     </section>
   );
+}
+
+function IssueList({ issues }: { issues: ImportRowIssue[] }) {
+  return (
+    <ul className="import-issue-list">
+      {issues.map((issue, index) => (
+        <li key={`${issue.row_number}-${issue.field}-${issue.code}-${index}`}>
+          {formatIssue(issue)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function IssueTags({ errors, warnings }: { errors: ImportRowIssue[]; warnings: ImportRowIssue[] }) {
+  if (errors.length === 0 && warnings.length === 0) {
+    return <Tag color="green">有效</Tag>;
+  }
+  return (
+    <Space direction="vertical" size={4}>
+      {errors.map((error, index) => (
+        <Tag color="red" key={`error-${index}`}>
+          {error.message}
+        </Tag>
+      ))}
+      {warnings.map((warning, index) => (
+        <Tag color="gold" key={`warning-${index}`}>
+          {warning.message}
+        </Tag>
+      ))}
+    </Space>
+  );
+}
+
+function formatIssue(issue: ImportRowIssue) {
+  const row = issue.row_number ? `第 ${issue.row_number} 行` : "文件";
+  const field = issue.field ? ` ${issue.field}` : "";
+  return `${row}${field}: ${issue.message}`;
+}
+
+function detectFileFormat(fileName: string): ImportFormat | null {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith(".json")) {
+    return "json_array";
+  }
+  if (lowerName.endsWith(".jsonl")) {
+    return "jsonl";
+  }
+  if (lowerName.endsWith(".xlsx")) {
+    return "xlsx";
+  }
+  return null;
+}
+
+function readFileAsText(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("文件读取失败。"));
+    reader.readAsText(file);
+  });
+}
+
+function readFileAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(new Error("文件读取失败。"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function normalizedExcelMapping(mapping: ExcelImportMapping): ExcelImportMapping {
+  return {
+    external_id_column: mapping.external_id_column.trim() || "external_id",
+    payload_column: mapping.payload_column?.trim() || null,
+    payload_columns: mapping.payload_columns?.length ? mapping.payload_columns : null,
+  };
+}
+
+function splitColumns(value: string) {
+  const columns = value
+    .split(",")
+    .map((column) => column.trim())
+    .filter(Boolean);
+  return columns.length > 0 ? columns : null;
+}
+
+function collectPayloadKeys(rows: EditablePreviewRow[]) {
+  const keys = new Set<string>();
+  for (const row of rows) {
+    for (const key of Object.keys(row.payload)) {
+      keys.add(key);
+    }
+  }
+  return Array.from(keys);
+}
+
+function normalizeExternalId(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized || null;
+}
+
+function parseCellValue(value: string): unknown {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function cellToText(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }

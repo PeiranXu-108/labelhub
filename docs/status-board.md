@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Task10 Auth Login is approved. Supervisor follow-up gap triage has split the newly reported uncovered requirements into Tasks 11-19; these tasks are drafted and pending dispatch before any expanded-scope MVP readiness claim.
+Task12 Dataset Import Pipeline is approved. Follow-up Tasks 13-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
 
 ## Active Agents
 
@@ -21,8 +21,8 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 | Review Integration Contracts Agent | `docs/tasks/09-review-integration-contracts-agent.md` | complete | `docs/handoffs/2026-05-24-task09-review-integration-contracts-handoff.md` | approved |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | complete | `docs/handoffs/2026-05-25-task08-qa-docs-deploy-handoff.md` | approved |
 | Auth Login Agent | `docs/tasks/10-auth-login-agent.md` | complete | `docs/handoffs/2026-05-28-task10-auth-login-handoff.md` | approved |
-| Task Metadata and Rewards Agent | `docs/tasks/11-task-metadata-rewards-agent.md` | drafted / not started | none | pending dispatch |
-| Dataset Import Pipeline Agent | `docs/tasks/12-dataset-import-pipeline-agent.md` | drafted / not started | none | pending dispatch |
+| Task Metadata and Rewards Agent | `docs/tasks/11-task-metadata-rewards-agent.md` | complete | `docs/handoffs/2026-05-31-task11-task-metadata-rewards-handoff.md` | approved |
+| Dataset Import Pipeline Agent | `docs/tasks/12-dataset-import-pipeline-agent.md` | complete | `docs/handoffs/2026-05-31-task12-dataset-import-pipeline-handoff.md` | approved |
 | Template Designer Builder Agent | `docs/tasks/13-template-designer-builder-agent.md` | drafted / not started | none | pending dispatch |
 | Rich Text and Media Fields Agent | `docs/tasks/14-rich-media-fields-agent.md` | drafted / not started | none | pending dispatch |
 | Dynamic Form Runtime Agent | `docs/tasks/15-dynamic-form-runtime-agent.md` | drafted / not started | none | pending dispatch |
@@ -65,6 +65,11 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 - Export files use `task-<task_id>-export-<export_job_id>.<extension>` under `<storage_root>/<task_id>/`.
 - Export workers may read only existing `approved` and `exportable` submissions and must not create their own workflow/exportability rules.
 - Export downloads are limited to task owner or reviewer; labelers must be denied.
+- Task metadata contract: `instruction_rich_text`, backend-derived `instruction_plain_text`, normalized unique `tags`, metadata-only `reward_rule`, and `quality_rules` are returned through `TaskRead`.
+- Reward rules remain policy metadata only; no payout execution, tax handling, ledger, or external payment provider integration exists in Task 11.
+- Dataset import preview API is `POST /tasks/{task_id}/items/import/preview`.
+- Dataset import preview formats are `json_array`, `jsonl`, and `xlsx`; default limits are 5,000 rows and 5 MiB unless overridden by `LABELHUB_IMPORT_MAX_ROWS` and `LABELHUB_IMPORT_MAX_FILE_BYTES`.
+- Dataset import commit remains `POST /tasks/{task_id}/items/import`, is owner-only, and is all-or-nothing after backend validation.
 
 ## Open Decisions
 
@@ -105,8 +110,8 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 | 09 Review Integration Contracts | Review Integration Contracts Agent | complete | Tasks 02, 03, 04, 07 | Approved; frozen template snapshots, reviewer AI/human/audit detail, previous attempts, server-backed filters, OpenAPI, migration, tests, and handoff verified. |
 | 08 QA Docs Deploy | QA Docs Deploy Agent | complete | first vertical slice, Task09 approved | Approved; docs, local E2E smoke, Docker config validation, deployment notes, demo script, known limitations, and handoff verified. |
 | 10 Auth Login | Auth Login Agent | complete | Tasks 02, 06, 07, 08 | Approved; real JWT username/password login, persisted demo users, fail-closed bearer auth, route guards, logout, docs, OpenAPI, tests, migration, and login smoke verified. |
-| 11 Task Metadata and Rewards | Task Metadata and Rewards Agent | drafted / not started | Tasks 02, 06, 10 | Expand task rich instructions, tags, reward-rule metadata, owner edit UI, and labeler read surfaces. |
-| 12 Dataset Import Pipeline | Dataset Import Pipeline Agent | drafted / not started | Tasks 02, 06, 10 | Add JSONL/Excel file import, preview validation, batch editing, and import docs. |
+| 11 Task Metadata and Rewards | Task Metadata and Rewards Agent | complete | Tasks 02, 06, 10 | Approved; rich instructions, normalized tags, metadata-only reward rules, quality rules, owner UI, labeler read surfaces, OpenAPI, docs, migration, and validation regression tests verified. |
+| 12 Dataset Import Pipeline | Dataset Import Pipeline Agent | complete | Tasks 02, 06, 10 | Approved; JSON array/JSONL/XLSX preview, row-level validation, batch editing, all-or-nothing commit, OpenAPI, docs, and tests verified. |
 | 13 Template Designer Builder | Template Designer Builder Agent | drafted / not started | Tasks 03, 06 | Upgrade template designer to drag-and-drop builder with full property inspector. |
 | 14 Rich Text and Media Fields | Rich Text and Media Fields Agent | drafted / not started | Tasks 03, 06, preferably Task 13 | Add rich text, image upload, file upload schema/support and MVP storage contracts. |
 | 15 Dynamic Form Runtime | Dynamic Form Runtime Agent | drafted / not started | Tasks 03, 13 | Execute conditional visibility, linked validation, regex/custom validators, and group/tab layouts. |
@@ -146,6 +151,7 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
 - Tasks 11-19 expand scope beyond the previously approved MVP; do not declare expanded-scope readiness until each dispatched task has a handoff and Supervisor approval.
 - Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
+- Task 11 validation risk is resolved: non-string JSON values for text fields are rejected instead of being coerced with `str(value)`.
 - Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
 - Task 13 and Task 15 must coordinate schema authoring versus runtime semantics so the designer does not emit rules the backend/renderer cannot execute.
 - Task 14 and Task 16 must keep storage and LLM provider credentials server-side; no frontend secrets or public upload URLs.
@@ -158,6 +164,38 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 - 2026-05-31 task docs drafted: `docs/tasks/11-task-metadata-rewards-agent.md` through `docs/tasks/19-production-readiness-agent.md`.
 - 2026-05-31 docs-only update completed; no backend/frontend tests were run for this triage because no feature code changed.
 - 2026-05-31 verification: `git diff --check` passed.
+- Task 11 handoff reviewed from `docs/handoffs/2026-05-31-task11-task-metadata-rewards-handoff.md`.
+- Task 11 verification: `cd backend && ./.venv313/bin/pytest tests/test_tasks.py -q` passed, 7 tests, 1 passlib `crypt` deprecation warning.
+- Task 11 verification: `cd frontend && npm test -- --run src/features/owner/OwnerConsole.test.tsx src/features/labeler/LabelerWorkspace.test.tsx` passed, 2 files and 15 tests, with existing React Router future-flag warnings.
+- Task 11 verification: `git diff --check` passed.
+- Task 11 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 67 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 11 verification: `cd frontend && npm test -- --run` passed, 9 files and 39 tests, with existing React Router future-flag warnings.
+- Task 11 verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task11-review-openapi.json` passed.
+- Task 11 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 11 verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task11_supervisor_review.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0004`.
+- Task 11 review note written to `docs/reviews/2026-05-31-task11-task-metadata-rewards-review.md`.
+- Task 11 final handoff re-reviewed from `docs/handoffs/2026-05-31-task11-task-metadata-rewards-handoff.md`.
+- Task 11 final verification: direct `TaskCreate`/`RewardRule` regression probe passed; non-string text values are rejected.
+- Task 11 final verification: `cd backend && ./.venv313/bin/pytest tests/test_tasks.py -q` passed, 13 tests, 1 passlib `crypt` deprecation warning.
+- Task 11 final verification: `git diff --check` passed.
+- Task 11 final verification: `cd backend && ./.venv313/bin/pytest -q` passed, 73 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 11 final verification: `cd frontend && npm test -- --run` passed, 9 files and 39 tests, with existing React Router future-flag warnings.
+- Task 11 final verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task11-rereview-openapi.json` passed.
+- Task 11 final verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 11 final verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task11_rereview.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0004`.
+- Task 11 final approval note written to `docs/reviews/2026-05-31-task11-task-metadata-rewards-final-review.md`.
+- Task 12 handoff reviewed from `docs/handoffs/2026-05-31-task12-dataset-import-pipeline-handoff.md`.
+- Task 12 verification: `cd backend && ./.venv313/bin/pytest tests/test_tasks.py tests/test_dataset_import.py -q` passed, 22 tests, 1 passlib `crypt` deprecation warning.
+- Task 12 verification: `cd frontend && npm test -- --run src/features/owner` passed, 3 files and 12 tests.
+- Task 12 verification: `git diff --check` passed.
+- Task 12 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 82 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 12 verification: `cd frontend && npm test -- --run` passed, 10 files and 42 tests, with existing React Router future-flag warnings.
+- Task 12 verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task12-review-openapi.json` passed.
+- Task 12 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 12 verification: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task12_supervisor_review.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0004`.
+- Task 12 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed.
+- Task 12 verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task12-review-openapi-after-export.json` passed.
+- Task 12 approval note written to `docs/reviews/2026-05-31-task12-dataset-import-pipeline-review.md`.
 - Supervisor required reading completed: `docs/technical-solution.md`, `docs/agent-coordination.md`, `docs/status-board.md`, and all files under `docs/tasks/`.
 - Repository inspection found backend/frontend scaffold, Docker Compose, generated OpenAPI snapshot, dependency folders, and build output.
 - `git status --short` is available; the workspace currently contains uncommitted Task02/Task03 implementation files and Supervisor review documents.
@@ -330,4 +368,4 @@ Task10 Auth Login is approved. Supervisor follow-up gap triage has split the new
 
 ## Next Recommended Action
 
-Dispatch Task 11 first if expanded task metadata is required before richer owner workflows. Task 12 and Task 13 can follow in parallel only if they avoid editing the same owner page container; defer final expanded-scope readiness until Tasks 11-19 are either approved or explicitly descoped.
+Dispatch Task 13 Template Designer Builder Agent if template authoring is the next priority. If Task 14 starts soon after, coordinate field/designer ownership so media-field controls do not race the builder refactor.

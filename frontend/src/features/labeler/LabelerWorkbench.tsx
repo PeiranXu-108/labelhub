@@ -6,6 +6,7 @@ import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { TaskMetadataPanel } from "../task-metadata/TaskMetadataPanel";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
 import type { AnswerPayload } from "../schema-renderer";
@@ -201,6 +202,8 @@ export function LabelerWorkbench() {
             </Descriptions.Item>
           </Descriptions>
         </StudioPanel>
+
+        <TaskMetadataPanel task={assignment.task} />
 
         <AgentWorkflowTimeline compact workflow={agentWorkflow} />
 

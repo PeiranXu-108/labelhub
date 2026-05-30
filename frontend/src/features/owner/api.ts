@@ -2,6 +2,8 @@ import type {
   ExportCreate,
   ExportJobRead,
   ItemImportEntry,
+  ItemImportPreviewRequest,
+  ItemImportPreviewResponse,
   ReviewConfig,
   TaskCreate,
   TaskItemRead,
@@ -49,6 +51,13 @@ export function importItems(taskId: string, items: ItemImportEntry[]) {
   return apiRequest<TaskItemRead[]>(`/tasks/${taskId}/items/import`, {
     method: "POST",
     body: { items },
+  });
+}
+
+export function previewImportItems(taskId: string, payload: ItemImportPreviewRequest) {
+  return apiRequest<ItemImportPreviewResponse>(`/tasks/${taskId}/items/import/preview`, {
+    method: "POST",
+    body: payload,
   });
 }
 

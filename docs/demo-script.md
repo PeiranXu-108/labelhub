@@ -42,7 +42,14 @@ Sign in through `http://localhost:5173/login` when switching roles. The app stor
 1. Sign in as `owner@example.com`.
 2. Open `http://localhost:5173/owner/tasks`.
 3. Create a task named `Support Quality Review`.
+   - Add rich task instructions such as `Read the full conversation before labeling.`
+   - Add tags such as `support qa, demo`.
+   - Set a metadata-only reward rule, for example fixed accepted submission reward `USD 1.25` or manual `USD`.
+   - Add one quality rule such as `Evidence: cite the support ticket text`.
 4. Import one or more items with payload text, for example a support ticket.
+   - Paste a JSON array for the fastest path:
+     `[{ "external_id": "ticket-1", "payload": { "text": "Customer asks for refund status." } }]`
+   - Or upload `.jsonl` / `.xlsx`, generate a preview, remove invalid rows, edit `external_id` or payload cells, and then commit the valid rows.
 5. Open the task detail page.
 6. Build a template with:
    - `show_item` field for `item.payload.text`
@@ -52,13 +59,13 @@ Sign in through `http://localhost:5173/login` when switching roles. The app stor
 8. Configure AI review criteria and thresholds.
 9. Publish the task.
 
-Talk track: the owner controls the production contract: task metadata, raw items, immutable template versions, and review/export configuration.
+Talk track: the owner controls the production contract: rich task instructions, normalized tags, metadata-only reward policy, raw items, immutable template versions, and review/export configuration. Dataset import supports JSON arrays, JSONL, and first-sheet XLSX previews with backend-authoritative validation before commit. Reward rules are policy metadata in this MVP, not payout execution.
 
 ## 2. Labeler
 
 1. Log out, then sign in as `labeler@example.com`.
 2. Open `http://localhost:5173/labeler/tasks`.
-3. Claim the published task.
+3. Review the task instructions, tags, and reward policy shown in the marketplace, then claim the published task.
 4. Fill the annotation form.
 5. Submit the annotation.
 
