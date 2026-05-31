@@ -93,12 +93,12 @@ Talk track: AI review is a system actor. Structured review output, score, model 
 
 1. Log out, then sign in as `reviewer@example.com`.
 2. Open `http://localhost:5173/review/queue`.
-3. Filter by task, AI decision, or score range.
+3. Filter by task, AI decision, review stage, or score range.
 4. Open the submission detail page.
-5. Inspect the original item, frozen template, answers, AI review, audit timeline, and previous attempts.
+5. Inspect the original item, frozen template, answers, AI review, stage timeline, round diff, audit timeline, and previous attempts.
 6. Approve the submission.
 
-Talk track: the reviewer sees persisted AI/human/audit context, not frontend-invented state.
+Talk track: human review is stage-aware. Initial returns, re-review returns, and terminal final approvals are persisted with round metadata, and round diffs come from stored submission-attempt snapshots rather than mutable current answers.
 
 ## 5. Export
 

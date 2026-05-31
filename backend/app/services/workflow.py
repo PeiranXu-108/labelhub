@@ -5,7 +5,14 @@ from typing import Any
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from app.domain.enums import SubmissionAction, SubmissionStatus, TaskAction, TaskStatus, UserRole
+from app.domain.enums import (
+    ReviewStage,
+    SubmissionAction,
+    SubmissionStatus,
+    TaskAction,
+    TaskStatus,
+    UserRole,
+)
 from app.models import Assignment, AuditLog, Submission, Task, TaskItem, TemplateSchema
 
 
@@ -95,11 +102,18 @@ class WorkflowService:
         if action == SubmissionAction.RETURN and not reason:
             raise WorkflowError("REASON_REQUIRED", "Return transitions require a reason")
 
+        transition_metadata = metadata or {}
+        review_stage = transition_metadata.get("review_stage")
+        if review_stage is not None:
+            submission.review_stage = ReviewStage(review_stage)
+
         submission.status = next_status
         if action == SubmissionAction.SUBMIT:
             submission.submitted_at = datetime.now(UTC)
         if action == SubmissionAction.REOPEN:
             submission.attempt += 1
+            if review_stage is None:
+                submission.review_stage = ReviewStage.RE_REVIEW
 
         self.db.add(
             AuditLog(
@@ -111,7 +125,7 @@ class WorkflowService:
                 from_status=current_status.value,
                 to_status=next_status.value,
                 reason=reason,
-                details=metadata or {},
+                details=transition_metadata,
             )
         )
         self.db.flush()

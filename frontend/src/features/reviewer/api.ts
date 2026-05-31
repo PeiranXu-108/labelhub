@@ -1,5 +1,6 @@
 import { apiRequest } from "../auth/http";
 import type { SubmissionRead } from "../labeler/types";
+import type { ReviewStage } from "../labeler/types";
 import type {
   AuditLogRead,
   ReviewQueueFilters,
@@ -22,23 +23,29 @@ export function getReviewSubmission(submissionId: string) {
   return apiRequest<ReviewSubmissionDetail>(`/review/submissions/${submissionId}`);
 }
 
-export function approveSubmission(submissionId: string) {
+export function approveSubmission(submissionId: string, stage: ReviewStage = "final_review") {
   return apiRequest<SubmissionRead>(`/review/submissions/${submissionId}/approve`, {
     method: "POST",
+    body: { stage },
   });
 }
 
-export function returnSubmission(submissionId: string, reason: string) {
+export function returnSubmission(submissionId: string, reason: string, stage?: ReviewStage | null) {
   return apiRequest<SubmissionRead>(`/review/submissions/${submissionId}/return`, {
     method: "POST",
-    body: { reason },
+    body: { reason, stage },
   });
 }
 
-export function batchReview(submissionIds: string[], action: "approve" | "return", reason?: string) {
+export function batchReview(
+  submissionIds: string[],
+  action: "approve" | "return",
+  reason?: string,
+  stage?: ReviewStage | null,
+) {
   return apiRequest<SubmissionRead[]>("/review/submissions/batch", {
     method: "POST",
-    body: { submission_ids: submissionIds, action, reason },
+    body: { submission_ids: submissionIds, action, reason, stage },
   });
 }
 

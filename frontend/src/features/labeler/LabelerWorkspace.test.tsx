@@ -55,6 +55,7 @@ const submission = {
   schema_version: 1,
   answer_payload: {},
   status: "draft",
+  review_stage: null,
   attempt: 1,
   submitted_at: null,
   created_at: "2026-05-23T00:00:00Z",
@@ -340,7 +341,7 @@ describe("labeler workspace", () => {
   });
 
   it("shows the reviewer return reason for returned revisions", async () => {
-    const returnedSubmission = { ...submission, status: "returned", attempt: 2 };
+    const returnedSubmission = { ...submission, status: "returned", review_stage: "initial_review", attempt: 2 };
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
       if (url.endsWith("/labeler/assignments/assignment-1")) {
@@ -352,6 +353,10 @@ describe("labeler workspace", () => {
             submission_id: "sub-1",
             reviewer_id: "reviewer-1",
             decision: "return",
+            stage: "initial_review",
+            round: 1,
+            compared_from_attempt: null,
+            compared_to_attempt: 1,
             reason: "Please cite the exact customer sentiment.",
             review_metadata: {},
             created_at: "2026-05-23T01:00:00Z",
@@ -370,6 +375,7 @@ describe("labeler workspace", () => {
     );
 
     expect(await screen.findByText(/Please cite the exact customer sentiment\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/初审退回/).length).toBeGreaterThan(0);
   });
 
   it("shows the agent workflow progress for the assignment", async () => {

@@ -20,6 +20,7 @@ const labelMap: Record<string, string> = {
   human_review: "需人工审核",
   human_reviewing: "人工审核中",
   idle: "空闲",
+  initial_review: "初审",
   json: "JSON",
   jsonl: "JSONL",
   manual: "手动分配",
@@ -34,6 +35,7 @@ const labelMap: Record<string, string> = {
   published: "已发布",
   return: "退回",
   returned: "已退回",
+  re_review: "复审",
   reviewer: "审核员",
   running: "运行中",
   saved: "已保存",
@@ -41,6 +43,7 @@ const labelMap: Record<string, string> = {
   submitted: "已提交",
   submit: "提交",
   succeeded: "成功",
+  final_review: "终审",
   system: "系统",
   xlsx: "XLSX",
 };

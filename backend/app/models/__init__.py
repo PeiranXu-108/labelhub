@@ -17,7 +17,14 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.domain.enums import AIReviewDecision, ExportFormat, SubmissionStatus, TaskStatus, UserRole
+from app.domain.enums import (
+    AIReviewDecision,
+    ExportFormat,
+    ReviewStage,
+    SubmissionStatus,
+    TaskStatus,
+    UserRole,
+)
 
 
 def uuid_str() -> str:
@@ -176,6 +183,7 @@ class Submission(TimestampMixin, Base):
     status: Mapped[SubmissionStatus] = mapped_column(
         enum_column(SubmissionStatus), default=SubmissionStatus.DRAFT, nullable=False
     )
+    review_stage: Mapped[ReviewStage | None] = mapped_column(enum_column(ReviewStage))
     attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -294,6 +302,12 @@ class HumanReview(Base):
     submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id"), nullable=False)
     reviewer_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     decision: Mapped[str] = mapped_column(String(50), nullable=False)
+    stage: Mapped[ReviewStage] = mapped_column(
+        enum_column(ReviewStage), default=ReviewStage.INITIAL_REVIEW, nullable=False
+    )
+    round: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    compared_from_attempt: Mapped[int | None] = mapped_column(Integer)
+    compared_to_attempt: Mapped[int | None] = mapped_column(Integer)
     reason: Mapped[str | None] = mapped_column(Text)
     review_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

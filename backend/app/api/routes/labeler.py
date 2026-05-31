@@ -56,7 +56,7 @@ def _assignment_detail_payload(db: Session, assignment: Assignment) -> dict:
     latest_human_review = db.scalar(
         select(HumanReview)
         .where(HumanReview.submission_id == submission.id)
-        .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
+        .order_by(HumanReview.round.desc(), HumanReview.created_at.desc(), HumanReview.id.desc())
         .limit(1)
     )
     return {

@@ -1550,6 +1550,22 @@
               ],
               "title": "Max Score"
             }
+          },
+          {
+            "name": "review_stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ReviewStage"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Review Stage"
+            }
           }
         ],
         "responses": {
@@ -1650,6 +1666,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReviewActionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2613,6 +2646,16 @@
             "pattern": "^(approve|return)$",
             "title": "Action"
           },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "anyOf": [
               {
@@ -3132,6 +3175,35 @@
             "type": "string",
             "title": "Decision"
           },
+          "stage": {
+            "$ref": "#/components/schemas/ReviewStage"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round"
+          },
+          "compared_from_attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compared From Attempt"
+          },
+          "compared_to_attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compared To Attempt"
+          },
           "reason": {
             "anyOf": [
               {
@@ -3160,6 +3232,10 @@
           "submission_id",
           "reviewer_id",
           "decision",
+          "stage",
+          "round",
+          "compared_from_attempt",
+          "compared_to_attempt",
           "reason",
           "review_metadata",
           "created_at"
@@ -4320,16 +4396,30 @@
       },
       "ReviewActionRequest": {
         "properties": {
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
-            "type": "string",
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Reason"
           }
         },
         "type": "object",
-        "required": [
-          "reason"
-        ],
         "title": "ReviewActionRequest"
       },
       "ReviewConfigRead": {
@@ -4482,6 +4572,16 @@
           "task": {
             "$ref": "#/components/schemas/TaskRead"
           },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "latest_ai_review": {
             "anyOf": [
               {
@@ -4507,10 +4607,87 @@
         "required": [
           "submission",
           "task",
+          "current_stage",
           "latest_ai_review",
           "latest_human_review"
         ],
         "title": "ReviewQueueItemRead"
+      },
+      "ReviewRoundDiffFieldRead": {
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "field_label": {
+            "type": "string",
+            "title": "Field Label"
+          },
+          "change_type": {
+            "type": "string",
+            "title": "Change Type"
+          },
+          "from_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Value"
+          },
+          "to_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_id",
+          "field_label",
+          "change_type"
+        ],
+        "title": "ReviewRoundDiffFieldRead"
+      },
+      "ReviewRoundDiffRead": {
+        "properties": {
+          "from_attempt": {
+            "type": "integer",
+            "title": "From Attempt"
+          },
+          "to_attempt": {
+            "type": "integer",
+            "title": "To Attempt"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRoundDiffFieldRead"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_attempt",
+          "to_attempt",
+          "fields"
+        ],
+        "title": "ReviewRoundDiffRead"
+      },
+      "ReviewStage": {
+        "type": "string",
+        "enum": [
+          "initial_review",
+          "re_review",
+          "final_review"
+        ],
+        "title": "ReviewStage"
       },
       "ReviewSubmissionDetail": {
         "properties": {
@@ -4529,6 +4706,16 @@
           "agent_workflow": {
             "$ref": "#/components/schemas/AgentWorkflowRead"
           },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "ai_reviews": {
             "items": {
               "$ref": "#/components/schemas/AIReviewRead"
@@ -4542,6 +4729,20 @@
             },
             "type": "array",
             "title": "Human Reviews"
+          },
+          "stage_history": {
+            "items": {
+              "$ref": "#/components/schemas/HumanReviewRead"
+            },
+            "type": "array",
+            "title": "Stage History"
+          },
+          "round_diffs": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRoundDiffRead"
+            },
+            "type": "array",
+            "title": "Round Diffs"
           },
           "audit_logs": {
             "items": {
@@ -4565,8 +4766,11 @@
           "item",
           "template_schema",
           "agent_workflow",
+          "current_stage",
           "ai_reviews",
           "human_reviews",
+          "stage_history",
+          "round_diffs",
           "audit_logs",
           "previous_attempts"
         ],
@@ -4985,6 +5189,16 @@
           "status": {
             "$ref": "#/components/schemas/SubmissionStatus"
           },
+          "review_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "attempt": {
             "type": "integer",
             "title": "Attempt"
@@ -5023,6 +5237,7 @@
           "schema_version",
           "answer_payload",
           "status",
+          "review_stage",
           "attempt",
           "submitted_at",
           "created_at",

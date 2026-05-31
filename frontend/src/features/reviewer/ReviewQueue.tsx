@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { normalizeError, useOperationMessage } from "../feedback";
-import type { SubmissionRead } from "../labeler/types";
+import type { ReviewStage } from "../labeler/types";
 import { formatLabel } from "../i18n/labels";
 import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, batchReview, listReviewQueue, returnSubmission } from "./api";
@@ -20,11 +20,14 @@ const reviewableStatuses = [
   "returned",
 ];
 
+const reviewStages = ["all", "initial_review", "re_review", "final_review"];
+
 export function ReviewQueue() {
   const showOperationError = useOperationMessage();
   const [queueItems, setQueueItems] = useState<ReviewQueueItemRead[]>([]);
   const [selectedIds, setSelectedIds] = useState<Key[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [stageFilter, setStageFilter] = useState("all");
   const [taskFilter, setTaskFilter] = useState("");
   const [aiDecisionFilter, setAiDecisionFilter] = useState("all");
   const [scoreRange, setScoreRange] = useState<[number, number]>([0, 100]);
@@ -37,11 +40,12 @@ export function ReviewQueue() {
     () => ({
       task_id: taskFilter.trim(),
       status: statusFilter,
+      review_stage: stageFilter,
       ai_decision: aiDecisionFilter,
       min_score: scoreRange[0] === 0 ? undefined : scoreRange[0],
       max_score: scoreRange[1] === 100 ? undefined : scoreRange[1],
     }),
-    [aiDecisionFilter, scoreRange, statusFilter, taskFilter],
+    [aiDecisionFilter, scoreRange, stageFilter, statusFilter, taskFilter],
   );
 
   const load = useCallback(async () => {
@@ -64,8 +68,8 @@ export function ReviewQueue() {
     setMutating(submissionId);
     setError(null);
     try {
-      const updated = await approveSubmission(submissionId);
-      replaceSubmissions([updated]);
+      await approveSubmission(submissionId);
+      await load();
     } catch (err) {
       showOperationError(err, "批准提交失败。");
     } finally {
@@ -80,8 +84,8 @@ export function ReviewQueue() {
     setMutating("batch");
     setError(null);
     try {
-      const updated = await batchReview(selectedIds.map(String), "approve");
-      replaceSubmissions(updated);
+      await batchReview(selectedIds.map(String), "approve");
+      await load();
       setSelectedIds([]);
     } catch (err) {
       showOperationError(err, "批量批准提交失败。");
@@ -97,11 +101,12 @@ export function ReviewQueue() {
     setMutating(returnTarget);
     setError(null);
     try {
-      const updated =
-        returnTarget === "batch"
-          ? await batchReview(selectedIds.map(String), "return", reason)
-          : [await returnSubmission(returnTarget, reason)];
-      replaceSubmissions(updated);
+      if (returnTarget === "batch") {
+        await batchReview(selectedIds.map(String), "return", reason, stageForBatchReturn());
+      } else {
+        await returnSubmission(returnTarget, reason, stageForSingleReturn(returnTarget));
+      }
+      await load();
       setSelectedIds([]);
       setReturnTarget(null);
     } catch (err) {
@@ -111,14 +116,18 @@ export function ReviewQueue() {
     }
   }
 
-  function replaceSubmissions(updated: SubmissionRead[]) {
-    const updatedById = new Map(updated.map((submission) => [submission.id, submission]));
-    setQueueItems((current) =>
-      current.map((item) => ({
-        ...item,
-        submission: updatedById.get(item.submission.id) ?? item.submission,
-      })),
+  function stageForSingleReturn(submissionId: string): ReviewStage | null {
+    return queueItems.find((item) => item.submission.id === submissionId)?.current_stage ?? null;
+  }
+
+  function stageForBatchReturn(): ReviewStage | null {
+    const stages = new Set(
+      queueItems
+        .filter((item) => selectedIds.map(String).includes(item.submission.id))
+        .map((item) => item.current_stage)
+        .filter((stage): stage is ReviewStage => Boolean(stage)),
     );
+    return stages.size === 1 ? Array.from(stages)[0] : null;
   }
 
   return (
@@ -156,6 +165,22 @@ export function ReviewQueue() {
               value={taskFilter}
               onChange={(event) => setTaskFilter(event.target.value)}
             />
+            <Tooltip title="由服务端筛选人工审核阶段">
+              <label className="native-filter">
+                <span>审核阶段</span>
+                <select
+                  aria-label="审核阶段"
+                  value={stageFilter}
+                  onChange={(event) => setStageFilter(event.target.value)}
+                >
+                  {reviewStages.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {stage === "all" ? "全部阶段" : formatLabel(stage)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </Tooltip>
             <Tooltip title="由服务端筛选 AI 决策">
               <label className="native-filter">
                 <span>AI 决策</span>
@@ -214,6 +239,12 @@ export function ReviewQueue() {
                 title: "状态",
                 key: "status",
                 render: (_: unknown, record: ReviewQueueItemRead) => <Tag>{formatLabel(record.submission.status)}</Tag>,
+              },
+              {
+                title: "阶段",
+                key: "stage",
+                render: (_: unknown, record: ReviewQueueItemRead) =>
+                  record.current_stage ? <Tag>{formatLabel(record.current_stage)}</Tag> : <Typography.Text type="secondary">未进入人工审核</Typography.Text>,
               },
               {
                 title: "AI",

@@ -16,6 +16,7 @@ const submission = {
   schema_version: 1,
   answer_payload: { sentiment: "positive" },
   status: "needs_human_review",
+  review_stage: "initial_review",
   attempt: 1,
   submitted_at: "2026-05-23T00:00:00Z",
   created_at: "2026-05-23T00:00:00Z",
@@ -67,7 +68,21 @@ const template = {
     version: 1,
     title: "QA annotation",
     layout: { type: "single", groups: [] },
-    fields: [{ id: "source", type: "show_item", label: "Source text", source: "item.payload.text" }],
+    fields: [
+      { id: "source", type: "show_item", label: "Source text", source: "item.payload.text" },
+      {
+        id: "sentiment",
+        type: "radio",
+        label: "Sentiment",
+        required: true,
+        options: [
+          { label: "Positive", value: "positive" },
+          { label: "Negative", value: "negative" },
+        ],
+      },
+      { id: "rationale", type: "textarea", label: "Rationale", required: false },
+      { id: "obsolete_note", type: "text", label: "Obsolete note", required: false },
+    ],
     llmTools: [],
     validations: [],
     visibilityRules: [],
@@ -95,6 +110,10 @@ const humanReview = {
   submission_id: "sub-1",
   reviewer_id: "reviewer-1",
   decision: "return",
+  stage: "initial_review",
+  round: 1,
+  compared_from_attempt: null,
+  compared_to_attempt: 1,
   reason: "Needs clearer evidence.",
   review_metadata: {},
   created_at: "2026-05-23T00:02:00Z",
@@ -140,8 +159,39 @@ const detail = {
       },
     ],
   },
+  current_stage: "initial_review",
   ai_reviews: [aiReview],
   human_reviews: [humanReview],
+  stage_history: [humanReview],
+  round_diffs: [
+    {
+      from_attempt: 1,
+      to_attempt: 2,
+      fields: [
+        {
+          field_id: "sentiment",
+          field_label: "Sentiment",
+          change_type: "changed",
+          from_value: "negative",
+          to_value: "positive",
+        },
+        {
+          field_id: "rationale",
+          field_label: "Rationale",
+          change_type: "added",
+          from_value: null,
+          to_value: "The reply helped.",
+        },
+        {
+          field_id: "obsolete_note",
+          field_label: "Obsolete note",
+          change_type: "removed",
+          from_value: "remove this note",
+          to_value: null,
+        },
+      ],
+    },
+  ],
   audit_logs: [audit],
   previous_attempts: [
     {
@@ -160,6 +210,7 @@ const detail = {
 const queueItem = {
   submission,
   task,
+  current_stage: "initial_review",
   latest_ai_review: aiReview,
   latest_human_review: null,
 };
@@ -217,6 +268,13 @@ describe("reviewer workspace", () => {
         expect.objectContaining({ method: "GET" }),
       ),
     );
+    fireEvent.change(screen.getByLabelText("审核阶段"), { target: { value: "re_review" } });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("review_stage=re_review"),
+        expect.objectContaining({ method: "GET" }),
+      ),
+    );
     const submissionRow = within(table).getByText("sub-1").closest("tr");
     expect(submissionRow).not.toBeNull();
     fireEvent.click(within(submissionRow as HTMLTableRowElement).getByRole("button", { name: /批\s*准/ }));
@@ -248,6 +306,35 @@ describe("reviewer workspace", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /退\s*回/ }));
 
     expect(await screen.findByText("必须填写退回原因")).toBeInTheDocument();
+  });
+
+  it("refreshes the queue after approve so stale review stages are removed", async () => {
+    let approved = false;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes("/review/queue")) return jsonResponse(approved ? [] : [queueItem]);
+      if (url.endsWith("/review/submissions/sub-1/approve")) {
+        approved = true;
+        return jsonResponse({ ...submission, status: "approved", review_stage: "final_review" });
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/queue"]}>
+        <Routes>
+          <Route path="/review/queue" element={<ReviewQueueRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const table = await screen.findByRole("table");
+    const submissionRow = within(table).getByText("sub-1").closest("tr");
+    expect(submissionRow).not.toBeNull();
+    fireEvent.click(within(submissionRow as HTMLTableRowElement).getByRole("button", { name: /批\s*准/ }));
+
+    await waitFor(() => expect(screen.queryByText("sub-1")).not.toBeInTheDocument());
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/review/queue"))).toHaveLength(2);
   });
 
   it("refreshes persisted audit after return without fabricating a local timeline event", async () => {
@@ -301,10 +388,21 @@ describe("reviewer workspace", () => {
 
     expect(await screen.findByText("Grade the submitted annotation.")).toBeInTheDocument();
     expect(screen.getByText("gpt-test")).toBeInTheDocument();
-    expect(screen.getByText("Needs clearer evidence.")).toBeInTheDocument();
+    expect(screen.getAllByText("Needs clearer evidence.").length).toBeGreaterThan(0);
+    expect(screen.getByText("阶段时间线")).toBeInTheDocument();
+    expect(screen.getAllByText("初审").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/第 1 轮/).length).toBeGreaterThan(0);
+    expect(screen.getByText("轮次差异")).toBeInTheDocument();
+    expect(screen.getAllByText("Sentiment").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/negative/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/positive/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rationale").length).toBeGreaterThan(0);
+    expect(screen.getByText("新增")).toBeInTheDocument();
+    expect(screen.getAllByText("Obsolete note").length).toBeGreaterThan(0);
+    expect(screen.getByText("移除")).toBeInTheDocument();
     expect(screen.getByText(/冻结模板版本 1/i)).toBeInTheDocument();
     expect(screen.getByText(/第 1 次尝试/i)).toBeInTheDocument();
-    expect(screen.getByText(/negative/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/negative/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText("提交").length).toBeGreaterThan(0);
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
   });

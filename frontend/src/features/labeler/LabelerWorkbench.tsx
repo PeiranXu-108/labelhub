@@ -252,6 +252,7 @@ export function LabelerWorkbench() {
   const versionMismatch = template.version !== submission.schema_version;
   const isReturned = submission.status === "returned" || submission.status === "ai_returned";
   const returnReason = assignment.latest_human_review?.reason;
+  const returnStage = assignment.latest_human_review?.stage ?? submission.review_stage;
   const hasPrevious = Boolean(navigationState?.has_previous);
   const hasNext = Boolean(navigationState?.has_next);
   const navigationBusy = navigating !== null;
@@ -298,10 +299,10 @@ export function LabelerWorkbench() {
         ) : null}
         {isReturned ? (
           <Alert
-            message="退回提交修订"
+            message={`${returnStage ? formatLabel(returnStage) : "人工审核"}退回提交修订`}
             description={
               returnReason
-                ? `这是第 ${submission.attempt} 次尝试。审核员原因：${returnReason}`
+                ? `这是第 ${submission.attempt} 次尝试。${returnStage ? `${formatLabel(returnStage)}退回` : "审核员"}原因：${returnReason}`
                 : `这是第 ${submission.attempt} 次尝试。请查看退回状态，修正标注后重新提交。`
             }
             type="warning"

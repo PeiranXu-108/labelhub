@@ -1,5 +1,5 @@
 import type { TaskRead, TemplateSchemaRead } from "../owner/types";
-import type { HumanReviewRead, SubmissionRead, TaskItemRead } from "../labeler/types";
+import type { HumanReviewRead, ReviewStage, SubmissionRead, TaskItemRead } from "../labeler/types";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 
 export type AuditLogRead = {
@@ -42,6 +42,7 @@ export type SubmissionAttemptRead = {
 export type ReviewQueueItemRead = {
   submission: SubmissionRead;
   task: TaskRead;
+  current_stage: ReviewStage | null;
   latest_ai_review: AIReviewRead | null;
   latest_human_review: HumanReviewRead | null;
 };
@@ -52,6 +53,21 @@ export type ReviewQueueFilters = {
   ai_decision?: string;
   min_score?: number;
   max_score?: number;
+  review_stage?: string;
+};
+
+export type ReviewRoundDiffFieldRead = {
+  field_id: string;
+  field_label: string;
+  change_type: "added" | "removed" | "changed";
+  from_value: unknown;
+  to_value: unknown;
+};
+
+export type ReviewRoundDiffRead = {
+  from_attempt: number;
+  to_attempt: number;
+  fields: ReviewRoundDiffFieldRead[];
 };
 
 export type ReviewSubmissionDetail = {
@@ -60,8 +76,11 @@ export type ReviewSubmissionDetail = {
   item: TaskItemRead;
   template_schema: TemplateSchemaRead;
   agent_workflow: AgentWorkflowRead;
+  current_stage: ReviewStage | null;
   ai_reviews: AIReviewRead[];
   human_reviews: HumanReviewRead[];
+  stage_history: HumanReviewRead[];
+  round_diffs: ReviewRoundDiffRead[];
   audit_logs: AuditLogRead[];
   previous_attempts: SubmissionAttemptRead[];
 };

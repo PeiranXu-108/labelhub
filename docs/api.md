@@ -266,12 +266,15 @@ Upload permission behavior:
 
 ## Review APIs
 
-- `GET /review/queue`: reviewer lists reviewable submissions. Filters: `task_id`, `status`, `ai_decision`, `min_score`, `max_score`.
-- `GET /review/submissions/{submission_id}`: reviewer reads submission, task, item, frozen template schema, agent workflow, AI reviews, human reviews, audit logs, and previous attempts.
-- `POST /review/submissions/{submission_id}/approve`: reviewer approves a reviewable submission.
-- `POST /review/submissions/{submission_id}/return`: reviewer returns a submission with `{ "reason": "..." }`.
-- `POST /review/submissions/batch`: reviewer batch approves or returns submissions.
+- Review stages are `initial_review`, `re_review`, and `final_review`.
+- `GET /review/queue`: reviewer lists reviewable submissions. Filters: `task_id`, `status`, `ai_decision`, `min_score`, `max_score`, and `review_stage`. Queue items include `current_stage`.
+- `GET /review/submissions/{submission_id}`: reviewer reads submission, task, item, frozen template schema, agent workflow, AI reviews, human reviews, `stage_history`, `round_diffs`, audit logs, and previous attempts.
+- `POST /review/submissions/{submission_id}/approve`: reviewer approves a reviewable submission. Optional body `{ "stage": "final_review" }`; approvals persist as `final_review`.
+- `POST /review/submissions/{submission_id}/return`: reviewer returns a submission with `{ "stage": "initial_review | re_review", "reason": "..." }`. Stage must match the current review stage.
+- `POST /review/submissions/batch`: reviewer batch approves or returns submissions with optional `stage`.
 - `GET /audit`: owner/reviewer audit lookup by query parameters such as `entity_type=submission&entity_id=<id>`.
+
+Human review records expose `stage`, `round`, `decision`, `reason`, reviewer ID, review metadata, and `compared_from_attempt` / `compared_to_attempt`. Round diffs are generated only from persisted `submission_attempts` snapshots. Each diff compares adjacent attempts field-by-field, reports `added`, `removed`, or `changed`, uses template field labels when present, and falls back to the field ID plus JSON values.
 
 ## Export APIs
 

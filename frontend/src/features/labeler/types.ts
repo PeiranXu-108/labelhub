@@ -14,6 +14,8 @@ export type SubmissionStatus =
   | "returned"
   | "exportable";
 
+export type ReviewStage = "initial_review" | "re_review" | "final_review";
+
 export type SubmissionRead = {
   id: string;
   task_id: string;
@@ -24,6 +26,7 @@ export type SubmissionRead = {
   schema_version: number;
   answer_payload: AnswerPayload;
   status: SubmissionStatus;
+  review_stage: ReviewStage | null;
   attempt: number;
   submitted_at: string | null;
   created_at: string;
@@ -35,6 +38,10 @@ export type HumanReviewRead = {
   submission_id: string;
   reviewer_id: string;
   decision: string;
+  stage: ReviewStage;
+  round: number;
+  compared_from_attempt: number | null;
+  compared_to_attempt: number | null;
   reason: string | null;
   review_metadata: Record<string, unknown>;
   created_at: string;

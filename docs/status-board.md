@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
+Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pending dispatch before any expanded-scope MVP readiness claim.
 
 ## Active Agents
 
@@ -28,7 +28,7 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 | Dynamic Form Runtime Agent | `docs/tasks/15-dynamic-form-runtime-agent.md` | complete | `docs/handoffs/2026-05-31-task15-dynamic-form-runtime-handoff.md` | approved |
 | LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | complete | `docs/handoffs/2026-05-31-task16-llm-field-loop-handoff.md` | approved |
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | complete | `docs/handoffs/2026-05-31-task17-labeler-navigation-handoff.md` | approved |
-| Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | drafted / not started | none | pending dispatch |
+| Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | complete | `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md` | approved |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | drafted / not started | none | pending dispatch |
 
 ## Frozen Contracts
@@ -85,6 +85,12 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 - Task 17 navigation is labeler-owned assignment scoped; move responses include `AssignmentDetailRead` with the frozen template snapshot when a target exists.
 - Task 17 skip policy marks the current `Assignment.status` and `TaskItem.status` as `skipped`, keeps the submission in `draft`, does not create a submission attempt, and writes an assignment audit log.
 - Task 17 skipped assignments cannot be edited or submitted through draft/save or submit endpoints.
+- Task 18 review stages are `initial_review`, `re_review`, and `final_review`.
+- Task 18 `SubmissionRead` includes `review_stage`; `HumanReviewRead` includes `stage`, `round`, `compared_from_attempt`, and `compared_to_attempt`.
+- Task 18 review queue accepts `review_stage` and returns `current_stage`; review detail returns `current_stage`, `stage_history`, and `round_diffs`.
+- Task 18 return decisions must match the active `initial_review` or `re_review`; approval decisions persist as terminal `final_review`, and invalid stage decisions return `INVALID_REVIEW_STAGE`.
+- Task 18 round diffs and migration backfill use persisted `submission_attempts` snapshots/timestamps rather than mutable current submission payloads.
+- Task 18 returned submissions reopen through `WorkflowService` and advance `review_stage` to `re_review`.
 
 ## Open Decisions
 
@@ -107,7 +113,7 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 | Upload storage and scanning | local MVP storage, no antivirus/DLP guarantee | yes before production file/image uploads | open |
 | Dynamic custom validators | server-approved named validators only, no arbitrary code execution | yes before user-authored code validators | defaulted |
 | Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | defaulted |
-| Multistage review policy | initial review, re-review, final review | yes before staffing/escalation policy changes | open |
+| Multistage review policy | initial review, re-review, final review implemented; staffing/escalation policy still product-defined | yes before staffing/escalation policy changes | defaulted |
 | Docker runtime validation | require Docker-enabled host for `docker compose up --build` evidence | yes if external handoff requires runtime proof | open |
 
 ## Task Status
@@ -132,7 +138,7 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 | 15 Dynamic Form Runtime | Dynamic Form Runtime Agent | complete | Tasks 03, 13 | Approved; conditional visibility, linked validation, strict safe-regex subset, server-approved custom validators, group/tab layouts, OpenAPI, handoff, and regression tests verified. |
 | 16 LLM Field Loop | LLM Field Loop Agent | complete | Tasks 03, 04, 15 | Approved; server-side assist route, structured output validation, audit logs, frontend suggest/prefill/confirm writeback, OpenAPI, docs, migration, and regression tests verified. |
 | 17 Labeler Navigation | Labeler Navigation Agent | complete | Tasks 07, 09, 10 | Approved; previous/next/skip navigation, draft preservation, skip audit, no-work-left behavior, skipped-assignment guards, OpenAPI, handoff, and regression tests verified. |
-| 18 Multistage Human Review | Multistage Human Review Agent | drafted / not started | Tasks 09, 10 | Add initial/re-review/final stages and round diff views while preserving WorkflowService authority. |
+| 18 Multistage Human Review | Multistage Human Review Agent | complete | Tasks 09, 10 | Approved; initial/re-review/final stages, stage-aware review contracts, round diff views, timestamp-safe migration backfill, WorkflowService-mediated transitions, OpenAPI, handoff, and regression tests verified. |
 | 19 Production Readiness | Production Readiness Agent | drafted / not started | Tasks 08, 10, Task 16 for live field LLM checks | Verify or document Docker runtime and live-AI readiness without overstating support. |
 
 ## Integration Risks
@@ -164,7 +170,7 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 - Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
 - Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
-- Tasks 11-17 are approved expanded-scope features; do not declare expanded-scope readiness until remaining Tasks 18-19 each have a handoff and Supervisor approval.
+- Tasks 11-18 are approved expanded-scope features; do not declare expanded-scope readiness until Task 19 has a handoff and Supervisor approval.
 - Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
 - Task 11 validation risk is resolved: non-string JSON values for text fields are rejected instead of being coerced with `str(value)`.
 - Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
@@ -172,11 +178,23 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 - Task 14 approved server-side upload/download with local MVP storage only; production object storage, scanning, retention, and sensitive-data policy remain open.
 - Task 16 approved server-side field-level LLM assist; live calls still require provider credentials and sensitive-data retention/privacy policy before production use.
 - Task 17 approved skipped assignments as retained/non-released MVP queue state; any reward/penalty or re-release policy requires an explicit product decision.
-- Task 18 may touch `WorkflowService`; any stage/status change must be reviewed as a workflow contract change.
+- Task 18 approved `WorkflowService` stage/status metadata changes; future review-stage/status changes must still be reviewed as workflow contract changes.
+- Task 18 migration backfill intentionally derives historical human review rounds from persisted attempt snapshot timestamps; do not replace this with mutable current-submission attempt inference.
 - Task 19 must not mark Docker runtime verified unless `docker compose up --build` actually runs on a Docker-enabled host.
 
 ## Latest Verification
 
+- Task 18 revised handoff reviewed from `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md`.
+- Task 18 review fixes resolved timestamp-safe historical human review migration backfill and stale reviewer queue `current_stage` display after approve/return mutations.
+- Task 18 verification: `cd backend && ./.venv313/bin/pytest tests/test_review_api.py tests/test_review_integration_contracts.py tests/test_multistage_review.py tests/test_multistage_review_migration.py -q` passed, 10 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 18 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 119 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 18 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed and regenerated `frontend/src/api/openapi.json`.
+- Task 18 verification: `python -m json.tool frontend/src/api/openapi.json` could not run because this host has no `python` executable on PATH; `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task18-revise-openapi-python3.json` passed.
+- Task 18 verification: `cd frontend && npm test -- --run src/features/reviewer src/features/labeler` passed, 18 tests, with existing React Router future-flag warnings.
+- Task 18 verification: `cd frontend && npm test -- --run` passed, 10 files and 75 tests, with existing React Router future-flag warnings.
+- Task 18 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 18 verification: `git diff --check` passed.
+- Task 18 migration smoke: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////tmp/labelhub_task18_multistage_review_revise.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0007`.
 - Task 17 handoff reviewed from `docs/handoffs/2026-05-31-task17-labeler-navigation-handoff.md`.
 - Task 17 review update confirmed skipped assignments now reject both draft save and submit with `INVALID_TRANSITION`.
 - Task 17 verification: direct API probe confirmed `POST /skip` returns 200, then `POST /submit` and `PUT /draft` on the same skipped assignment both return `400 INVALID_TRANSITION`.
@@ -437,4 +455,4 @@ Tasks 11-17 are approved expanded-scope follow-ups. Tasks 18-19 remain drafted/p
 
 ## Next Recommended Action
 
-Dispatch Task 18 Multistage Human Review Agent if staged human review is the next priority.
+Dispatch Task 19 Production Readiness Agent if expanded-scope MVP readiness is the next priority.

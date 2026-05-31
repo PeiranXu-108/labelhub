@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import AIReviewDecision
+from app.domain.enums import AIReviewDecision, ReviewStage
 from app.schemas.agent_workflow import AgentWorkflowRead
 from app.schemas.audit import AuditLogRead
 from app.schemas.submission import SubmissionRead
@@ -12,12 +12,14 @@ from app.schemas.template import TemplateSchemaRead
 
 
 class ReviewActionRequest(BaseModel):
-    reason: str = Field(min_length=1)
+    stage: ReviewStage | None = None
+    reason: str | None = Field(default=None, min_length=1)
 
 
 class BatchReviewRequest(BaseModel):
     submission_ids: list[str] = Field(min_length=1)
     action: str = Field(pattern="^(approve|return)$")
+    stage: ReviewStage | None = None
     reason: str | None = None
 
 
@@ -42,6 +44,10 @@ class HumanReviewRead(BaseModel):
     submission_id: str
     reviewer_id: str
     decision: str
+    stage: ReviewStage
+    round: int
+    compared_from_attempt: int | None
+    compared_to_attempt: int | None
     reason: str | None
     review_metadata: dict[str, Any]
     created_at: datetime
@@ -63,8 +69,23 @@ class SubmissionAttemptRead(BaseModel):
 class ReviewQueueItemRead(BaseModel):
     submission: SubmissionRead
     task: TaskRead
+    current_stage: ReviewStage | None
     latest_ai_review: AIReviewRead | None
     latest_human_review: HumanReviewRead | None
+
+
+class ReviewRoundDiffFieldRead(BaseModel):
+    field_id: str
+    field_label: str
+    change_type: str
+    from_value: Any | None = None
+    to_value: Any | None = None
+
+
+class ReviewRoundDiffRead(BaseModel):
+    from_attempt: int
+    to_attempt: int
+    fields: list[ReviewRoundDiffFieldRead]
 
 
 class ReviewSubmissionDetail(BaseModel):
@@ -73,7 +94,10 @@ class ReviewSubmissionDetail(BaseModel):
     item: TaskItemRead
     template_schema: TemplateSchemaRead
     agent_workflow: AgentWorkflowRead
+    current_stage: ReviewStage | None
     ai_reviews: list[AIReviewRead]
     human_reviews: list[HumanReviewRead]
+    stage_history: list[HumanReviewRead]
+    round_diffs: list[ReviewRoundDiffRead]
     audit_logs: list[AuditLogRead]
     previous_attempts: list[SubmissionAttemptRead]

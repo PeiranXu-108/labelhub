@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import SubmissionStatus
+from app.domain.enums import ReviewStage, SubmissionStatus
 
 
 class DraftSaveRequest(BaseModel):
@@ -26,6 +26,7 @@ class SubmissionRead(BaseModel):
     schema_version: int
     answer_payload: dict[str, Any]
     status: SubmissionStatus
+    review_stage: ReviewStage | None
     attempt: int
     submitted_at: datetime | None
     created_at: datetime

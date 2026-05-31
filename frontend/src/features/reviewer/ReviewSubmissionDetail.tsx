@@ -1,4 +1,4 @@
-import { Alert, Button, Descriptions, Result, Skeleton, Space, Tag, Timeline, Typography } from "antd";
+import { Alert, Button, Descriptions, Result, Skeleton, Space, Table, Tag, Timeline, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -9,7 +9,11 @@ import { SchemaRenderer } from "../schema-renderer";
 import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
-import type { AIReviewRead, ReviewSubmissionDetail as ReviewSubmissionDetailType } from "./types";
+import type {
+  AIReviewRead,
+  ReviewRoundDiffFieldRead,
+  ReviewSubmissionDetail as ReviewSubmissionDetailType,
+} from "./types";
 
 export function ReviewSubmissionDetail() {
   const { submissionId } = useParams();
@@ -44,6 +48,8 @@ export function ReviewSubmissionDetail() {
 
   const aiReviews = useMemo(() => detail?.ai_reviews ?? [], [detail?.ai_reviews]);
   const humanReviews = useMemo(() => detail?.human_reviews ?? [], [detail?.human_reviews]);
+  const stageHistory = useMemo(() => detail?.stage_history ?? [], [detail?.stage_history]);
+  const roundDiffs = useMemo(() => detail?.round_diffs ?? [], [detail?.round_diffs]);
   const auditLogs = useMemo(() => detail?.audit_logs ?? [], [detail?.audit_logs]);
 
   async function approve() {
@@ -52,7 +58,7 @@ export function ReviewSubmissionDetail() {
     }
     setMutating(true);
     try {
-      const updated = await approveSubmission(submissionId);
+      const updated = await approveSubmission(submissionId, "final_review");
       const refreshed = await getReviewSubmission(submissionId);
       setDetail({ ...refreshed, submission: updated });
     } catch (err) {
@@ -68,7 +74,7 @@ export function ReviewSubmissionDetail() {
     }
     setMutating(true);
     try {
-      const updated = await returnSubmission(submissionId, reason);
+      const updated = await returnSubmission(submissionId, reason, detail.current_stage);
       const refreshed = await getReviewSubmission(submissionId);
       setDetail({ ...refreshed, submission: updated });
       setReturnOpen(false);
@@ -123,9 +129,14 @@ export function ReviewSubmissionDetail() {
             </Space>
           }
           meta={
-            <StatusPill status={detail.submission.status}>
-              当前状态：{formatLabel(detail.submission.status)}
-            </StatusPill>
+            <Space wrap>
+              <StatusPill status={detail.submission.status}>
+                当前状态：{formatLabel(detail.submission.status)}
+              </StatusPill>
+              {detail.current_stage ? (
+                <StatusPill status={detail.current_stage}>阶段：{formatLabel(detail.current_stage)}</StatusPill>
+              ) : null}
+            </Space>
           }
         />
 
@@ -136,6 +147,9 @@ export function ReviewSubmissionDetail() {
               <Tag>{formatLabel(detail.submission.status)}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="尝试次数">{detail.submission.attempt}</Descriptions.Item>
+            <Descriptions.Item label="审核阶段">
+              {detail.current_stage ? <Tag>{formatLabel(detail.current_stage)}</Tag> : "未进入人工审核"}
+            </Descriptions.Item>
             <Descriptions.Item label="标注员">{detail.submission.labeler_id}</Descriptions.Item>
             <Descriptions.Item label="Schema 版本">{detail.submission.schema_version}</Descriptions.Item>
             <Descriptions.Item label="冻结模板">
@@ -187,7 +201,12 @@ export function ReviewSubmissionDetail() {
                 <section className="schema-field" key={review.id}>
                   <Descriptions column={1} size="small">
                     <Descriptions.Item label="决策">{formatLabel(review.decision)}</Descriptions.Item>
+                    <Descriptions.Item label="阶段">{formatLabel(review.stage)}</Descriptions.Item>
+                    <Descriptions.Item label="轮次">第 {review.round} 轮</Descriptions.Item>
                     <Descriptions.Item label="审核员">{review.reviewer_id}</Descriptions.Item>
+                    <Descriptions.Item label="对比尝试">
+                      {formatAttemptPair(review.compared_from_attempt, review.compared_to_attempt)}
+                    </Descriptions.Item>
                     <Descriptions.Item label="创建时间">{new Date(review.created_at).toLocaleString()}</Descriptions.Item>
                   </Descriptions>
                   {review.reason ? <Typography.Text>{review.reason}</Typography.Text> : null}
@@ -197,6 +216,29 @@ export function ReviewSubmissionDetail() {
             </div>
           ) : (
             <Alert message="此提交暂无人工审核记录。" type="info" />
+          )}
+        </StudioPanel>
+
+        <StudioPanel title="阶段时间线">
+          {stageHistory.length > 0 ? (
+            <Timeline
+              items={stageHistory.map((review) => ({
+                children: (
+                  <Space direction="vertical" size={0}>
+                    <Typography.Text strong>
+                      {formatLabel(review.stage)} · 第 {review.round} 轮 · {formatLabel(review.decision)}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {formatAttemptPair(review.compared_from_attempt, review.compared_to_attempt)}，审核员：{review.reviewer_id}
+                    </Typography.Text>
+                    {review.reason ? <Typography.Text>{review.reason}</Typography.Text> : null}
+                    <Typography.Text type="secondary">{new Date(review.created_at).toLocaleString()}</Typography.Text>
+                  </Space>
+                ),
+              }))}
+            />
+          ) : (
+            <Alert message="此提交暂无阶段化人工审核记录。" type="info" />
           )}
         </StudioPanel>
 
@@ -239,6 +281,59 @@ export function ReviewSubmissionDetail() {
           )}
         </StudioPanel>
 
+        <StudioPanel title="轮次差异">
+          {roundDiffs.length ? (
+            <Space className="modal-stack" direction="vertical">
+              {roundDiffs.map((diff) => (
+                <section className="schema-field" key={`${diff.from_attempt}-${diff.to_attempt}`}>
+                  <Typography.Text strong>
+                    第 {diff.from_attempt} 轮 到 第 {diff.to_attempt} 轮
+                  </Typography.Text>
+                  {diff.fields.length ? (
+                    <Table
+                      columns={[
+                        {
+                          title: "字段",
+                          dataIndex: "field_label",
+                          key: "field_label",
+                        },
+                        {
+                          title: "变化",
+                          dataIndex: "change_type",
+                          key: "change_type",
+                          render: (value: ReviewRoundDiffFieldRead["change_type"]) => (
+                            <Tag>{formatChangeType(value)}</Tag>
+                          ),
+                        },
+                        {
+                          title: "前一轮",
+                          dataIndex: "from_value",
+                          key: "from_value",
+                          render: (value: unknown) => <JsonViewer value={value} />,
+                        },
+                        {
+                          title: "后一轮",
+                          dataIndex: "to_value",
+                          key: "to_value",
+                          render: (value: unknown) => <JsonViewer value={value} />,
+                        },
+                      ]}
+                      dataSource={diff.fields}
+                      pagination={false}
+                      rowKey={(field) => `${diff.from_attempt}-${diff.to_attempt}-${field.field_id}`}
+                      size="small"
+                    />
+                  ) : (
+                    <Alert message="这两轮提交的答案字段没有变化。" type="info" />
+                  )}
+                </section>
+              ))}
+            </Space>
+          ) : (
+            <Alert message="至少需要两个已持久化提交快照后才会生成轮次差异。" type="info" />
+          )}
+        </StudioPanel>
+
         <ReturnReasonModal
           loading={mutating}
           open={returnOpen}
@@ -253,10 +348,31 @@ export function ReviewSubmissionDetail() {
           { label: "AI 审核", value: aiReviews.length },
           { label: "人工审核", value: humanReviews.length },
           { label: "历史尝试", value: detail.previous_attempts.length },
+          { label: "阶段", value: detail.current_stage ? formatLabel(detail.current_stage) : "无" },
         ]}
       />
     </section>
   );
+}
+
+function formatAttemptPair(fromAttempt: number | null, toAttempt: number | null) {
+  if (fromAttempt && toAttempt) {
+    return `尝试 ${fromAttempt} → ${toAttempt}`;
+  }
+  if (toAttempt) {
+    return `尝试 ${toAttempt}`;
+  }
+  return "未记录对比尝试";
+}
+
+function formatChangeType(changeType: ReviewRoundDiffFieldRead["change_type"]) {
+  if (changeType === "added") {
+    return "新增";
+  }
+  if (changeType === "removed") {
+    return "移除";
+  }
+  return "变更";
 }
 
 function JsonCard({ title, value }: { title: string; value: unknown }) {

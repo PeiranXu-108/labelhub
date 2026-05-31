@@ -34,6 +34,12 @@ class AIReviewDecision(StrEnum):
     HUMAN_REVIEW = "human_review"
 
 
+class ReviewStage(StrEnum):
+    INITIAL_REVIEW = "initial_review"
+    RE_REVIEW = "re_review"
+    FINAL_REVIEW = "final_review"
+
+
 class ExportFormat(StrEnum):
     JSON = "json"
     JSONL = "jsonl"

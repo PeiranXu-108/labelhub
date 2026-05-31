@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.domain.enums import SubmissionAction, SubmissionStatus, TaskStatus
+from app.domain.enums import ReviewStage, SubmissionAction, SubmissionStatus, TaskStatus
 from app.models import (
     Assignment,
     AuditLog,
@@ -19,6 +19,11 @@ from app.models import (
 from app.schemas.template import SubmissionValidationError
 from app.services.templates import TemplateService
 from app.services.workflow import ActorContext, WorkflowError, WorkflowService
+from app.services.review_stages import (
+    comparison_attempts,
+    current_review_stage,
+    validate_review_action_stage,
+)
 from app.workers.ai_review import run_ai_review_task
 
 
@@ -202,50 +207,130 @@ class SubmissionService:
             logger.exception("Failed to enqueue AI review for submission %s", submission.id)
         return submission
 
-    def approve(self, submission_id: str, actor: ActorContext) -> Submission:
-        submission = self._start_human_review_if_needed(submission_id, actor)
+    def approve(
+        self,
+        submission_id: str,
+        actor: ActorContext,
+        stage: ReviewStage | None = None,
+    ) -> Submission:
+        submission = self._review_submission(submission_id)
+        try:
+            decision_stage = validate_review_action_stage(
+                submission,
+                decision="approve",
+                requested_stage=stage,
+            )
+        except ValueError as exc:
+            raise WorkflowError("INVALID_REVIEW_STAGE", str(exc)) from exc
+
+        from_stage = current_review_stage(submission)
+        submission = self._start_human_review_if_needed(submission.id, actor, from_stage)
+        compared_from_attempt, compared_to_attempt = comparison_attempts(self.db, submission)
+        metadata = {
+            "review_stage": decision_stage.value,
+            "from_review_stage": from_stage.value if from_stage else None,
+            "round": submission.attempt,
+            "compared_from_attempt": compared_from_attempt,
+            "compared_to_attempt": compared_to_attempt,
+        }
         submission = self.workflow.transition_submission(
-            submission.id, SubmissionAction.APPROVE, actor
+            submission.id,
+            SubmissionAction.APPROVE,
+            actor,
+            metadata=metadata,
         )
         self.db.add(
             HumanReview(
                 submission_id=submission.id,
                 reviewer_id=actor.user_id,
                 decision="approve",
+                stage=decision_stage,
+                round=submission.attempt,
+                compared_from_attempt=compared_from_attempt,
+                compared_to_attempt=compared_to_attempt,
                 reason=None,
+                review_metadata=metadata,
             )
         )
         self.db.commit()
         self.db.refresh(submission)
         return submission
 
-    def return_submission(self, submission_id: str, actor: ActorContext, reason: str) -> Submission:
-        submission = self._start_human_review_if_needed(submission_id, actor)
+    def return_submission(
+        self,
+        submission_id: str,
+        actor: ActorContext,
+        reason: str,
+        stage: ReviewStage | None = None,
+    ) -> Submission:
+        submission = self._review_submission(submission_id)
+        try:
+            decision_stage = validate_review_action_stage(
+                submission,
+                decision="return",
+                requested_stage=stage,
+            )
+        except ValueError as exc:
+            raise WorkflowError("INVALID_REVIEW_STAGE", str(exc)) from exc
+
+        submission = self._start_human_review_if_needed(submission.id, actor, decision_stage)
+        compared_from_attempt, compared_to_attempt = comparison_attempts(self.db, submission)
+        metadata = {
+            "review_stage": decision_stage.value,
+            "round": submission.attempt,
+            "compared_from_attempt": compared_from_attempt,
+            "compared_to_attempt": compared_to_attempt,
+        }
         submission = self.workflow.transition_submission(
-            submission.id, SubmissionAction.RETURN, actor, reason=reason
+            submission.id,
+            SubmissionAction.RETURN,
+            actor,
+            reason=reason,
+            metadata=metadata,
         )
         self.db.add(
             HumanReview(
                 submission_id=submission.id,
                 reviewer_id=actor.user_id,
                 decision="return",
+                stage=decision_stage,
+                round=submission.attempt,
+                compared_from_attempt=compared_from_attempt,
+                compared_to_attempt=compared_to_attempt,
                 reason=reason,
+                review_metadata=metadata,
             )
         )
         self.db.commit()
         self.db.refresh(submission)
         return submission
 
-    def _start_human_review_if_needed(self, submission_id: str, actor: ActorContext) -> Submission:
+    def _review_submission(self, submission_id: str) -> Submission:
         submission = self.db.get(Submission, submission_id)
         if submission is None:
             raise WorkflowError("SUBMISSION_NOT_FOUND", "Submission was not found")
+        return submission
+
+    def _start_human_review_if_needed(
+        self,
+        submission_id: str,
+        actor: ActorContext,
+        stage: ReviewStage | None,
+    ) -> Submission:
+        submission = self._review_submission(submission_id)
         if submission.status in {
             SubmissionStatus.AI_PASSED,
             SubmissionStatus.NEEDS_HUMAN_REVIEW,
         }:
+            metadata = {
+                "review_stage": (stage or current_review_stage(submission) or ReviewStage.INITIAL_REVIEW).value,
+                "round": submission.attempt,
+            }
             return self.workflow.transition_submission(
-                submission.id, SubmissionAction.START_HUMAN_REVIEW, actor
+                submission.id,
+                SubmissionAction.START_HUMAN_REVIEW,
+                actor,
+                metadata=metadata,
             )
         return submission
 

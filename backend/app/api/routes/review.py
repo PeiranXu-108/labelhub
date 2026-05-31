@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
-from app.domain.enums import AIReviewDecision, SubmissionStatus, UserRole
+from app.domain.enums import AIReviewDecision, ReviewStage, SubmissionStatus, UserRole
 from app.models import AIReview, AuditLog, HumanReview, Submission, SubmissionAttempt
 from app.schemas.review import (
     BatchReviewRequest,
@@ -15,6 +15,7 @@ from app.schemas.review import (
 from app.schemas.submission import SubmissionRead
 from app.services.submissions import SubmissionService
 from app.services.agent_workflow import AgentWorkflowService
+from app.services.review_stages import build_round_diffs, current_review_stage
 from app.services.workflow import ActorContext, WorkflowError
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -38,6 +39,7 @@ def review_queue(
     ai_decision: AIReviewDecision | None = None,
     min_score: int | None = Query(default=None, ge=0, le=100),
     max_score: int | None = Query(default=None, ge=0, le=100),
+    review_stage: ReviewStage | None = None,
     db: Session = Depends(get_db),
     _actor: Actor = Depends(require_role(UserRole.REVIEWER)),
 ) -> list[dict]:
@@ -60,6 +62,9 @@ def review_queue(
 
     items: list[dict] = []
     for submission in submissions:
+        current_stage = current_review_stage(submission)
+        if review_stage is not None and current_stage != review_stage:
+            continue
         latest_ai_review = _latest_ai_review(db, submission.id)
         if ai_decision is not None and (
             latest_ai_review is None or latest_ai_review.decision != ai_decision
@@ -77,6 +82,7 @@ def review_queue(
             {
                 "submission": submission,
                 "task": submission.task,
+                "current_stage": current_stage,
                 "latest_ai_review": latest_ai_review,
                 "latest_human_review": _latest_human_review(db, submission.id),
             }
@@ -104,7 +110,7 @@ def get_submission_detail(
         db.scalars(
             select(HumanReview)
             .where(HumanReview.submission_id == submission.id)
-            .order_by(HumanReview.created_at.asc(), HumanReview.id.asc())
+            .order_by(HumanReview.round.asc(), HumanReview.created_at.asc(), HumanReview.id.asc())
         )
     )
     audit_logs = list(
@@ -124,14 +130,30 @@ def get_submission_detail(
             .order_by(SubmissionAttempt.attempt.asc(), SubmissionAttempt.created_at.asc())
         )
     )
+    all_attempts = list(
+        db.scalars(
+            select(SubmissionAttempt)
+            .where(
+                SubmissionAttempt.submission_id == submission.id,
+                SubmissionAttempt.attempt <= submission.attempt,
+            )
+            .order_by(SubmissionAttempt.attempt.asc(), SubmissionAttempt.created_at.asc())
+        )
+    )
     return {
         "submission": submission,
         "task": submission.task,
         "item": submission.item,
         "template_schema": submission.template_schema,
         "agent_workflow": AgentWorkflowService(db).workflow_for_submission(submission),
+        "current_stage": current_review_stage(submission),
         "ai_reviews": ai_reviews,
         "human_reviews": human_reviews,
+        "stage_history": human_reviews,
+        "round_diffs": build_round_diffs(
+            all_attempts,
+            schema_payload=submission.template_schema.schema_payload,
+        ),
         "audit_logs": audit_logs,
         "previous_attempts": previous_attempts,
     }
@@ -140,11 +162,16 @@ def get_submission_detail(
 @router.post("/submissions/{submission_id}/approve", response_model=SubmissionRead)
 def approve_submission(
     submission_id: str,
+    payload: ReviewActionRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_role(UserRole.REVIEWER)),
 ) -> Submission:
     try:
-        return SubmissionService(db).approve(submission_id, _actor_context(actor))
+        return SubmissionService(db).approve(
+            submission_id,
+            _actor_context(actor),
+            stage=payload.stage if payload else None,
+        )
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 
@@ -156,11 +183,14 @@ def return_submission(
     db: Session = Depends(get_db),
     actor: Actor = Depends(require_role(UserRole.REVIEWER)),
 ) -> Submission:
+    if payload.reason is None:
+        raise api_error("REASON_REQUIRED", "Return requires a reason", status.HTTP_400_BAD_REQUEST)
     try:
         return SubmissionService(db).return_submission(
             submission_id,
             _actor_context(actor),
             payload.reason,
+            stage=payload.stage,
         )
     except WorkflowError as exc:
         _raise_workflow_error(exc)
@@ -180,13 +210,20 @@ def batch_review(
     for submission_id in payload.submission_ids:
         try:
             if payload.action == "approve":
-                updated.append(service.approve(submission_id, _actor_context(actor)))
+                updated.append(
+                    service.approve(
+                        submission_id,
+                        _actor_context(actor),
+                        stage=payload.stage,
+                    )
+                )
             else:
                 updated.append(
                     service.return_submission(
                         submission_id,
                         _actor_context(actor),
                         payload.reason or "",
+                        stage=payload.stage,
                     )
                 )
         except WorkflowError as exc:
@@ -207,6 +244,6 @@ def _latest_human_review(db: Session, submission_id: str) -> HumanReview | None:
     return db.scalar(
         select(HumanReview)
         .where(HumanReview.submission_id == submission_id)
-        .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
+        .order_by(HumanReview.round.desc(), HumanReview.created_at.desc(), HumanReview.id.desc())
         .limit(1)
     )
