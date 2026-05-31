@@ -43,9 +43,14 @@ const PROMPT_TEMPLATE_MAX_LENGTH = 5000;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const MAX_UPLOAD_COUNT = 10;
 const MAX_UPLOAD_ACCEPTED_LIST_ENTRIES = 20;
+const MAX_REGEX_PATTERN_LENGTH = 256;
+const MAX_REGEX_REPEAT_BOUND = 100;
 const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const supportedCustomValidators = new Set(["no_whitespace_edges", "non_empty_json_object", "https_url"]);
 const mimeTypePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
 const extensionPattern = /^\.[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
+const safeRegexLiteralEscapes = new Set([".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "\\", "|", "(", ")", "-"]);
+const safeRegexShorthandEscapes = new Set(["d", "D", "s", "S", "w", "W"]);
 
 export function validateTemplateSchema(schema: TemplateSchemaDocument): string[] {
   const issues: string[] = [];
@@ -53,9 +58,6 @@ export function validateTemplateSchema(schema: TemplateSchemaDocument): string[]
     issues.push("模板标题不能为空");
   } else if (schema.title.length > LABEL_MAX_LENGTH) {
     issues.push("模板标题不能超过 255 个字符");
-  }
-  if (schema.layout.type !== "single") {
-    issues.push("当前仅支持单列布局");
   }
   if (!Array.isArray(schema.fields) || schema.fields.length === 0) {
     issues.push("模板至少需要 1 个字段");
@@ -96,6 +98,9 @@ export function validateTemplateSchema(schema: TemplateSchemaDocument): string[]
   });
 
   const fieldIdSet = new Set(schema.fields.map((field) => field.id));
+  validateRuntimeLayout(schema, fieldIdSet, issues);
+  validateVisibilityRules(schema, fieldIdSet, issues);
+  validateRuntimeValidations(schema, fieldIdSet, issues);
   schema.fields.forEach((field) => {
     if (field.type === "llm_trigger" && !fieldIdSet.has(field.targetFieldId)) {
       issues.push(`${field.id} 的目标字段必须引用已有字段`);
@@ -128,6 +133,186 @@ export function validateTemplateSchema(schema: TemplateSchemaDocument): string[]
   });
 
   return issues;
+}
+
+function validateRuntimeLayout(
+  schema: TemplateSchemaDocument,
+  fieldIdSet: Set<string>,
+  issues: string[],
+) {
+  if (!["single", "group", "tabs"].includes(schema.layout.type)) {
+    issues.push("布局类型必须是 single、group 或 tabs");
+    return;
+  }
+  if ((schema.layout.type === "group" || schema.layout.type === "tabs") && schema.layout.groups.length === 0) {
+    issues.push("分组和标签页布局至少需要 1 个分组");
+  }
+  const groupIds = new Set<string>();
+  const groupedFieldIds = new Set<string>();
+  schema.layout.groups.forEach((group) => {
+    if (!fieldIdPattern.test(group.id)) {
+      issues.push(`${group.id} 的布局分组 ID 格式无效`);
+    }
+    if (groupIds.has(group.id)) {
+      issues.push(`${group.id} 的布局分组 ID 不能重复`);
+    }
+    groupIds.add(group.id);
+    if (!group.title.trim()) {
+      issues.push(`${group.id} 的布局分组标题不能为空`);
+    }
+    group.fieldIds.forEach((fieldId) => {
+      if (!fieldIdSet.has(fieldId)) {
+        issues.push(`${group.id} 引用了不存在的字段 ${fieldId}`);
+      }
+      if (groupedFieldIds.has(fieldId)) {
+        issues.push(`${fieldId} 不能被多个布局分组重复引用`);
+      }
+      groupedFieldIds.add(fieldId);
+    });
+  });
+}
+
+function validateVisibilityRules(
+  schema: TemplateSchemaDocument,
+  fieldIdSet: Set<string>,
+  issues: string[],
+) {
+  schema.visibilityRules.forEach((rule) => {
+    if (!fieldIdSet.has(rule.targetFieldId)) {
+      issues.push(`${rule.targetFieldId} 的显示规则目标字段不存在`);
+    }
+    if (!fieldIdSet.has(rule.condition.sourceFieldId)) {
+      issues.push(`${rule.condition.sourceFieldId} 的显示规则来源字段不存在`);
+    }
+    if ((rule.condition.operator === "in" || rule.condition.operator === "not_in") && !Array.isArray(rule.condition.value)) {
+      issues.push(`${rule.targetFieldId} 的显示规则 in/not_in 值必须是数组`);
+    }
+  });
+}
+
+function validateRuntimeValidations(
+  schema: TemplateSchemaDocument,
+  fieldIdSet: Set<string>,
+  issues: string[],
+) {
+  schema.validations.forEach((validation) => {
+    if (!fieldIdSet.has(validation.fieldId)) {
+      issues.push(`${validation.fieldId} 的验证规则字段不存在`);
+    }
+    if (validation.type === "compare" && !fieldIdSet.has(validation.otherFieldId)) {
+      issues.push(`${validation.otherFieldId} 的比较验证字段不存在`);
+    }
+    if (validation.type === "custom" && !supportedCustomValidators.has(validation.name)) {
+      issues.push(`${validation.fieldId} 使用了不支持的自定义验证器`);
+    }
+    if (validation.type === "regex") {
+      validateRegexPattern(validation.fieldId, validation.pattern, issues);
+    }
+  });
+}
+
+function validateRegexPattern(fieldId: string, pattern: string, issues: string[]) {
+  if (pattern.length > MAX_REGEX_PATTERN_LENGTH) {
+    issues.push(`${fieldId} 的正则表达式不能超过 ${MAX_REGEX_PATTERN_LENGTH} 个字符`);
+  }
+  if (!isSafeRegexSubset(pattern)) {
+    issues.push(`${fieldId} 的正则表达式只能使用安全子集`);
+  }
+  try {
+    new RegExp(pattern);
+  } catch {
+    issues.push(`${fieldId} 的正则表达式格式无效`);
+  }
+}
+
+function isSafeRegexSubset(pattern: string): boolean {
+  if (!pattern || pattern.length > MAX_REGEX_PATTERN_LENGTH) {
+    return false;
+  }
+  let canQuantify = false;
+  let index = 0;
+  while (index < pattern.length) {
+    const char = pattern[index];
+    if (char === "^" || char === "$") {
+      canQuantify = false;
+      index += 1;
+      continue;
+    }
+    if (char === "[") {
+      const closeIndex = findCharacterClassEnd(pattern, index);
+      if (closeIndex == null || closeIndex === index + 1) {
+        return false;
+      }
+      canQuantify = true;
+      index = closeIndex + 1;
+      continue;
+    }
+    if (char === "\\") {
+      const escaped = pattern[index + 1];
+      if (!escaped) {
+        return false;
+      }
+      if (safeRegexShorthandEscapes.has(escaped) || safeRegexLiteralEscapes.has(escaped)) {
+        canQuantify = true;
+        index += 2;
+        continue;
+      }
+      return false;
+    }
+    if ("()|.".includes(char)) {
+      return false;
+    }
+    if (char === "*" || char === "+") {
+      return false;
+    }
+    if (char === "?") {
+      return false;
+    }
+    if (char === "{") {
+      if (!canQuantify) {
+        return false;
+      }
+      const closeIndex = pattern.indexOf("}", index + 1);
+      if (closeIndex === -1 || !isBoundedRepeat(pattern.slice(index + 1, closeIndex))) {
+        return false;
+      }
+      canQuantify = false;
+      index = closeIndex + 1;
+      continue;
+    }
+    if (char === "}" || char === "]") {
+      return false;
+    }
+    canQuantify = true;
+    index += 1;
+  }
+  return true;
+}
+
+function findCharacterClassEnd(pattern: string, openIndex: number): number | null {
+  for (let index = openIndex + 1; index < pattern.length; index += 1) {
+    if (pattern[index] === "]" && !isEscaped(pattern, index)) {
+      return index;
+    }
+  }
+  return null;
+}
+
+function isBoundedRepeat(value: string): boolean {
+  if (/^\d+$/.test(value)) {
+    return Number(value) <= MAX_REGEX_REPEAT_BOUND;
+  }
+  return false;
+}
+
+function isEscaped(value: string, index: number): boolean {
+  let slashCount = 0;
+  let cursor = index - 1;
+  while (cursor >= 0 && value[cursor] === "\\") {
+    slashCount += 1;
+    cursor -= 1;
+  }
+  return slashCount % 2 === 1;
 }
 
 function validateFieldSpecifics(field: TemplateField, fieldName: string, issues: string[]) {

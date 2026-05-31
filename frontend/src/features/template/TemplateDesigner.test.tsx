@@ -249,6 +249,28 @@ describe("TemplateDesigner", () => {
     );
   });
 
+  it.each([
+    "^(a|aa)+$",
+    "^([a]|a)+$",
+    "^(a|[a])+$",
+    "^" + "a?".repeat(30) + "a".repeat(30) + "$",
+    "^a{0,1}a$",
+    "^a{1,3}$",
+  ])(
+    "rejects unsafe regex validation pattern %s before save or publish",
+    (pattern) => {
+      const schema: TemplateSchemaDocument = {
+        ...baseSchema,
+        fields: [{ id: "ticket", type: "text", label: "Ticket" }],
+        validations: [{ type: "regex", fieldId: "ticket", pattern }],
+      };
+
+      expect(validateTemplateSchema(schema)).toContain(
+        "ticket 的正则表达式只能使用安全子集",
+      );
+    },
+  );
+
   it("ignores canvas drops without LabelHub drag payloads", () => {
     const onChange = vi.fn();
     render(<TemplateDesigner initialSchema={baseSchema} onChange={onChange} />);

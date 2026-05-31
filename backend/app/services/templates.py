@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,18 +9,27 @@ from sqlalchemy.orm import Session
 from app.models import AuditLog, Submission, Task, TemplateSchema, UploadAsset
 from app.schemas.template import (
     CheckboxGroupField,
+    CrossFieldValidation,
+    CustomValidation,
     FileUploadField,
     ImageUploadField,
     JsonField,
     LlmTriggerField,
+    MaxLengthValidation,
+    MinLengthValidation,
     NumberField,
+    NumberMaxValidation,
+    NumberMinValidation,
     OptionField,
     RatingField,
+    RegexValidation,
+    RequiredValidation,
     RichTextField,
     ShowItemField,
     SubmissionValidationError,
     TemplateDocument,
     TextField,
+    VisibilityCondition,
 )
 from app.schemas.task import MARKDOWN_CONTROL_RE, UNSAFE_RICH_TEXT_PATTERNS, normalize_plain_text
 from app.services.workflow import ActorContext, WorkflowError
@@ -122,6 +132,7 @@ class TemplateService:
             field for field in schema.fields if not isinstance(field, (ShowItemField, LlmTriggerField))
         ]
         answerable_ids = {field.id for field in answerable_fields}
+        visible_field_ids = self._visible_field_ids(schema, answer_payload)
 
         for answer_id in answer_payload:
             if answer_id not in answerable_ids:
@@ -130,6 +141,10 @@ class TemplateService:
         for field in answerable_fields:
             value_present = field.id in answer_payload
             value = answer_payload.get(field.id)
+            if field.id not in visible_field_ids:
+                if value_present:
+                    normalized_payload[field.id] = value
+                continue
             if require_required and field.required and self._is_empty(value):
                 issues.append(f"Required field '{field.id}' is missing")
                 continue
@@ -143,9 +158,224 @@ class TemplateService:
             if not field_issues:
                 normalized_payload[field.id] = normalized_value
 
+        issues.extend(
+            self._validate_runtime_validations(
+                schema,
+                answer_payload,
+                visible_field_ids,
+                require_required=require_required,
+            )
+        )
         if issues:
             raise SubmissionValidationError(issues)
         return normalized_payload
+
+    def _visible_field_ids(self, schema: TemplateDocument, answer_payload: dict[str, Any]) -> set[str]:
+        all_field_ids = {field.id for field in schema.fields}
+        visible_field_ids = set(all_field_ids)
+        rules_by_target: dict[str, list[Any]] = {}
+        for rule in schema.visibility_rules:
+            rules_by_target.setdefault(rule.target_field_id, []).append(rule)
+        for _ in range(len(rules_by_target) + 1):
+            next_visible_field_ids = set(all_field_ids)
+            for target_field_id, rules in rules_by_target.items():
+                if not any(
+                    self._evaluate_visibility_condition(rule.condition, answer_payload, visible_field_ids)
+                    for rule in rules
+                ):
+                    next_visible_field_ids.discard(target_field_id)
+            if next_visible_field_ids == visible_field_ids:
+                return next_visible_field_ids
+            visible_field_ids = next_visible_field_ids
+        return visible_field_ids
+
+    def _evaluate_visibility_condition(
+        self,
+        condition: VisibilityCondition,
+        answer_payload: dict[str, Any],
+        visible_field_ids: set[str],
+    ) -> bool:
+        if condition.source_field_id not in visible_field_ids:
+            return False
+        source_value = answer_payload.get(condition.source_field_id)
+        return self._compare_condition_value(source_value, condition.operator, condition.value)
+
+    def _compare_condition_value(self, source_value: Any, operator: str, expected_value: Any) -> bool:
+        if operator == "equals":
+            return source_value == expected_value
+        if operator == "not_equals":
+            return source_value != expected_value
+        if operator == "in":
+            return isinstance(expected_value, list) and source_value in expected_value
+        if operator == "not_in":
+            return isinstance(expected_value, list) and source_value not in expected_value
+        if operator == "contains":
+            if isinstance(source_value, list):
+                return expected_value in source_value
+            if isinstance(source_value, str) and isinstance(expected_value, str):
+                return expected_value in source_value
+            return False
+        if operator == "not_contains":
+            if isinstance(source_value, list):
+                return expected_value not in source_value
+            if isinstance(source_value, str) and isinstance(expected_value, str):
+                return expected_value not in source_value
+            return True
+        if operator == "is_empty":
+            return self._is_empty(source_value)
+        if operator == "is_not_empty":
+            return not self._is_empty(source_value)
+        return False
+
+    def _validate_runtime_validations(
+        self,
+        schema: TemplateDocument,
+        answer_payload: dict[str, Any],
+        visible_field_ids: set[str],
+        *,
+        require_required: bool,
+    ) -> list[str]:
+        issues: list[str] = []
+        for validation in schema.validations:
+            if validation.field_id not in visible_field_ids:
+                continue
+            value = answer_payload.get(validation.field_id)
+            if isinstance(validation, RequiredValidation):
+                if require_required and self._is_empty(value):
+                    issues.append(
+                        validation.message or f"Required field '{validation.field_id}' is missing"
+                    )
+                continue
+            if self._is_empty(value):
+                continue
+            if isinstance(validation, MinLengthValidation):
+                text_value = self._text_value(value)
+                if text_value is None:
+                    issues.append(validation.message or f"Field '{validation.field_id}' must be a string")
+                elif len(text_value) < validation.limit:
+                    issues.append(
+                        validation.message
+                        or f"Field '{validation.field_id}' must be at least {validation.limit} characters"
+                    )
+                continue
+            if isinstance(validation, MaxLengthValidation):
+                text_value = self._text_value(value)
+                if text_value is None:
+                    issues.append(validation.message or f"Field '{validation.field_id}' must be a string")
+                elif len(text_value) > validation.limit:
+                    issues.append(
+                        validation.message
+                        or f"Field '{validation.field_id}' must be at most {validation.limit} characters"
+                    )
+                continue
+            if isinstance(validation, NumberMinValidation):
+                number_value = self._number_value(value)
+                if number_value is None:
+                    issues.append(validation.message or f"Field '{validation.field_id}' must be a number")
+                elif number_value < validation.value:
+                    issues.append(
+                        validation.message
+                        or f"Field '{validation.field_id}' must be greater than or equal to {validation.value}"
+                    )
+                continue
+            if isinstance(validation, NumberMaxValidation):
+                number_value = self._number_value(value)
+                if number_value is None:
+                    issues.append(validation.message or f"Field '{validation.field_id}' must be a number")
+                elif number_value > validation.value:
+                    issues.append(
+                        validation.message
+                        or f"Field '{validation.field_id}' must be less than or equal to {validation.value}"
+                    )
+                continue
+            if isinstance(validation, RegexValidation):
+                text_value = self._text_value(value)
+                if text_value is None:
+                    issues.append(validation.message or f"Field '{validation.field_id}' must be a string")
+                    continue
+                flags = re.IGNORECASE if "i" in validation.flags else 0
+                if re.search(validation.pattern, text_value, flags) is None:
+                    issues.append(
+                        validation.message or f"Field '{validation.field_id}' does not match the required pattern"
+                    )
+                continue
+            if isinstance(validation, CrossFieldValidation):
+                if validation.other_field_id not in visible_field_ids:
+                    continue
+                other_value = answer_payload.get(validation.other_field_id)
+                if self._is_empty(value) or self._is_empty(other_value):
+                    continue
+                comparison_issue = self._validate_cross_field(validation, value, other_value)
+                if comparison_issue:
+                    issues.append(validation.message or comparison_issue)
+                continue
+            if isinstance(validation, CustomValidation):
+                custom_issue = self._validate_custom(validation.name, validation.field_id, value)
+                if custom_issue:
+                    issues.append(validation.message or custom_issue)
+                continue
+        return issues
+
+    def _validate_cross_field(
+        self, validation: CrossFieldValidation, value: Any, other_value: Any
+    ) -> str | None:
+        operator = validation.operator
+        if operator == "equals":
+            if value != other_value:
+                return f"Field '{validation.field_id}' must equal field '{validation.other_field_id}'"
+            return None
+        if operator == "not_equals":
+            if value == other_value:
+                return f"Field '{validation.field_id}' must not equal field '{validation.other_field_id}'"
+            return None
+        number_value = self._number_value(value)
+        other_number_value = self._number_value(other_value)
+        if number_value is None or other_number_value is None:
+            return (
+                f"Fields '{validation.field_id}' and '{validation.other_field_id}' must both be numbers "
+                "for numeric comparison"
+            )
+        if operator == "greater_than" and number_value <= other_number_value:
+            return f"Field '{validation.field_id}' must be greater than field '{validation.other_field_id}'"
+        if operator == "greater_than_or_equal" and number_value < other_number_value:
+            return f"Field '{validation.field_id}' must be greater than or equal to field '{validation.other_field_id}'"
+        if operator == "less_than" and number_value >= other_number_value:
+            return f"Field '{validation.field_id}' must be less than field '{validation.other_field_id}'"
+        if operator == "less_than_or_equal" and number_value > other_number_value:
+            return f"Field '{validation.field_id}' must be less than or equal to field '{validation.other_field_id}'"
+        return None
+
+    def _validate_custom(self, name: str, field_id: str, value: Any) -> str | None:
+        if name == "no_whitespace_edges":
+            if not isinstance(value, str):
+                return f"Field '{field_id}' must be a string"
+            if value != value.strip():
+                return f"Field '{field_id}' cannot contain leading or trailing whitespace"
+            return None
+        if name == "non_empty_json_object":
+            if not isinstance(value, dict) or not value:
+                return f"Field '{field_id}' must be a non-empty JSON object"
+            return None
+        if name == "https_url":
+            if not isinstance(value, str):
+                return f"Field '{field_id}' must be a string"
+            parsed = urlparse(value)
+            if parsed.scheme != "https" or not parsed.netloc:
+                return f"Field '{field_id}' must be an HTTPS URL"
+            return None
+        return f"Field '{field_id}' uses unsupported custom validator '{name}'"
+
+    def _text_value(self, value: Any) -> str | None:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict) and isinstance(value.get("plainText"), str):
+            return value["plainText"]
+        return None
+
+    def _number_value(self, value: Any) -> float | None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return float(value)
 
     def _validate_field_answer(
         self,

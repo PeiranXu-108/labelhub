@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SchemaRenderer } from "./SchemaRenderer";
+import { SchemaRenderer, validateAnswers } from "./SchemaRenderer";
 import type { TemplateSchemaDocument } from "./types";
 
 const schema: TemplateSchemaDocument = {
@@ -180,5 +180,213 @@ describe("SchemaRenderer", () => {
         headers: expect.objectContaining({ Authorization: "Bearer token" }),
       }),
     );
+  });
+
+  it("keeps hidden required answers but ignores hidden fields during validation", () => {
+    const onSubmit = vi.fn();
+    const conditionalSchema = {
+      ...schema,
+      fields: [
+        {
+          id: "decision",
+          type: "radio",
+          label: "Decision",
+          required: true,
+          options: [
+            { label: "Accept", value: "accept" },
+            { label: "Return", value: "return" },
+          ],
+        },
+        {
+          id: "return_reason",
+          type: "textarea",
+          label: "Return reason",
+          required: true,
+        },
+      ],
+      visibilityRules: [
+        {
+          id: "show_return_reason",
+          targetFieldId: "return_reason",
+          condition: { sourceFieldId: "decision", operator: "equals", value: "return" },
+        },
+      ],
+    } as unknown as TemplateSchemaDocument;
+
+    render(
+      <SchemaRenderer
+        schema={conditionalSchema}
+        item={{ payload: { text: "Conditional" } }}
+        initialAnswers={{ return_reason: "stale retained draft" }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Return reason")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Accept"));
+    fireEvent.click(screen.getByRole("button", { name: /提\s*交/ }));
+
+    expect(screen.queryByText("请填写Return reason")).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledWith({
+      decision: "accept",
+      return_reason: "stale retained draft",
+    });
+  });
+
+  it("does not let hidden retained source answers reveal dependent required fields", () => {
+    const chainedVisibilitySchema = {
+      ...schema,
+      fields: [
+        {
+          id: "decision",
+          type: "radio",
+          label: "Decision",
+          required: true,
+          options: [
+            { label: "Accept", value: "accept" },
+            { label: "Return", value: "return" },
+          ],
+        },
+        {
+          id: "return_reason",
+          type: "textarea",
+          label: "Return reason",
+          required: true,
+        },
+        {
+          id: "follow_up",
+          type: "textarea",
+          label: "Follow-up",
+          required: true,
+        },
+      ],
+      visibilityRules: [
+        {
+          id: "show_return_reason",
+          targetFieldId: "return_reason",
+          condition: { sourceFieldId: "decision", operator: "equals", value: "return" },
+        },
+        {
+          id: "show_follow_up",
+          targetFieldId: "follow_up",
+          condition: {
+            sourceFieldId: "return_reason",
+            operator: "equals",
+            value: "stale retained draft",
+          },
+        },
+      ],
+    } as unknown as TemplateSchemaDocument;
+
+    const answers = { decision: "accept", return_reason: "stale retained draft" };
+
+    expect(validateAnswers(chainedVisibilitySchema, answers)).toEqual({});
+    render(
+      <SchemaRenderer
+        schema={chainedVisibilitySchema}
+        item={{ payload: { text: "Conditional chain" } }}
+        initialAnswers={answers}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Return reason")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Follow-up")).not.toBeInTheDocument();
+  });
+
+  it("applies regex, cross-field, and named custom validators to visible answers", () => {
+    const runtimeSchema = {
+      ...schema,
+      fields: [
+        { id: "ticket", type: "text", label: "Ticket", required: true },
+        { id: "ticket_confirm", type: "text", label: "Ticket confirmation", required: true },
+        { id: "comment", type: "textarea", label: "Comment" },
+      ],
+      validations: [
+        { type: "regex", fieldId: "ticket", pattern: "^TICKET-[0-9]{3}$" },
+        {
+          type: "compare",
+          fieldId: "ticket_confirm",
+          operator: "equals",
+          otherFieldId: "ticket",
+        },
+        { type: "custom", fieldId: "comment", name: "no_whitespace_edges" },
+      ],
+    } as unknown as TemplateSchemaDocument;
+
+    expect(
+      validateAnswers(runtimeSchema, {
+        ticket: "bad",
+        ticket_confirm: "TICKET-001",
+        comment: " padded ",
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        ticket: "Ticket格式无效",
+        ticket_confirm: "Ticket confirmation必须等于Ticket",
+        comment: "Comment不能包含首尾空白",
+      }),
+    );
+
+    expect(
+      validateAnswers(runtimeSchema, {
+        ticket: "TICKET-001",
+        ticket_confirm: "TICKET-001",
+        comment: "padded",
+      }),
+    ).toEqual({});
+  });
+
+  it("rejects unsafe regex patterns during runtime validation", () => {
+    const runtimeSchema = {
+      ...schema,
+      fields: [{ id: "ticket", type: "text", label: "Ticket" }],
+      validations: [
+        {
+          type: "regex",
+          fieldId: "ticket",
+          pattern: "^" + "a?".repeat(30) + "a".repeat(30) + "$",
+        },
+      ],
+    } as unknown as TemplateSchemaDocument;
+
+    expect(validateAnswers(runtimeSchema, { ticket: "a".repeat(30) })).toEqual({
+      ticket: "Ticket正则配置无效",
+    });
+  });
+
+  it("renders tab groups and summarizes validation errors outside the active tab", () => {
+    const tabSchema = {
+      ...schema,
+      layout: {
+        type: "tabs",
+        groups: [
+          { id: "basic", title: "Basic", fieldIds: ["decision"] },
+          { id: "details", title: "Details", fieldIds: ["comment"] },
+        ],
+      },
+      fields: [
+        {
+          id: "decision",
+          type: "radio",
+          label: "Decision",
+          required: true,
+          options: [
+            { label: "Accept", value: "accept" },
+            { label: "Return", value: "return" },
+          ],
+        },
+        { id: "comment", type: "textarea", label: "Comment", required: true },
+      ],
+    } as unknown as TemplateSchemaDocument;
+
+    render(<SchemaRenderer schema={tabSchema} item={{ payload: { text: "Tabs" } }} />);
+
+    expect(screen.getByRole("tab", { name: "Basic" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Details" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /提\s*交/ }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Comment: 请填写Comment");
+    expect(screen.getByRole("tab", { name: /Details.*1/ })).toBeInTheDocument();
   });
 });

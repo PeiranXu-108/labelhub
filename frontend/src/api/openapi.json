@@ -2376,6 +2376,104 @@
         ],
         "title": "ClaimRead"
       },
+      "CrossFieldValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "compare",
+            "title": "Type"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "equals",
+              "not_equals",
+              "greater_than",
+              "greater_than_or_equal",
+              "less_than",
+              "less_than_or_equal"
+            ],
+            "title": "Operator"
+          },
+          "otherFieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Otherfieldid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "operator",
+          "otherFieldId"
+        ],
+        "title": "CrossFieldValidation"
+      },
+      "CustomValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "custom",
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "enum": [
+              "https_url",
+              "no_whitespace_edges",
+              "non_empty_json_object"
+            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "name"
+        ],
+        "title": "CustomValidation"
+      },
       "DraftSaveRequest": {
         "properties": {
           "answer_payload": {
@@ -3051,6 +3149,49 @@
         ],
         "title": "JsonField"
       },
+      "LayoutGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "fieldIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Fieldids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "fieldIds"
+        ],
+        "title": "LayoutGroup"
+      },
       "LlmTool": {
         "properties": {
           "id": {
@@ -3191,6 +3332,84 @@
         ],
         "title": "LoginResponse"
       },
+      "MaxLengthValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "max_length",
+            "title": "Type"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "limit"
+        ],
+        "title": "MaxLengthValidation"
+      },
+      "MinLengthValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "min_length",
+            "title": "Type"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "limit"
+        ],
+        "title": "MinLengthValidation"
+      },
       "NumberField": {
         "properties": {
           "id": {
@@ -3257,6 +3476,82 @@
           "type"
         ],
         "title": "NumberField"
+      },
+      "NumberMaxValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "max",
+            "title": "Type"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "value"
+        ],
+        "title": "NumberMaxValidation"
+      },
+      "NumberMinValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "min",
+            "title": "Type"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "value"
+        ],
+        "title": "NumberMinValidation"
       },
       "QualityRule": {
         "properties": {
@@ -3391,6 +3686,88 @@
           "type"
         ],
         "title": "RatingField"
+      },
+      "RegexValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "regex",
+            "title": "Type"
+          },
+          "pattern": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Pattern"
+          },
+          "flags": {
+            "items": {
+              "type": "string",
+              "const": "i"
+            },
+            "type": "array",
+            "maxItems": 1,
+            "title": "Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type",
+          "pattern"
+        ],
+        "title": "RegexValidation"
+      },
+      "RequiredValidation": {
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Fieldid"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "const": "required",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fieldId",
+          "type"
+        ],
+        "title": "RequiredValidation"
       },
       "ReviewActionRequest": {
         "properties": {
@@ -4642,16 +5019,52 @@
           },
           "validations": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RequiredValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/MinLengthValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/MaxLengthValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/NumberMinValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/NumberMaxValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/RegexValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/CrossFieldValidation"
+                },
+                {
+                  "$ref": "#/components/schemas/CustomValidation"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "compare": "#/components/schemas/CrossFieldValidation",
+                  "custom": "#/components/schemas/CustomValidation",
+                  "max": "#/components/schemas/NumberMaxValidation",
+                  "max_length": "#/components/schemas/MaxLengthValidation",
+                  "min": "#/components/schemas/NumberMinValidation",
+                  "min_length": "#/components/schemas/MinLengthValidation",
+                  "regex": "#/components/schemas/RegexValidation",
+                  "required": "#/components/schemas/RequiredValidation"
+                }
+              }
             },
             "type": "array",
             "title": "Validations"
           },
           "visibilityRules": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/VisibilityRule"
             },
             "type": "array",
             "title": "Visibilityrules"
@@ -4680,14 +5093,17 @@
         "properties": {
           "type": {
             "type": "string",
-            "const": "single",
+            "enum": [
+              "single",
+              "group",
+              "tabs"
+            ],
             "title": "Type",
             "default": "single"
           },
           "groups": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/LayoutGroup"
             },
             "type": "array",
             "title": "Groups"
@@ -5097,6 +5513,77 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VisibilityCondition": {
+        "properties": {
+          "sourceFieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Sourcefieldid"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "equals",
+              "not_equals",
+              "in",
+              "not_in",
+              "contains",
+              "not_contains",
+              "is_empty",
+              "is_not_empty"
+            ],
+            "title": "Operator"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sourceFieldId",
+          "operator"
+        ],
+        "title": "VisibilityCondition"
+      },
+      "VisibilityRule": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "targetFieldId": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Targetfieldid"
+          },
+          "effect": {
+            "type": "string",
+            "const": "show",
+            "title": "Effect",
+            "default": "show"
+          },
+          "condition": {
+            "$ref": "#/components/schemas/VisibilityCondition"
+          }
+        },
+        "type": "object",
+        "required": [
+          "targetFieldId",
+          "condition"
+        ],
+        "title": "VisibilityRule"
       }
     },
     "securitySchemes": {

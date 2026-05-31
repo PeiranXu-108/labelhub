@@ -304,6 +304,7 @@ body {
 }
 
 .schema-renderer-fields,
+.schema-groups,
 .field-list,
 .palette-buttons,
 .inspector-form,
@@ -313,6 +314,7 @@ body {
 }
 
 .schema-field,
+.schema-group,
 .designer-panel,
 .designer-canvas {
   background: #ffffff;
@@ -386,6 +388,15 @@ body {
   margin-top: 8px;
   color: #c03434;
   font-size: 13px;
+}
+
+.schema-error-summary {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.schema-tabs .schema-renderer-fields {
+  padding-top: 4px;
 }
 
 .template-validation {

@@ -108,13 +108,71 @@ export type TemplateField =
   | FileUploadField
   | LlmTriggerField;
 
+export type LayoutGroup = {
+  id: string;
+  title: string;
+  description?: string | null;
+  fieldIds: string[];
+};
+
+export type TemplateLayout = {
+  type: "single" | "group" | "tabs";
+  groups: LayoutGroup[];
+};
+
+export type VisibilityCondition = {
+  sourceFieldId: string;
+  operator:
+    | "equals"
+    | "not_equals"
+    | "in"
+    | "not_in"
+    | "contains"
+    | "not_contains"
+    | "is_empty"
+    | "is_not_empty";
+  value?: unknown;
+};
+
+export type VisibilityRule = {
+  id?: string | null;
+  targetFieldId: string;
+  effect?: "show";
+  condition: VisibilityCondition;
+};
+
+type BaseAnswerValidation = {
+  fieldId: string;
+  message?: string | null;
+};
+
+export type AnswerValidation =
+  | (BaseAnswerValidation & { type: "required" })
+  | (BaseAnswerValidation & { type: "min_length"; limit: number })
+  | (BaseAnswerValidation & { type: "max_length"; limit: number })
+  | (BaseAnswerValidation & { type: "min"; value: number })
+  | (BaseAnswerValidation & { type: "max"; value: number })
+  | (BaseAnswerValidation & { type: "regex"; pattern: string; flags?: Array<"i"> })
+  | (BaseAnswerValidation & {
+      type: "compare";
+      operator:
+        | "equals"
+        | "not_equals"
+        | "greater_than"
+        | "greater_than_or_equal"
+        | "less_than"
+        | "less_than_or_equal";
+      otherFieldId: string;
+    })
+  | (BaseAnswerValidation & {
+      type: "custom";
+      name: "no_whitespace_edges" | "non_empty_json_object" | "https_url";
+    });
+
 export type TemplateSchemaDocument = {
   version: number;
   title: string;
-  layout: {
-    type: "single";
-    groups: Array<Record<string, unknown>>;
-  };
+  layout: TemplateLayout;
   fields: TemplateField[];
   llmTools: Array<{
     id: string;
@@ -122,8 +180,8 @@ export type TemplateSchemaDocument = {
     promptTemplate: string;
     targetFieldId: string;
   }>;
-  validations: Array<Record<string, unknown>>;
-  visibilityRules: Array<Record<string, unknown>>;
+  validations: AnswerValidation[];
+  visibilityRules: VisibilityRule[];
 };
 
 export type RendererItem = {
