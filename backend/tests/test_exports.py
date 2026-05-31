@@ -189,6 +189,37 @@ def test_owner_can_create_and_list_export_job_asynchronous_contract(
     assert [job["id"] for job in list_response.json()] == [created["id"]]
 
 
+def test_export_creation_returns_pending_job_when_enqueue_fails(
+    client: TestClient, monkeypatch
+) -> None:
+    owner_headers = auth_headers(UserRole.OWNER, user_id="owner-export-api")
+    task = client.post("/tasks", headers=owner_headers, json={"name": "API export without broker"}).json()
+
+    def fail_enqueue(_job_id: str) -> None:
+        raise RuntimeError("Redis broker unavailable")
+
+    monkeypatch.setattr("app.api.routes.exports.enqueue_export_job", fail_enqueue)
+
+    create_response = client.post(
+        f"/tasks/{task['id']}/exports",
+        headers=owner_headers,
+        json={
+            "format": "jsonl",
+            "field_mapping": {"answers.sentiment": "sentiment"},
+            "include_review_metadata": True,
+        },
+    )
+
+    assert create_response.status_code == 202
+    created = create_response.json()
+    assert created["status"] == "pending"
+    assert created["error_message"] is None
+
+    list_response = client.get(f"/tasks/{task['id']}/exports", headers=owner_headers)
+    assert list_response.status_code == 200
+    assert [job["id"] for job in list_response.json()] == [created["id"]]
+
+
 def test_download_denied_for_unauthorized_user(
     client: TestClient, db_session: Session, tmp_path: Path
 ) -> None:

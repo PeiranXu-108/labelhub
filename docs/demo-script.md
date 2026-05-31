@@ -113,7 +113,7 @@ Talk track: human review is stage-aware. Initial returns, re-review returns, and
 1. Log out, then sign in again as `owner@example.com`.
 2. Open the task export area.
 3. Create a JSONL export with review metadata.
-4. In Docker, the worker processes the export job and writes to the shared `export-storage` volume. If no worker is running locally, run the export synchronously for demo:
+4. In Docker, the worker processes the export job and writes to the shared `export-storage` volume. If Redis/Celery is unavailable in the local smoke setup, export creation still returns a `pending` job instead of failing the request; run the export synchronously for demo:
 
 ```bash
 cd backend

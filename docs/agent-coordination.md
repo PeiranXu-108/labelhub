@@ -47,6 +47,7 @@ The system must preserve these non-negotiable boundaries:
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | Previous/next/skip navigation and draft preservation | After Tasks 07, 09, and 10 |
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | Initial/re-review/final review stages and round diff views | After Tasks 09 and 10 |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | Docker runtime verification, live-AI preflight, production limitation docs | After Task 08 and Task 10; after Task 16 for live field-assist checks |
+| Final Readiness Fixes Agent | `docs/tasks/20-final-readiness-fixes-agent.md` | E2E selector/seed stability, export enqueue resilience, readiness docs | After final Supervisor review returns `not ready` for concrete verification blockers |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | E2E tests, README, API docs, Docker Compose, demo script | After first vertical slice and Task 09 if dispatched |
 
 ## Recommended Execution Order
@@ -68,6 +69,7 @@ The system must preserve these non-negotiable boundaries:
    - Task 16 after Task 15 when field-level LLM results should validate/write back immediately.
    - Tasks 17 and 18 can run after Task 09/10, but should not overlap on reviewer/labeler shared API types without coordination.
    - Task 19 closes production readiness evidence after the desired feature follow-ups are approved or explicitly descoped.
+   - Task 20 runs only after final Supervisor integration review identifies concrete readiness blockers that must be fixed before another readiness verdict.
 
 ## Shared Files and Conflict Rules
 
@@ -92,6 +94,7 @@ High-conflict files owned by one agent at a time:
 - Task17 may update labeler navigation/skip contracts. It must audit skip behavior and preserve draft data.
 - Task18 may update review-stage contracts and `WorkflowService` only with focused tests and Supervisor review; it must not bypass `WorkflowService` for stage/status changes.
 - Task19 may update deployment/docs/runtime verification scripts. It must not claim Docker runtime verification unless Docker startup actually succeeds in the environment.
+- Task20 may update Playwright E2E tests, demo seeding helpers, export enqueue error handling, and readiness docs. It must not change workflow state semantics, assignment claiming, AI review decisions, or published template immutability.
 
 If another agent needs a change in an owned file, they must write a request in their handoff summary and stop rather than making an opportunistic edit.
 

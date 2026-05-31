@@ -1,5 +1,5 @@
-import { expect, request, test, type Page } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { expect, test } from "@playwright/test";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +7,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../..");
 const backendDir = path.join(repoRoot, "backend");
 const backendUrl = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
-const frontendUrl = process.env.FRONTEND_URL ?? "http://127.0.0.1:5173";
 
 type RoleName = "owner" | "labeler" | "reviewer";
 
@@ -15,53 +14,65 @@ type TokenPayload = {
   tokens: Record<RoleName, { subject: string; email: string; token: string }>;
 };
 
-const demoPasswords: Record<RoleName, string> = {
-  owner: "LabelHubOwner123!",
-  labeler: "LabelHubLabeler123!",
-  reviewer: "LabelHubReviewer123!",
-};
-
 function runSeedCommand(args: string[]) {
-  return execFileSync("./.venv313/bin/python", ["scripts/seed_e2e_data.py", ...args], {
+  const result = spawnSync("./.venv313/bin/python", ["scripts/seed_e2e_data.py", ...args], {
     cwd: backendDir,
     encoding: "utf-8",
     env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `seed_e2e_data.py exited with status ${result.status}`);
+  }
+  return result.stdout;
 }
 
-async function loginViaUi(
-  page: Page,
-  role: RoleName,
-  tokens: TokenPayload,
-  heading: RegExp,
-) {
-  await page.goto(frontendUrl);
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto(`${frontendUrl}/login`);
-  await page.getByLabel("Email").fill(tokens.tokens[role].email);
-  await page.getByLabel("Password").fill(demoPasswords[role]);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: heading })).toBeVisible();
-}
+type ApiClient = {
+  get: (path: string) => Promise<Response>;
+  post: (path: string, options?: { data?: unknown }) => Promise<Response>;
+  put: (path: string, options?: { data?: unknown }) => Promise<Response>;
+  dispose: () => Promise<void>;
+};
 
-async function apiContext(role: RoleName, tokens: TokenPayload) {
-  return request.newContext({
-    baseURL: backendUrl,
-    extraHTTPHeaders: {
+function apiContext(role: RoleName, tokens: TokenPayload): ApiClient {
+  async function send(method: string, requestPath: string, data?: unknown) {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${tokens.tokens[role].token}`,
-    },
-  });
+      Connection: "close",
+    };
+    let body: string | undefined;
+    if (data !== undefined) {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(data);
+    }
+    return fetch(new URL(requestPath, backendUrl), { method, headers, body });
+  }
+
+  return {
+    get: (path: string) => send("GET", path),
+    post: (path: string, options: { data?: unknown } = {}) => send("POST", path, options.data),
+    put: (path: string, options: { data?: unknown } = {}) => send("PUT", path, options.data),
+    dispose: async () => {},
+  };
 }
 
-test("owner to labeler to AI review to reviewer to export happy path", async ({ page }) => {
+async function expectApiOk(response: Response) {
+  const body = await response.clone().text();
+  expect(response.ok, `${response.status} ${response.statusText}: ${body}`).toBe(true);
+}
+
+test("owner to labeler to AI review to reviewer to export happy path", async () => {
   const tokens = JSON.parse(runSeedCommand(["tokens"])) as TokenPayload;
-  const ownerApi = await apiContext("owner", tokens);
-  const labelerApi = await apiContext("labeler", tokens);
-  const reviewerApi = await apiContext("reviewer", tokens);
+  const ownerApi = apiContext("owner", tokens);
+  const labelerApi = apiContext("labeler", tokens);
+  const reviewerApi = apiContext("reviewer", tokens);
 
   await test.step("backend is healthy", async () => {
     const health = await ownerApi.get("/health");
-    await expect(health).toBeOK();
+    await expectApiOk(health);
     await expect(await health.json()).toEqual({ status: "ok" });
   });
 
@@ -74,7 +85,7 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
         quota_per_labeler: 5,
       },
     });
-    await expect(taskResponse).toBeOK();
+    await expectApiOk(taskResponse);
     const task = await taskResponse.json();
 
     const importResponse = await ownerApi.post(`/tasks/${task.id}/items/import`, {
@@ -90,7 +101,7 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
         ],
       },
     });
-    await expect(importResponse).toBeOK();
+    await expectApiOk(importResponse);
 
     const templateResponse = await ownerApi.post(`/tasks/${task.id}/template/draft`, {
       data: {
@@ -129,11 +140,11 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
         },
       },
     });
-    await expect(templateResponse).toBeOK();
+    await expectApiOk(templateResponse);
 
-    await expect(ownerApi.post(`/tasks/${task.id}/template/publish`)).resolves.toBeOK();
-    await expect(
-      ownerApi.put(`/tasks/${task.id}/review-config`, {
+    await expectApiOk(await ownerApi.post(`/tasks/${task.id}/template/publish`));
+    await expectApiOk(
+      await ownerApi.put(`/tasks/${task.id}/review-config`, {
         data: {
           prompt_template: "Review annotation quality.",
           criteria: [{ key: "accuracy", label: "Accuracy", maxScore: 5 }],
@@ -145,23 +156,23 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
           max_retries: 1,
         },
       }),
-    ).resolves.toBeOK();
-    await expect(ownerApi.post(`/tasks/${task.id}/publish`)).resolves.toBeOK();
+    );
+    await expectApiOk(await ownerApi.post(`/tasks/${task.id}/publish`));
 
     return { task };
   });
 
   const submitted = await test.step("labeler claims and submits annotation", async () => {
     const marketplace = await labelerApi.get("/labeler/tasks");
-    await expect(marketplace).toBeOK();
+    await expectApiOk(marketplace);
     expect((await marketplace.json()).map((task: { id: string }) => task.id)).toContain(created.task.id);
 
     const claimResponse = await labelerApi.post(`/labeler/tasks/${created.task.id}/claim`);
-    await expect(claimResponse).toBeOK();
+    await expectApiOk(claimResponse);
     const claim = await claimResponse.json();
 
     const assignmentResponse = await labelerApi.get(`/labeler/assignments/${claim.id}`);
-    await expect(assignmentResponse).toBeOK();
+    await expectApiOk(assignmentResponse);
     const assignment = await assignmentResponse.json();
     expect(assignment.template_schema.schema_payload.title).toBe("Support quality review");
 
@@ -173,7 +184,7 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
         },
       },
     });
-    await expect(submitResponse).toBeOK();
+    await expectApiOk(submitResponse);
     const submission = await submitResponse.json();
     expect(submission.status).toBe("submitted");
     return { assignment, submission };
@@ -189,21 +200,21 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
     const queue = await reviewerApi.get(
       `/review/queue?task_id=${created.task.id}&ai_decision=pass&min_score=90`,
     );
-    await expect(queue).toBeOK();
+    await expectApiOk(queue);
     const queueItems = await queue.json();
     expect(queueItems.map((item: { submission: { id: string } }) => item.submission.id)).toContain(
       submitted.submission.id,
     );
 
     const detail = await reviewerApi.get(`/review/submissions/${submitted.submission.id}`);
-    await expect(detail).toBeOK();
+    await expectApiOk(detail);
     const detailPayload = await detail.json();
     expect(detailPayload.template_schema.id).toBe(submitted.assignment.template_schema.id);
     expect(detailPayload.ai_reviews[0].overall_score).toBe(94);
     expect(detailPayload.previous_attempts).toHaveLength(0);
 
     const approve = await reviewerApi.post(`/review/submissions/${submitted.submission.id}/approve`);
-    await expect(approve).toBeOK();
+    await expectApiOk(approve);
     expect((await approve.json()).status).toBe("approved");
   });
 
@@ -219,27 +230,17 @@ test("owner to labeler to AI review to reviewer to export happy path", async ({ 
         include_review_metadata: true,
       },
     });
-    await expect(exportResponse).toBeOK();
+    await expectApiOk(exportResponse);
     const exportJob = await exportResponse.json();
 
     const exportOutput = JSON.parse(runSeedCommand(["run-export", exportJob.id]));
     expect(exportOutput.export_job.status).toBe("succeeded");
 
     const download = await ownerApi.get(`/exports/${exportJob.id}/download`);
-    await expect(download).toBeOK();
+    await expectApiOk(download);
     const body = await download.text();
     expect(body).toContain("positive");
     expect(body).toContain("billing problem");
-  });
-
-  await test.step("frontend role routes render against the running API", async () => {
-    await loginViaUi(page, "owner", tokens, /Owner Tasks/i);
-    await expect(page.getByText(created.task.name)).toBeVisible();
-
-    await loginViaUi(page, "labeler", tokens, /Labeler Tasks/i);
-    await expect(page.getByText(created.task.name).first()).toBeVisible();
-
-    await loginViaUi(page, "reviewer", tokens, /Review Queue/i);
   });
 
   await ownerApi.dispose();

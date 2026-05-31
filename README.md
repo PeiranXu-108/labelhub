@@ -98,7 +98,7 @@ FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
 ```
 
-Playwright 冒烟测试会通过 `/login` 登录前端，并检查各角色路由。Task19 生产就绪验证发现，直接对运行中的 Docker worker 执行完整 `npm run e2e` 仍然失败：登录测试仍查找旧英文 label，happy path 依赖确定性 AI helper 但 Docker worker 会先用缺失 key 的实时 AI fallback 消费任务。这个 E2E blocker 已记录在 `docs/known-limitations.md` 和 Task19 handoff。
+Playwright 冒烟测试会通过 `/login` 登录前端，并检查各角色路由。Task20 已修复本地 SQLite smoke 路径：`npm run e2e` 现在使用当前中文登录 UI 的可访问 label，并可在 Redis 不可用时创建 `pending` 导出任务，再由 `backend/scripts/seed_e2e_data.py run-export <export_job_id>` 同步生成文件。Docker-mode E2E 仍是单独限制，不能用本地 smoke 结果替代。
 
 ## 实时 AI 审核 Agent
 

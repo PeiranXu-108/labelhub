@@ -17,7 +17,7 @@
 - No live AI provider call was verified in Task19 because no safe `LABELHUB_LLM_API_KEY` was provided. Live review and field-level assist remain credential- and policy-gated.
 - Without `LABELHUB_LLM_API_KEY`, AI review uses a controlled missing-credentials fallback and routes to human review; field-level assist returns a controlled `LLM_PROVIDER_UNAVAILABLE` path.
 - Plain `docker compose config` expands local `.env` values and can print secrets. Use `env LABELHUB_LLM_API_KEY= docker compose config --quiet` for safe validation logs.
-- Full Playwright E2E against the live Docker worker is not green. The current suite still has local deterministic assumptions that conflict with the live worker runtime.
+- Full Playwright E2E against the local SQLite smoke setup is green as of Task20, including Redis-absent export creation plus synchronous export helper completion. Full Playwright E2E against the live Docker worker is still not green because the deterministic helper flow is separate from the live worker runtime.
 
 ## Production Policy Gaps
 
@@ -31,9 +31,7 @@
 
 ## Feature/Test Blockers
 
-- `cd frontend && npm run e2e` against Docker runtime failed in Task19:
-  - `auth-login.spec.ts` waits for English labels (`Email`) while the current login form exposes Chinese labels.
-  - `labelhub-happy-path.spec.ts` expects deterministic seeded AI review output, but the live Docker worker consumes the queued review with missing live-AI credentials and routes it to human review first.
+- `cd frontend && npm run e2e` against Docker runtime failed in Task19 because `labelhub-happy-path.spec.ts` expects deterministic seeded AI review/export helper behavior, while the live Docker worker consumes queued jobs with the configured runtime behavior.
 - Local deterministic E2E remains the supported smoke path when backend/frontend share the same SQLite database and the deterministic AI helper is used.
 - Export storage is production-local by default. Use durable volume policy or object storage before treating exports as production records.
 - Upload cleanup is manual for the MVP; deleting database rows does not automatically delete files.

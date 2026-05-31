@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, status
@@ -13,6 +14,7 @@ from app.services.exports import ExportError, ExportService
 from app.workers.exports import enqueue_export_job
 
 router = APIRouter(tags=["exports"])
+logger = logging.getLogger(__name__)
 
 
 def _is_reviewer(actor: Actor) -> bool:
@@ -53,7 +55,10 @@ def create_export_job(
         )
     except ExportError as exc:
         _raise_export_error(exc)
-    enqueue_export_job(job.id)
+    try:
+        enqueue_export_job(job.id)
+    except Exception:
+        logger.exception("Failed to enqueue export job %s; leaving job pending for manual/worker retry", job.id)
     return job
 
 

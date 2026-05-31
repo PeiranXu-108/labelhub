@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature work is approved, with production hardening and live-AI policy blockers documented rather than claimed complete.
+Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite E2E/export smoke blockers from final integration review are fixed; Docker-mode E2E, live-AI verification, and production hardening limitations remain documented rather than claimed complete.
 
 ## Active Agents
 
@@ -30,6 +30,7 @@ Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature w
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | complete | `docs/handoffs/2026-05-31-task17-labeler-navigation-handoff.md` | approved |
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | complete | `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md` | approved |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | complete | `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md` | approved with documented blockers |
+| Final Readiness Fixes Agent | `docs/tasks/20-final-readiness-fixes-agent.md` | complete | `docs/handoffs/2026-05-31-task20-final-readiness-fixes-handoff.md` | approved |
 
 ## Frozen Contracts
 
@@ -144,6 +145,7 @@ Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature w
 | 17 Labeler Navigation | Labeler Navigation Agent | complete | Tasks 07, 09, 10 | Approved; previous/next/skip navigation, draft preservation, skip audit, no-work-left behavior, skipped-assignment guards, OpenAPI, handoff, and regression tests verified. |
 | 18 Multistage Human Review | Multistage Human Review Agent | complete | Tasks 09, 10 | Approved; initial/re-review/final stages, stage-aware review contracts, round diff views, timestamp-safe migration backfill, WorkflowService-mediated transitions, OpenAPI, handoff, and regression tests verified. |
 | 19 Production Readiness | Production Readiness Agent | complete | Tasks 08, 10, Task 16 for live field LLM checks | Approved with blockers documented; Docker runtime startup, healthchecks, storage sharing, missing-key AI fallback, docs, preflight, tests, and build verified; Docker-mode E2E/live AI/static frontend/non-root worker/durable storage remain open. |
+| 20 Final Readiness Fixes | Final Readiness Fixes Agent | complete | Final Supervisor integration review | Approved; localized E2E selectors, demo-user seed race, Redis-absent export enqueue behavior, docs, handoff, and local E2E verified. |
 
 ## Integration Risks
 
@@ -185,9 +187,30 @@ Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature w
 - Task 18 approved `WorkflowService` stage/status metadata changes; future review-stage/status changes must still be reviewed as workflow contract changes.
 - Task 18 migration backfill intentionally derives historical human review rounds from persisted attempt snapshot timestamps; do not replace this with mutable current-submission attempt inference.
 - Task 19 approved runtime evidence, but Docker-mode E2E, live provider verification, production static frontend serving, non-root worker, durable/object storage, scanning, retention, backups, and production identity policy remain blockers.
+- Task20 resolved the local E2E blockers from final integration review. Docker-mode E2E, live provider verification, and production hardening remain separate documented limitations; do not convert the local deterministic helper smoke into a live Docker-worker readiness claim.
 
 ## Latest Verification
 
+- Task20 handoff reviewed from `docs/handoffs/2026-05-31-task20-final-readiness-fixes-handoff.md`.
+- Task20 approval note written to `docs/reviews/2026-06-01-task20-final-readiness-fixes-review.md`.
+- Task20 verification: `cd backend && ./.venv313/bin/pytest tests/test_auth_api.py tests/test_exports.py tests/test_export_worker.py -q` passed, 15 tests, with existing passlib `crypt` deprecation warning.
+- Task20 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 121 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task20 verification: `cd frontend && npm test -- --run` passed, 10 files and 75 tests, with existing React Router future-flag warnings.
+- Task20 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task20 verification: local Redis-absent E2E setup passed with backend on `127.0.0.1:18010`, frontend on `127.0.0.1:5174`, `LABELHUB_REDIS_URL=redis://127.0.0.1:6399/0`, and `cd frontend && npm run e2e` passing 2 Playwright tests.
+- Task20 verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task20-review-openapi.json` passed.
+- Task20 verification: `env LABELHUB_LLM_API_KEY= docker compose config --quiet` passed.
+- Task20 verification: `git diff --check` passed.
+- Final integration review note written to `docs/reviews/2026-05-31-final-integration-readiness-review.md`.
+- Task20 task file written to `docs/tasks/20-final-readiness-fixes-agent.md`.
+- Final integration verification: `cd backend && ./.venv313/bin/pytest -q` passed, 119 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Final integration verification: `cd frontend && npm test -- --run` passed, 10 files and 75 tests, with existing React Router future-flag warnings.
+- Final integration verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Final integration verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-final-openapi.json` passed.
+- Final integration verification: `env LABELHUB_LLM_API_KEY= docker compose config --quiet` passed.
+- Final integration verification: `env LABELHUB_LLM_API_KEY= scripts/production_preflight.sh` passed non-runtime checks; runtime smoke skipped because `--runtime` was not requested.
+- Final integration verification: local `cd frontend && npm run e2e` failed. Failures were stale English login selectors against localized UI and a parallel demo-user seed race causing `UNIQUE constraint failed: users.email`.
+- Final integration verification: targeted `cd frontend && npx playwright test e2e/labelhub-happy-path.spec.ts --workers=1` reached owner create/import/template/publish, labeler claim/submit, deterministic AI review, and reviewer approve, then failed because export creation returned `500` when Redis/Celery enqueue was unavailable.
 - Task 19 revised handoff reviewed from `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md`.
 - Task 19 review fix resolved the preflight secret-handling issue: `scripts/production_preflight.sh` now blanks `LABELHUB_LLM_API_KEY`, uses quiet Compose config validation, and does not leave `/tmp/labelhub-compose-config.yaml`.
 - Task 19 verification: fake-key preflight probe `rm -f /tmp/labelhub-compose-config.yaml && env LABELHUB_LLM_API_KEY=fake-task19-review-key scripts/production_preflight.sh && test ! -e /tmp/labelhub-compose-config.yaml` passed.
@@ -469,4 +492,4 @@ Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature w
 
 ## Next Recommended Action
 
-Address Task19's documented production blockers next: Docker-mode E2E, live provider verification with approved credentials/data policy, production static frontend serving, non-root worker, durable storage/scanning/retention/backups, and production identity policy.
+Rerun final Supervisor integration review now that Task20 fixed the local E2E/export smoke blockers.

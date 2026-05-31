@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -62,28 +63,47 @@ class StaticPassReviewModel:
         ).model_dump(mode="json")
 
 
-def seed_demo_users() -> dict[str, dict[str, str]]:
-    seeded: dict[str, dict[str, str]] = {}
-    with SessionLocal() as db:
-        for role_name, spec in DEMO_USERS.items():
-            user = db.get(User, spec["id"]) or db.scalar(
-                select(User).where(User.email == spec["email"])
-            )
-            if user is None:
-                user = User(id=spec["id"])
-            user.email = spec["email"]
-            user.name = spec["name"]
-            user.role = spec["role"]
-            user.password_hash = hash_password(spec["password"])
+def _find_demo_user(db, spec: dict[str, Any]) -> User | None:
+    return db.get(User, spec["id"]) or db.scalar(select(User).where(User.email == spec["email"]))
+
+
+def _apply_demo_user_spec(user: User, spec: dict[str, Any]) -> None:
+    user.email = spec["email"]
+    user.name = spec["name"]
+    user.role = spec["role"]
+    user.password_hash = hash_password(spec["password"])
+
+
+def _seed_demo_user(db, spec: dict[str, Any]) -> dict[str, str]:
+    for attempt in range(2):
+        user = _find_demo_user(db, spec)
+        if user is None:
+            user = User(id=spec["id"])
             db.add(user)
-            seeded[role_name] = {
+        _apply_demo_user_spec(user, spec)
+        try:
+            db.commit()
+            db.refresh(user)
+            return {
                 "id": user.id,
                 "email": user.email,
                 "name": user.name,
                 "role": user.role.value,
                 "password": spec["password"],
             }
-        db.commit()
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise
+
+    raise RuntimeError("Demo user seed retry loop exhausted")
+
+
+def seed_demo_users() -> dict[str, dict[str, str]]:
+    seeded: dict[str, dict[str, str]] = {}
+    with SessionLocal() as db:
+        for role_name, spec in DEMO_USERS.items():
+            seeded[role_name] = _seed_demo_user(db, spec)
     return seeded
 
 

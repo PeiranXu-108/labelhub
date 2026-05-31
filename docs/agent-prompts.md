@@ -27,6 +27,7 @@ Every implementation agent must read:
 8. Start QA Docs Deploy Agent after the first end-to-end vertical slice exists and Task09 is approved if dispatched.
 9. Start Auth Login Agent after Task08 approval if the placeholder `/login` limitation must be closed before final integration review.
 10. Start follow-up Tasks 11-19 only after Supervisor confirms the expanded requirements remain in scope.
+11. Start Task20 only if final Supervisor integration review returns `not ready` with concrete verification blockers to fix.
 
 ## Recommended Call Order
 
@@ -59,6 +60,8 @@ Every implementation agent must read:
 25. Multistage Human Review Agent
 26. Production Readiness Agent
 27. Final Supervisor integration review
+28. Final Readiness Fixes Agent if final review is `not ready`
+29. Supervisor re-review of Task20
 ```
 
 Parallelizable groups:
@@ -83,6 +86,7 @@ Do not parallelize:
 - Task14 upload/storage work with Task16 LLM field assist if both are changing schema renderer answer payload semantics.
 - Task18 workflow-stage changes with any other task editing `WorkflowService`.
 - Task19 production readiness before the feature set to be claimed as ready is approved or explicitly descoped.
+- Task20 with any other agent touching E2E tests, export enqueue behavior, or demo seed helpers.
 
 ---
 
@@ -1218,6 +1222,68 @@ End with the Agent Handoff format, including:
 - live AI preflight status
 - docs updated
 - remaining production blockers
+```
+
+---
+
+## Prompt 20: Final Readiness Fixes Agent
+
+```text
+You are the Final Readiness Fixes Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/20-final-readiness-fixes-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/reviews/2026-05-31-final-integration-readiness-review.md
+5. docs/tasks/20-final-readiness-fixes-agent.md
+6. README.md
+7. docs/deployment.md
+8. docs/demo-script.md
+9. docs/known-limitations.md
+10. frontend/e2e/auth-login.spec.ts
+11. frontend/e2e/labelhub-happy-path.spec.ts
+12. frontend/src/routes/LoginPage.tsx
+13. backend/scripts/seed_e2e_data.py
+14. backend/app/api/routes/exports.py
+15. backend/app/workers/exports.py
+
+Mission:
+Fix the concrete final-readiness blockers: stale Playwright login selectors, non-idempotent demo-user seeding under parallel E2E, and export creation returning 500 when Redis/Celery enqueue is unavailable in the documented local smoke path.
+
+Hard constraints:
+- Do not change assignment claiming or submission workflow semantics.
+- Do not bypass WorkflowService for status transitions.
+- Do not change AI review decision semantics or live-provider policy.
+- Do not mutate published template schema semantics.
+- Keep backend validation and role permissions authoritative.
+- Do not claim Docker-mode E2E or live AI is fixed unless actually verified.
+
+Deliver:
+- stable E2E selectors aligned with the current localized login UI
+- idempotent/concurrency-safe demo-user seed behavior
+- controlled export enqueue failure policy that keeps local smoke usable without Redis
+- backend/frontend regression tests
+- updated README/deployment/demo/known-limitations docs if behavior or verified status changes
+- Task20 handoff
+
+Verification:
+Run the commands listed in docs/tasks/20-final-readiness-fixes-agent.md, or explain exactly why any command cannot run. The target is a green local `npm run e2e` against the documented SQLite backend/frontend smoke setup.
+
+End with the Agent Handoff format, including:
+- final E2E selector strategy
+- seed idempotency/concurrency behavior
+- export enqueue failure policy
+- local E2E result with Redis absent
+- Docker-mode E2E status
+- backend/frontend tests/build/OpenAPI/Compose results
+- remaining readiness blockers, if any
 ```
 
 ---
