@@ -9,7 +9,13 @@ from app.agent.config import LLMProviderConfig
 from app.agent.providers import FieldAssistModel
 from app.models import Assignment, HumanReview, Submission, Task, TaskItem, TemplateSchema
 from app.schemas.agent_workflow import AgentWorkflowRead
-from app.schemas.labeler import AssignmentDetailRead, ClaimRead
+from app.schemas.labeler import (
+    AssignmentDetailRead,
+    AssignmentNavigationMoveRead,
+    AssignmentNavigationRead,
+    ClaimRead,
+    SkipAssignmentRequest,
+)
 from app.schemas.llm_assist import LLMFieldAssistRequest, LLMFieldAssistResponse
 from app.schemas.submission import DraftSaveRequest, SubmissionRead, SubmitRequest
 from app.schemas.task import TaskRead
@@ -42,6 +48,62 @@ def get_llm_field_assist_provider_config() -> LLMProviderConfig | None:
 
 def _raise_llm_field_assist_error(exc: LLMFieldAssistError) -> None:
     raise api_error(exc.code, exc.message, exc.status_code)
+
+
+def _assignment_detail_payload(db: Session, assignment: Assignment) -> dict:
+    submission = assignment.submission
+    template_schema = db.get(TemplateSchema, submission.template_schema_id)
+    latest_human_review = db.scalar(
+        select(HumanReview)
+        .where(HumanReview.submission_id == submission.id)
+        .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
+        .limit(1)
+    )
+    return {
+        "id": assignment.id,
+        "task_id": assignment.task_id,
+        "item_id": assignment.item_id,
+        "labeler_id": assignment.labeler_id,
+        "status": assignment.status,
+        "claimed_at": assignment.claimed_at,
+        "expires_at": assignment.expires_at,
+        "item": assignment.item,
+        "submission": submission,
+        "task": db.get(Task, assignment.task_id),
+        "template_schema": template_schema,
+        "latest_human_review": latest_human_review,
+    }
+
+
+def _navigation_move_payload(
+    db: Session,
+    service: SubmissionService,
+    actor_context: ActorContext,
+    *,
+    direction: str,
+    assignment: Assignment | None,
+    skipped_assignment_id: str | None = None,
+    skip_reason: str | None = None,
+) -> dict:
+    navigation = service.navigation_state(assignment.id, actor_context) if assignment else None
+    no_work_left = assignment is None and direction in {"next", "skip"}
+    return {
+        "direction": direction,
+        "assignment": _assignment_detail_payload(db, assignment) if assignment else None,
+        "navigation": navigation,
+        "no_work_left": no_work_left,
+        "message": _navigation_message(direction, assignment),
+        "skipped_assignment_id": skipped_assignment_id,
+        "skip_reason": skip_reason,
+    }
+
+
+def _navigation_message(direction: str, assignment: Assignment | None) -> str:
+    if assignment is not None:
+        return "Navigation target ready."
+    if direction == "previous":
+        return "No previous assignment."
+    return "No work left in this task queue."
 
 
 @router.get("/tasks", response_model=list[TaskRead])
@@ -101,28 +163,86 @@ def get_assignment(
 ) -> dict:
     try:
         assignment = SubmissionService(db).get_owned_assignment(assignment_id, _actor_context(actor))
-        submission = assignment.submission
-        template_schema = db.get(TemplateSchema, submission.template_schema_id)
-        latest_human_review = db.scalar(
-            select(HumanReview)
-            .where(HumanReview.submission_id == submission.id)
-            .order_by(HumanReview.created_at.desc(), HumanReview.id.desc())
-            .limit(1)
+        return _assignment_detail_payload(db, assignment)
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.get("/assignments/{assignment_id}/navigation", response_model=AssignmentNavigationRead)
+def get_assignment_navigation(
+    assignment_id: str,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> dict:
+    try:
+        return SubmissionService(db).navigation_state(assignment_id, _actor_context(actor))
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post("/assignments/{assignment_id}/previous", response_model=AssignmentNavigationMoveRead)
+def navigate_previous_assignment(
+    assignment_id: str,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> dict:
+    actor_context = _actor_context(actor)
+    service = SubmissionService(db)
+    try:
+        assignment = service.previous_assignment(assignment_id, actor_context)
+        return _navigation_move_payload(
+            db,
+            service,
+            actor_context,
+            direction="previous",
+            assignment=assignment,
         )
-        return {
-            "id": assignment.id,
-            "task_id": assignment.task_id,
-            "item_id": assignment.item_id,
-            "labeler_id": assignment.labeler_id,
-            "status": assignment.status,
-            "claimed_at": assignment.claimed_at,
-            "expires_at": assignment.expires_at,
-            "item": assignment.item,
-            "submission": submission,
-            "task": db.get(Task, assignment.task_id),
-            "template_schema": template_schema,
-            "latest_human_review": latest_human_review,
-        }
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post("/assignments/{assignment_id}/next", response_model=AssignmentNavigationMoveRead)
+def navigate_next_assignment(
+    assignment_id: str,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> dict:
+    actor_context = _actor_context(actor)
+    service = SubmissionService(db)
+    try:
+        assignment = service.next_assignment(assignment_id, actor_context)
+        return _navigation_move_payload(
+            db,
+            service,
+            actor_context,
+            direction="next",
+            assignment=assignment,
+        )
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post("/assignments/{assignment_id}/skip", response_model=AssignmentNavigationMoveRead)
+def skip_assignment(
+    assignment_id: str,
+    payload: SkipAssignmentRequest,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> dict:
+    actor_context = _actor_context(actor)
+    service = SubmissionService(db)
+    try:
+        reason = payload.reason.strip() if payload.reason else None
+        assignment = service.skip_assignment(assignment_id, actor_context, reason=reason)
+        return _navigation_move_payload(
+            db,
+            service,
+            actor_context,
+            direction="skip",
+            assignment=assignment,
+            skipped_assignment_id=assignment_id,
+            skip_reason=reason,
+        )
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

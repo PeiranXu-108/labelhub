@@ -1,6 +1,6 @@
-import { Alert, Button, Descriptions, Result, Skeleton, Space, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Input, Modal, Result, Skeleton, Space, Tag, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { normalizeError, useOperationMessage } from "../feedback";
@@ -10,13 +10,23 @@ import { TaskMetadataPanel } from "../task-metadata/TaskMetadataPanel";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
 import type { AnswerPayload } from "../schema-renderer";
-import { getAssignmentAgentWorkflow, getAssignmentWithTemplate, saveAssignmentDraft, submitAssignment } from "./api";
-import type { AssignmentDetailRead, SubmissionRead } from "./types";
+import {
+  getAssignmentAgentWorkflow,
+  getAssignmentNavigation,
+  getAssignmentWithTemplate,
+  navigateToNextAssignment,
+  navigateToPreviousAssignment,
+  saveAssignmentDraft,
+  skipAssignment,
+  submitAssignment,
+} from "./api";
+import type { AssignmentDetailRead, AssignmentNavigationMoveRead, AssignmentNavigationRead, SubmissionRead } from "./types";
 import type { TemplateSchemaRead } from "../owner/types";
 
 const AUTOSAVE_DEBOUNCE_MS = 900;
 
 type AutosaveState = "idle" | "pending" | "saving" | "saved" | "error";
+type NavigationAction = "previous" | "next" | "skip";
 
 function sameAnswers(left: AnswerPayload, right: AnswerPayload) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -24,10 +34,12 @@ function sameAnswers(left: AnswerPayload, right: AnswerPayload) {
 
 export function LabelerWorkbench() {
   const { assignmentId } = useParams();
+  const navigate = useNavigate();
   const showOperationError = useOperationMessage();
   const [assignment, setAssignment] = useState<AssignmentDetailRead | null>(null);
   const [template, setTemplate] = useState<TemplateSchemaRead | null>(null);
   const [submission, setSubmission] = useState<SubmissionRead | null>(null);
+  const [navigationState, setNavigationState] = useState<AssignmentNavigationRead | null>(null);
   const [agentWorkflow, setAgentWorkflow] = useState<AgentWorkflowRead | null>(null);
   const [answers, setAnswers] = useState<AnswerPayload>({});
   const latestAnswers = useRef<AnswerPayload>({});
@@ -35,6 +47,9 @@ export function LabelerWorkbench() {
   const [autosaveState, setAutosaveState] = useState<AutosaveState>("idle");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [navigating, setNavigating] = useState<NavigationAction | null>(null);
+  const [skipModalOpen, setSkipModalOpen] = useState(false);
+  const [skipReason, setSkipReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -46,10 +61,14 @@ export function LabelerWorkbench() {
     setLoading(true);
     setError(null);
     try {
-      const result = await getAssignmentWithTemplate(assignmentId);
+      const [result, loadedNavigationState] = await Promise.all([
+        getAssignmentWithTemplate(assignmentId),
+        getAssignmentNavigation(assignmentId).catch(() => null),
+      ]);
       setAssignment(result.assignment);
       setTemplate(result.template);
       setSubmission(result.assignment.submission);
+      setNavigationState(loadedNavigationState);
       setAgentWorkflow(result.agentWorkflow);
       setAnswers(result.assignment.submission.answer_payload ?? {});
       latestAnswers.current = result.assignment.submission.answer_payload ?? {};
@@ -98,6 +117,90 @@ export function LabelerWorkbench() {
     latestAnswers.current = nextAnswers;
     editedRef.current = true;
     setAnswers(nextAnswers);
+  }
+
+  async function saveDraftBeforeNavigation() {
+    if (!assignmentId || !editedRef.current) {
+      return true;
+    }
+    const snapshot = latestAnswers.current;
+    setAutosaveState("saving");
+    try {
+      const saved = await saveAssignmentDraft(assignmentId, snapshot);
+      setSubmission(saved);
+      setAnswers(saved.answer_payload);
+      latestAnswers.current = saved.answer_payload;
+      editedRef.current = false;
+      setAutosaveState("saved");
+      return true;
+    } catch (err) {
+      showOperationError(err, "离开前保存草稿失败。");
+      setAutosaveState("error");
+      return window.confirm("草稿保存失败，仍要离开当前作业吗？未保存更改会丢失。");
+    }
+  }
+
+  function applyNavigationResult(result: AssignmentNavigationMoveRead) {
+    if (!result.assignment) {
+      setNavigationState((current) =>
+        current
+          ? {
+              ...current,
+              previous_assignment_id: result.direction === "previous" ? null : current.previous_assignment_id,
+              next_assignment_id: result.direction === "previous" ? current.next_assignment_id : null,
+              can_claim_next: result.direction === "previous" ? current.can_claim_next : false,
+              has_previous: result.direction === "previous" ? false : current.has_previous,
+              has_next: result.direction === "previous" ? current.has_next : false,
+              no_work_left: result.no_work_left,
+            }
+          : null,
+      );
+      return;
+    }
+    navigate(`/labeler/assignments/${result.assignment.id}`);
+  }
+
+  async function handleNavigate(direction: Exclude<NavigationAction, "skip">) {
+    if (!assignmentId) {
+      return;
+    }
+    setNavigating(direction);
+    try {
+      const canLeave = await saveDraftBeforeNavigation();
+      if (!canLeave) {
+        return;
+      }
+      const result =
+        direction === "previous"
+          ? await navigateToPreviousAssignment(assignmentId)
+          : await navigateToNextAssignment(assignmentId);
+      applyNavigationResult(result);
+    } catch (err) {
+      showOperationError(err, direction === "previous" ? "加载上一个作业失败。" : "加载下一个作业失败。");
+    } finally {
+      setNavigating(null);
+    }
+  }
+
+  async function handleSkipConfirm() {
+    if (!assignmentId) {
+      return;
+    }
+    setNavigating("skip");
+    try {
+      const canLeave = await saveDraftBeforeNavigation();
+      if (!canLeave) {
+        return;
+      }
+      const result = await skipAssignment(assignmentId, skipReason.trim() || null);
+      setSkipModalOpen(false);
+      setSkipReason("");
+      applyNavigationResult(result);
+    } catch (err) {
+      showOperationError(err, "跳过作业失败。");
+    } finally {
+      setNavigating(null);
+    }
   }
 
   async function handleSubmit(nextAnswers: AnswerPayload) {
@@ -149,6 +252,9 @@ export function LabelerWorkbench() {
   const versionMismatch = template.version !== submission.schema_version;
   const isReturned = submission.status === "returned" || submission.status === "ai_returned";
   const returnReason = assignment.latest_human_review?.reason;
+  const hasPrevious = Boolean(navigationState?.has_previous);
+  const hasNext = Boolean(navigationState?.has_next);
+  const navigationBusy = navigating !== null;
 
   return (
     <section className="studio-with-rail" aria-labelledby="assignment-heading">
@@ -163,8 +269,33 @@ export function LabelerWorkbench() {
               <StatusPill status={autosaveState}>{formatLabel(autosaveState)}</StatusPill>
             </Space>
           }
+          actions={
+            <Space wrap>
+              <Button
+                disabled={!hasPrevious || navigationBusy}
+                loading={navigating === "previous"}
+                onClick={() => void handleNavigate("previous")}
+              >
+                上一个
+              </Button>
+              <Button
+                disabled={!hasNext || navigationBusy}
+                loading={navigating === "next"}
+                type="primary"
+                onClick={() => void handleNavigate("next")}
+              >
+                下一个
+              </Button>
+              <Button danger disabled={navigationBusy || submitting} onClick={() => setSkipModalOpen(true)}>
+                跳过
+              </Button>
+            </Space>
+          }
         />
 
+        {navigationState?.no_work_left ? (
+          <Alert message="没有更多可标注的数据项。" type="info" showIcon />
+        ) : null}
         {isReturned ? (
           <Alert
             message="退回提交修订"
@@ -230,6 +361,26 @@ export function LabelerWorkbench() {
           </StudioPanel>
         </div>
       </div>
+      <Modal footer={null} open={skipModalOpen} title="跳过当前作业" onCancel={() => setSkipModalOpen(false)}>
+        <Space className="modal-stack" direction="vertical">
+          <Typography.Text type="secondary">
+            跳过会保留当前草稿并记录审计日志，不会提交此标注。
+          </Typography.Text>
+          <Input.TextArea
+            aria-label="跳过原因"
+            autoSize={{ minRows: 3 }}
+            placeholder="可选：说明为什么跳过"
+            value={skipReason}
+            onChange={(event) => setSkipReason(event.target.value)}
+          />
+          <div className="drawer-actions">
+            <Button onClick={() => setSkipModalOpen(false)}>取消</Button>
+            <Button danger loading={navigating === "skip"} type="primary" onClick={() => void handleSkipConfirm()}>
+              确认跳过
+            </Button>
+          </div>
+        </Space>
+      </Modal>
       <AssistantRail
         context="标注工作台助手会关注退回原因、必填字段、Schema 版本和自动保存状态。"
         facts={[

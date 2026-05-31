@@ -38,6 +38,13 @@ const item = {
   created_at: "2026-05-23T00:00:00Z",
 };
 
+const item2 = {
+  ...item,
+  id: "item-2",
+  external_id: "ticket-2",
+  payload: { text: "Second text needs labeling." },
+};
+
 const submission = {
   id: "sub-1",
   task_id: "task-1",
@@ -52,6 +59,14 @@ const submission = {
   submitted_at: null,
   created_at: "2026-05-23T00:00:00Z",
   updated_at: "2026-05-23T00:00:00Z",
+};
+
+const submission2 = {
+  ...submission,
+  id: "sub-2",
+  item_id: "item-2",
+  assignment_id: "assignment-2",
+  answer_payload: {},
 };
 
 const template = {
@@ -99,6 +114,14 @@ const assignmentDetail = {
   task,
   template_schema: template,
   latest_human_review: null,
+};
+
+const assignmentDetail2 = {
+  ...assignmentDetail,
+  id: "assignment-2",
+  item_id: "item-2",
+  item: item2,
+  submission: submission2,
 };
 
 const agentWorkflow = {
@@ -375,5 +398,207 @@ describe("labeler workspace", () => {
     expect(await screen.findByText("Agent 工作流")).toBeInTheDocument();
     expect(screen.getByText("已排队")).toBeInTheDocument();
     expect(screen.getByText("AI 审核任务已排队。")).toBeInTheDocument();
+  });
+
+  it("shows disabled navigation controls when no adjacent work exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse({
+          assignment_id: "assignment-1",
+          task_id: "task-1",
+          previous_assignment_id: null,
+          next_assignment_id: null,
+          can_claim_next: false,
+          has_previous: false,
+          has_next: false,
+          no_work_left: true,
+        });
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("button", { name: "上一个" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+    expect(screen.getByText("没有更多可标注的数据项。")).toBeInTheDocument();
+  });
+
+  it("saves unsaved draft answers before navigating to the next assignment", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse({
+          assignment_id: "assignment-1",
+          task_id: "task-1",
+          previous_assignment_id: null,
+          next_assignment_id: null,
+          can_claim_next: true,
+          has_previous: false,
+          has_next: true,
+          no_work_left: false,
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/draft")) {
+        return jsonResponse({ ...submission, answer_payload: JSON.parse(String(init?.body)).answer_payload });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/next")) {
+        return jsonResponse({
+          direction: "next",
+          assignment: assignmentDetail2,
+          navigation: {
+            assignment_id: "assignment-2",
+            task_id: "task-1",
+            previous_assignment_id: "assignment-1",
+            next_assignment_id: null,
+            can_claim_next: false,
+            has_previous: true,
+            has_next: false,
+            no_work_left: true,
+          },
+          no_work_left: false,
+          message: "Navigation target ready.",
+          skipped_assignment_id: null,
+          skip_reason: null,
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-2")) {
+        return jsonResponse(assignmentDetail2);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-2/navigation")) {
+        return jsonResponse({
+          assignment_id: "assignment-2",
+          task_id: "task-1",
+          previous_assignment_id: "assignment-1",
+          next_assignment_id: null,
+          can_claim_next: false,
+          has_previous: true,
+          has_next: false,
+          no_work_left: true,
+        });
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Positive"));
+    fireEvent.click(screen.getByRole("button", { name: "下一个" }));
+
+    expect((await screen.findAllByText(/Second text needs labeling/)).length).toBeGreaterThan(0);
+    const draftCallIndex = fetchMock.mock.calls.findIndex(([input]) =>
+      String(input).endsWith("/labeler/assignments/assignment-1/draft"),
+    );
+    const nextCallIndex = fetchMock.mock.calls.findIndex(([input]) =>
+      String(input).endsWith("/labeler/assignments/assignment-1/next"),
+    );
+    expect(draftCallIndex).toBeGreaterThanOrEqual(0);
+    expect(nextCallIndex).toBeGreaterThan(draftCallIndex);
+    expect(fetchMock.mock.calls[draftCallIndex][1]).toEqual(
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ answer_payload: { sentiment: "positive" } }),
+      }),
+    );
+  });
+
+  it("confirms skip with a reason and does not submit the annotation", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse({
+          assignment_id: "assignment-1",
+          task_id: "task-1",
+          previous_assignment_id: null,
+          next_assignment_id: null,
+          can_claim_next: true,
+          has_previous: false,
+          has_next: true,
+          no_work_left: false,
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/skip")) {
+        return jsonResponse({
+          direction: "skip",
+          assignment: assignmentDetail2,
+          navigation: {
+            assignment_id: "assignment-2",
+            task_id: "task-1",
+            previous_assignment_id: null,
+            next_assignment_id: null,
+            can_claim_next: false,
+            has_previous: false,
+            has_next: false,
+            no_work_left: true,
+          },
+          no_work_left: false,
+          message: "Navigation target ready.",
+          skipped_assignment_id: "assignment-1",
+          skip_reason: JSON.parse(String(init?.body)).reason,
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-2")) {
+        return jsonResponse(assignmentDetail2);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-2/navigation")) {
+        return jsonResponse({
+          assignment_id: "assignment-2",
+          task_id: "task-1",
+          previous_assignment_id: null,
+          next_assignment_id: null,
+          can_claim_next: false,
+          has_previous: false,
+          has_next: false,
+          no_work_left: true,
+        });
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /跳\s*过/ }));
+    fireEvent.change(screen.getByLabelText("跳过原因"), {
+      target: { value: "Text is unreadable" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /确认\s*跳过/ }));
+
+    expect((await screen.findAllByText(/Second text needs labeling/)).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/labeler/assignments/assignment-1/skip"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Text is unreadable" }),
+      }),
+    );
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/submit"))).toBe(false);
   });
 });

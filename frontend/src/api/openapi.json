@@ -1008,6 +1008,204 @@
         }
       }
     },
+    "/labeler/assignments/{assignment_id}/navigation": {
+      "get": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Get Assignment Navigation",
+        "operationId": "get_assignment_navigation_labeler_assignments__assignment_id__navigation_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentNavigationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labeler/assignments/{assignment_id}/previous": {
+      "post": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Navigate Previous Assignment",
+        "operationId": "navigate_previous_assignment_labeler_assignments__assignment_id__previous_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentNavigationMoveRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labeler/assignments/{assignment_id}/next": {
+      "post": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Navigate Next Assignment",
+        "operationId": "navigate_next_assignment_labeler_assignments__assignment_id__next_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentNavigationMoveRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labeler/assignments/{assignment_id}/skip": {
+      "post": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Skip Assignment",
+        "operationId": "skip_assignment_labeler_assignments__assignment_id__skip_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkipAssignmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentNavigationMoveRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/labeler/assignments/{assignment_id}/agent-workflow": {
       "get": {
         "tags": [
@@ -2172,6 +2370,140 @@
           "latest_human_review"
         ],
         "title": "AssignmentDetailRead"
+      },
+      "AssignmentNavigationMoveRead": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "previous",
+              "next",
+              "skip"
+            ],
+            "title": "Direction"
+          },
+          "assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentDetailRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "navigation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentNavigationRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "no_work_left": {
+            "type": "boolean",
+            "title": "No Work Left"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "skipped_assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Assignment Id"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "assignment",
+          "navigation",
+          "no_work_left",
+          "message"
+        ],
+        "title": "AssignmentNavigationMoveRead"
+      },
+      "AssignmentNavigationRead": {
+        "properties": {
+          "assignment_id": {
+            "type": "string",
+            "title": "Assignment Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "previous_assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Assignment Id"
+          },
+          "next_assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Assignment Id"
+          },
+          "can_claim_next": {
+            "type": "boolean",
+            "title": "Can Claim Next"
+          },
+          "has_previous": {
+            "type": "boolean",
+            "title": "Has Previous"
+          },
+          "has_next": {
+            "type": "boolean",
+            "title": "Has Next"
+          },
+          "no_work_left": {
+            "type": "boolean",
+            "title": "No Work Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assignment_id",
+          "task_id",
+          "previous_assignment_id",
+          "next_assignment_id",
+          "can_claim_next",
+          "has_previous",
+          "has_next",
+          "no_work_left"
+        ],
+        "title": "AssignmentNavigationRead"
       },
       "AuditLogRead": {
         "properties": {
@@ -4538,6 +4870,24 @@
           "source"
         ],
         "title": "ShowItemField"
+      },
+      "SkipAssignmentRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "SkipAssignmentRequest"
       },
       "SubmissionAttemptRead": {
         "properties": {

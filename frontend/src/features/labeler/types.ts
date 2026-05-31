@@ -72,3 +72,24 @@ export type AssignmentLoadResult = {
   template: TemplateSchemaRead;
   agentWorkflow: AgentWorkflowRead | null;
 };
+
+export type AssignmentNavigationRead = {
+  assignment_id: string;
+  task_id: string;
+  previous_assignment_id: string | null;
+  next_assignment_id: string | null;
+  can_claim_next: boolean;
+  has_previous: boolean;
+  has_next: boolean;
+  no_work_left: boolean;
+};
+
+export type AssignmentNavigationMoveRead = {
+  direction: "previous" | "next" | "skip";
+  assignment: AssignmentDetailRead | null;
+  navigation: AssignmentNavigationRead | null;
+  no_work_left: boolean;
+  message: string;
+  skipped_assignment_id: string | null;
+  skip_reason: string | null;
+};

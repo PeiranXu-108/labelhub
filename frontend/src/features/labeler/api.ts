@@ -2,7 +2,14 @@ import { apiRequest } from "../auth/http";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import type { TaskRead } from "../owner/types";
 import type { AnswerPayload } from "../schema-renderer";
-import type { AssignmentDetailRead, AssignmentLoadResult, ClaimRead, SubmissionRead } from "./types";
+import type {
+  AssignmentDetailRead,
+  AssignmentLoadResult,
+  AssignmentNavigationMoveRead,
+  AssignmentNavigationRead,
+  ClaimRead,
+  SubmissionRead,
+} from "./types";
 
 export function listMarketplaceTasks() {
   return apiRequest<TaskRead[]>("/labeler/tasks");
@@ -18,6 +25,10 @@ export function getAssignment(assignmentId: string) {
 
 export function getAssignmentAgentWorkflow(assignmentId: string) {
   return apiRequest<AgentWorkflowRead>(`/labeler/assignments/${assignmentId}/agent-workflow`);
+}
+
+export function getAssignmentNavigation(assignmentId: string) {
+  return apiRequest<AssignmentNavigationRead>(`/labeler/assignments/${assignmentId}/navigation`);
 }
 
 export async function getAssignmentWithTemplate(assignmentId: string): Promise<AssignmentLoadResult> {
@@ -39,6 +50,25 @@ export function submitAssignment(assignmentId: string, answerPayload: AnswerPayl
   return apiRequest<SubmissionRead>(`/labeler/assignments/${assignmentId}/submit`, {
     method: "POST",
     body: { answer_payload: answerPayload },
+  });
+}
+
+export function navigateToPreviousAssignment(assignmentId: string) {
+  return apiRequest<AssignmentNavigationMoveRead>(`/labeler/assignments/${assignmentId}/previous`, {
+    method: "POST",
+  });
+}
+
+export function navigateToNextAssignment(assignmentId: string) {
+  return apiRequest<AssignmentNavigationMoveRead>(`/labeler/assignments/${assignmentId}/next`, {
+    method: "POST",
+  });
+}
+
+export function skipAssignment(assignmentId: string, reason: string | null) {
+  return apiRequest<AssignmentNavigationMoveRead>(`/labeler/assignments/${assignmentId}/skip`, {
+    method: "POST",
+    body: { reason },
   });
 }
 

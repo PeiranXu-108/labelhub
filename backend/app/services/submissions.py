@@ -2,7 +2,7 @@ import logging
 from threading import Thread
 from typing import Any
 
-from sqlalchemy import exists, select
+from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.domain.enums import SubmissionAction, SubmissionStatus, TaskStatus
@@ -31,47 +31,9 @@ class SubmissionService:
         self.workflow = WorkflowService(db)
 
     def claim_next_item(self, task_id: str, actor: ActorContext) -> Assignment:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
-        if task.status != TaskStatus.PUBLISHED:
-            raise WorkflowError("TASK_NOT_PUBLISHED", "Only published tasks can be claimed")
-
-        item = self.db.scalar(
-            select(TaskItem)
-            .where(
-                TaskItem.task_id == task_id,
-                ~exists().where(Assignment.item_id == TaskItem.id),
-            )
-            .order_by(TaskItem.created_at, TaskItem.id)
-            .limit(1)
-        )
-        if item is None:
+        assignment = self._claim_next_available_item(task_id, actor, empty_is_error=True)
+        if assignment is None:
             raise WorkflowError("NO_AVAILABLE_ITEMS", "No unassigned items are available")
-
-        schema = self.db.scalar(
-            select(TemplateSchema)
-            .where(TemplateSchema.task_id == task_id, TemplateSchema.is_published.is_(True))
-            .order_by(TemplateSchema.version.desc())
-        )
-        if schema is None:
-            raise WorkflowError("TEMPLATE_REQUIRED", "Task must have a published template")
-
-        assignment = Assignment(task_id=task_id, item_id=item.id, labeler_id=actor.user_id)
-        submission = Submission(
-            task_id=task_id,
-            item_id=item.id,
-            assignment=assignment,
-            labeler_id=actor.user_id,
-            template_schema_id=schema.id,
-            schema_version=schema.version,
-            answer_payload={},
-            status=SubmissionStatus.DRAFT,
-        )
-        item.status = "assigned"
-        self.db.add_all([assignment, submission])
-        self.db.flush()
-        self._audit("assignment", assignment.id, "claim", actor)
         self.db.commit()
         self.db.refresh(assignment)
         return assignment
@@ -95,6 +57,7 @@ class SubmissionService:
         self, assignment_id: str, actor: ActorContext, answer_payload: dict[str, Any]
     ) -> Submission:
         assignment = self.get_owned_assignment(assignment_id, actor)
+        self._ensure_assignment_not_skipped(assignment)
         submission = assignment.submission
         if submission.status == SubmissionStatus.RETURNED:
             submission = self.workflow.transition_submission(
@@ -117,10 +80,93 @@ class SubmissionService:
         self.db.refresh(submission)
         return submission
 
+    def navigation_state(self, assignment_id: str, actor: ActorContext) -> dict[str, Any]:
+        assignment = self.get_owned_assignment(assignment_id, actor)
+        previous_assignment = self._owned_neighbor_assignment(assignment, actor, direction="previous")
+        next_assignment = self._owned_neighbor_assignment(assignment, actor, direction="next")
+        can_claim_next = next_assignment is None and self._next_claimable_item(assignment) is not None
+        return {
+            "assignment_id": assignment.id,
+            "task_id": assignment.task_id,
+            "previous_assignment_id": previous_assignment.id if previous_assignment else None,
+            "next_assignment_id": next_assignment.id if next_assignment else None,
+            "can_claim_next": can_claim_next,
+            "has_previous": previous_assignment is not None,
+            "has_next": next_assignment is not None or can_claim_next,
+            "no_work_left": next_assignment is None and not can_claim_next,
+        }
+
+    def previous_assignment(self, assignment_id: str, actor: ActorContext) -> Assignment | None:
+        assignment = self.get_owned_assignment(assignment_id, actor)
+        return self._owned_neighbor_assignment(assignment, actor, direction="previous")
+
+    def next_assignment(self, assignment_id: str, actor: ActorContext) -> Assignment | None:
+        assignment = self.get_owned_assignment(assignment_id, actor)
+        target = self._owned_neighbor_assignment(assignment, actor, direction="next")
+        if target is not None:
+            return target
+
+        target = self._claim_next_available_item(
+            assignment.task_id,
+            actor,
+            after_item=assignment.item,
+            empty_is_error=False,
+        )
+        if target is None:
+            return None
+        self.db.commit()
+        self.db.refresh(target)
+        return target
+
+    def skip_assignment(
+        self, assignment_id: str, actor: ActorContext, reason: str | None = None
+    ) -> Assignment | None:
+        assignment = self.get_owned_assignment(assignment_id, actor)
+        if assignment.status == "skipped":
+            raise WorkflowError("ASSIGNMENT_ALREADY_SKIPPED", "Assignment has already been skipped")
+        if assignment.submission.status != SubmissionStatus.DRAFT:
+            raise WorkflowError("INVALID_TRANSITION", "Only draft assignments can be skipped")
+
+        previous_status = assignment.status
+        normalized_reason = reason.strip() if reason else None
+        assignment.status = "skipped"
+        assignment.item.status = "skipped"
+        self.db.flush()
+
+        target = self._owned_neighbor_assignment(assignment, actor, direction="next")
+        if target is None:
+            target = self._claim_next_available_item(
+                assignment.task_id,
+                actor,
+                after_item=assignment.item,
+                empty_is_error=False,
+            )
+
+        self._audit(
+            "assignment",
+            assignment.id,
+            "skip",
+            actor,
+            from_status=previous_status,
+            to_status="skipped",
+            reason=normalized_reason,
+            details={
+                "task_id": assignment.task_id,
+                "item_id": assignment.item_id,
+                "submission_id": assignment.submission.id,
+                "next_assignment_id": target.id if target else None,
+            },
+        )
+        self.db.commit()
+        if target is not None:
+            self.db.refresh(target)
+        return target
+
     def submit_assignment(
         self, assignment_id: str, actor: ActorContext, answer_payload: dict[str, Any]
     ) -> Submission:
         assignment = self.get_owned_assignment(assignment_id, actor)
+        self._ensure_assignment_not_skipped(assignment)
         submission = assignment.submission
         try:
             normalized_payload = TemplateService(self.db).validate_submission_payload(
@@ -203,6 +249,10 @@ class SubmissionService:
             )
         return submission
 
+    def _ensure_assignment_not_skipped(self, assignment: Assignment) -> None:
+        if assignment.status == "skipped":
+            raise WorkflowError("INVALID_TRANSITION", "Skipped assignments cannot be edited or submitted")
+
     def _audit(
         self,
         entity_type: str,
@@ -211,6 +261,8 @@ class SubmissionService:
         actor: ActorContext,
         from_status: str | None = None,
         to_status: str | None = None,
+        reason: str | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         self.db.add(
             AuditLog(
@@ -221,10 +273,131 @@ class SubmissionService:
                 actor_role=actor.role.value,
                 from_status=from_status,
                 to_status=to_status,
-                details={},
+                reason=reason,
+                details=details or {},
             )
         )
         self.db.flush()
+
+    def _claim_next_available_item(
+        self,
+        task_id: str,
+        actor: ActorContext,
+        *,
+        after_item: TaskItem | None = None,
+        empty_is_error: bool,
+    ) -> Assignment | None:
+        task = self.db.get(Task, task_id)
+        if task is None:
+            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        if task.status != TaskStatus.PUBLISHED:
+            raise WorkflowError("TASK_NOT_PUBLISHED", "Only published tasks can be claimed")
+
+        schema = self.db.scalar(
+            select(TemplateSchema)
+            .where(TemplateSchema.task_id == task_id, TemplateSchema.is_published.is_(True))
+            .order_by(TemplateSchema.version.desc())
+        )
+        if schema is None:
+            raise WorkflowError("TEMPLATE_REQUIRED", "Task must have a published template")
+
+        item = self._next_claimable_item_for_task(task_id, after_item=after_item)
+        if item is None:
+            if empty_is_error:
+                raise WorkflowError("NO_AVAILABLE_ITEMS", "No unassigned items are available")
+            return None
+
+        assignment = Assignment(task_id=task_id, item_id=item.id, labeler_id=actor.user_id)
+        submission = Submission(
+            task_id=task_id,
+            item_id=item.id,
+            assignment=assignment,
+            labeler_id=actor.user_id,
+            template_schema_id=schema.id,
+            schema_version=schema.version,
+            answer_payload={},
+            status=SubmissionStatus.DRAFT,
+        )
+        item.status = "assigned"
+        self.db.add_all([assignment, submission])
+        self.db.flush()
+        self._audit("assignment", assignment.id, "claim", actor)
+        return assignment
+
+    def _owned_neighbor_assignment(
+        self,
+        assignment: Assignment,
+        actor: ActorContext,
+        *,
+        direction: str,
+    ) -> Assignment | None:
+        if direction == "previous":
+            position_filter = self._item_before_filter(assignment.item)
+            ordering = (TaskItem.created_at.desc(), TaskItem.id.desc())
+        else:
+            position_filter = self._item_after_filter(assignment.item)
+            ordering = (TaskItem.created_at.asc(), TaskItem.id.asc())
+        return self.db.scalar(
+            select(Assignment)
+            .join(Assignment.item)
+            .options(
+                joinedload(Assignment.item),
+                joinedload(Assignment.submission),
+            )
+            .where(
+                Assignment.task_id == assignment.task_id,
+                Assignment.labeler_id == actor.user_id,
+                Assignment.id != assignment.id,
+                Assignment.status != "skipped",
+                position_filter,
+            )
+            .order_by(*ordering)
+            .limit(1)
+        )
+
+    def _next_claimable_item(self, assignment: Assignment) -> TaskItem | None:
+        task = self.db.get(Task, assignment.task_id)
+        if task is None or task.status != TaskStatus.PUBLISHED:
+            return None
+        has_schema = self.db.scalar(
+            select(
+                exists().where(
+                    TemplateSchema.task_id == assignment.task_id,
+                    TemplateSchema.is_published.is_(True),
+                )
+            )
+        )
+        if not has_schema:
+            return None
+        return self._next_claimable_item_for_task(assignment.task_id, after_item=assignment.item)
+
+    def _next_claimable_item_for_task(
+        self, task_id: str, *, after_item: TaskItem | None = None
+    ) -> TaskItem | None:
+        filters = [
+            TaskItem.task_id == task_id,
+            ~exists().where(Assignment.item_id == TaskItem.id),
+        ]
+        if after_item is not None:
+            filters.append(self._item_after_filter(after_item))
+        return self.db.scalar(
+            select(TaskItem)
+            .where(*filters)
+            .order_by(TaskItem.created_at.asc(), TaskItem.id.asc())
+            .limit(1)
+        )
+
+    def _item_before_filter(self, item: TaskItem):
+        return or_(
+            TaskItem.created_at < item.created_at,
+            and_(TaskItem.created_at == item.created_at, TaskItem.id < item.id),
+        )
+
+    def _item_after_filter(self, item: TaskItem):
+        return or_(
+            TaskItem.created_at > item.created_at,
+            and_(TaskItem.created_at == item.created_at, TaskItem.id > item.id),
+        )
 
 
 def enqueue_ai_review(submission_id: str) -> None:
