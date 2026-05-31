@@ -63,10 +63,11 @@ MVP 认证使用持久化 demo 用户和 JWT bearer token。先通过 `backend/s
 cd backend && ./.venv313/bin/pytest -q
 cd frontend && npm test -- --run
 cd frontend && npm run build
-docker compose config
+env LABELHUB_LLM_API_KEY= docker compose config --quiet
+env LABELHUB_LLM_API_KEY= scripts/production_preflight.sh
 ```
 
-E2E 冒烟测试需要后端和前端连接同一个数据库后再运行：
+E2E 冒烟测试需要后端和前端连接同一个数据库后再运行。下面的本地 SQLite 路径适合确定性演示和 Playwright 冒烟测试：
 
 ```bash
 cd backend
@@ -97,11 +98,11 @@ FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
 ```
 
-Playwright 冒烟测试会通过 `/login` 登录前端，并检查各角色路由。
+Playwright 冒烟测试会通过 `/login` 登录前端，并检查各角色路由。Task19 生产就绪验证发现，直接对运行中的 Docker worker 执行完整 `npm run e2e` 仍然失败：登录测试仍查找旧英文 label，happy path 依赖确定性 AI helper 但 Docker worker 会先用缺失 key 的实时 AI fallback 消费任务。这个 E2E blocker 已记录在 `docs/known-limitations.md` 和 Task19 handoff。
 
 ## 实时 AI 审核 Agent
 
-LabelHub 默认通过 DeepSeek 的 OpenAI 兼容 API 执行实时 AI 审核。启动 API 和 worker 前，把 key 写入 `.env`：
+LabelHub 默认通过 DeepSeek 的 OpenAI 兼容 API 执行实时 AI 审核。启动 API 和 worker 前，把 key 写入未提交的 `.env` 或运行环境 secret：
 
 ```bash
 LABELHUB_LLM_PROVIDER=deepseek
@@ -113,12 +114,22 @@ LABELHUB_LLM_TEMPERATURE=0
 
 标注员提交任务后，API 会入队 `ai_review.run_ai_review`；Celery worker 调用 DeepSeek，并写入持久化 AI 审核、状态流转、prompt 快照、结构化响应和审计事件。负责人、标注员、审核员界面会展示 Agent 工作流，但不会暴露模型供应商或 API key 控件。
 
+如果 `LABELHUB_LLM_API_KEY` 为空，后端不会发起实时模型调用。AI review 会走受控缺失凭证 fallback 并进入人工审核路径；field-level assist 会返回受控 `LLM_PROVIDER_UNAVAILABLE` 错误。
+
 ## Docker Compose
 
-Task08 已通过 `docker compose config` 校验 Docker Compose 配置；完整 `docker compose up --build` 运行启动尚未记录为已验证。
+Task19 已在 Docker Desktop 29.5.2 / Docker Compose v5.1.3 上验证 `docker compose up --build` 可启动 API、frontend、worker、Postgres 和 Redis。API 会等待 Postgres/Redis healthcheck，worker/frontend 会等待 API healthcheck。
+
+`docker compose config` 会展开本地 `.env`，可能把 secret 打到终端或日志里。只做安全校验时使用：
 
 ```bash
-docker compose up --build
+env LABELHUB_LLM_API_KEY= docker compose config --quiet
+```
+
+启动本地 Docker demo：
+
+```bash
+env LABELHUB_LLM_API_KEY= docker compose up --build
 ```
 
 服务：
@@ -129,7 +140,14 @@ docker compose up --build
 - Postgres：`localhost:5432`
 - Redis：`localhost:6379`
 
-API 容器会先运行 `alembic upgrade head`，再启动 Uvicorn。前端会接收 `VITE_API_BASE_URL=http://localhost:8000`。
+API 容器会先运行 `alembic upgrade head`，再启动 Uvicorn。前端会接收 `VITE_API_BASE_URL=http://localhost:8000`。Compose 使用 named volumes `export-storage` 和 `upload-storage`，让 API 和 worker 共享默认 `storage/exports` / `storage/uploads` 路径；生产环境仍应替换为明确备份和保留策略的持久存储或对象存储。
+
+可选预检：
+
+```bash
+env LABELHUB_LLM_API_KEY= scripts/production_preflight.sh
+env LABELHUB_LLM_API_KEY= scripts/production_preflight.sh --runtime
+```
 
 使用 `/login` 前，先在运行中的 API 容器里写入 demo 用户：
 

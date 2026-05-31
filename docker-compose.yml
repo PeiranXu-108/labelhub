@@ -15,11 +15,30 @@ services:
       LABELHUB_LLM_BASE_URL: ${LABELHUB_LLM_BASE_URL:-https://api.deepseek.com}
       LABELHUB_LLM_API_KEY: ${LABELHUB_LLM_API_KEY:-}
       LABELHUB_LLM_TEMPERATURE: ${LABELHUB_LLM_TEMPERATURE:-0}
+      LABELHUB_EXPORT_STORAGE_PATH: ${LABELHUB_EXPORT_STORAGE_PATH:-storage/exports}
+      LABELHUB_UPLOAD_STORAGE_PATH: ${LABELHUB_UPLOAD_STORAGE_PATH:-storage/uploads}
     ports:
       - "8000:8000"
+    volumes:
+      - export-storage:/app/storage/exports
+      - upload-storage:/app/storage/uploads
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   worker:
     build:
@@ -35,9 +54,18 @@ services:
       LABELHUB_LLM_BASE_URL: ${LABELHUB_LLM_BASE_URL:-https://api.deepseek.com}
       LABELHUB_LLM_API_KEY: ${LABELHUB_LLM_API_KEY:-}
       LABELHUB_LLM_TEMPERATURE: ${LABELHUB_LLM_TEMPERATURE:-0}
+      LABELHUB_EXPORT_STORAGE_PATH: ${LABELHUB_EXPORT_STORAGE_PATH:-storage/exports}
+      LABELHUB_UPLOAD_STORAGE_PATH: ${LABELHUB_UPLOAD_STORAGE_PATH:-storage/uploads}
+    volumes:
+      - export-storage:/app/storage/exports
+      - upload-storage:/app/storage/uploads
     depends_on:
-      - postgres
-      - redis
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -47,7 +75,8 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
@@ -59,11 +88,23 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labelhub -d labelhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
 volumes:
   postgres-data:
+  export-storage:
+  upload-storage:

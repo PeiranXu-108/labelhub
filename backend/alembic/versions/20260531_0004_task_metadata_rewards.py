@@ -24,7 +24,9 @@ def upgrade() -> None:
         sa.Column(
             "reward_rule",
             sa.JSON(),
-            server_default=sa.text("'{\"mode\":\"none\",\"currency\":null,\"amount\":null,\"description\":null}'"),
+            server_default=sa.text(
+                "'{\"mode\"\\:\"none\",\"currency\"\\:null,\"amount\"\\:null,\"description\"\\:null}'"
+            ),
             nullable=False,
         ),
     )

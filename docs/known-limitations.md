@@ -1,17 +1,39 @@
 # Known Limitations
 
-- Supervisor follow-up Tasks 17-19 document expanded requirements that are not implemented yet: labeler navigation, multistage review, and production runtime verification.
+## Verified Limitations
+
+- Docker runtime startup was verified by Task19 on 2026-05-31 with Docker Desktop 29.5.2 and Docker Compose v5.1.3. The verified stack is still an MVP runtime, not a hardened production deployment.
+- The frontend Docker service uses the Vite development server for demonstration. It should be replaced by a static production build/server before internet exposure.
+- The Celery worker currently runs as root in the container and emits Celery's `ROOT_DISCOURAGED` security warning.
+- Compose uses local named volumes `export-storage` and `upload-storage` for API/worker shared storage. This fixes Docker-local visibility, but it is not a backup, retention, or object storage strategy.
 - Task reward rules are metadata only. LabelHub does not execute payouts, maintain a payout ledger, handle tax/payment settlement, or integrate with external payment providers.
 - Username/password login is implemented only as MVP JWT auth for explicitly seeded users. There is no self-registration, password reset, email verification, OAuth, SSO, refresh-token rotation, or production account lifecycle policy.
 - Demo users are created by `backend/scripts/seed_e2e_data.py demo-users`; normal API authentication rejects bearer tokens whose subject is not a persisted user.
-- Live AI review requires provider credentials. Without `LLM_API_KEY`, AI review falls back to a persisted failed review routed to human review.
-- Field-level LLM assist requires server-side provider credentials for live calls. Without `LLM_API_KEY`, the assist endpoint returns a controlled `LLM_PROVIDER_UNAVAILABLE` error and persists a failed assist log; tests and deterministic demos must use mocked/injected model calls.
-- Field-level LLM assist stores prompt snapshots, model metadata, structured responses, and failure reasons in `llm_field_assist_logs`. Do not use live assist with sensitive production data until retention and privacy policy are decided.
-- Local E2E signs into `/login` for frontend route checks and still uses `backend/scripts/seed_e2e_data.py ai-review` for deterministic structured AI review output.
 - Owner dashboard aggregate counts for submission status and AI decisions are not backed by a dedicated aggregate endpoint.
+- Uploaded file/image materials use MVP filesystem storage. Upload/download permission checks are server-side, but there is no antivirus scanning, DLP, content moderation, automatic retention, legal hold, or automatic cleanup guarantee.
+
+## Environment Blockers
+
+- No live AI provider call was verified in Task19 because no safe `LABELHUB_LLM_API_KEY` was provided. Live review and field-level assist remain credential- and policy-gated.
+- Without `LABELHUB_LLM_API_KEY`, AI review uses a controlled missing-credentials fallback and routes to human review; field-level assist returns a controlled `LLM_PROVIDER_UNAVAILABLE` path.
+- Plain `docker compose config` expands local `.env` values and can print secrets. Use `env LABELHUB_LLM_API_KEY= docker compose config --quiet` for safe validation logs.
+- Full Playwright E2E against the live Docker worker is not green. The current suite still has local deterministic assumptions that conflict with the live worker runtime.
+
+## Production Policy Gaps
+
 - Data retention and privacy policy are not defined; do not use this MVP with sensitive production datasets until that policy is decided.
-- Dataset import preview supports JSON arrays, JSONL, and `.xlsx` files up to the configured row/file limits, but data retention and sensitive-data handling remain undecided.
-- Uploaded file/image materials use MVP local filesystem storage only. Upload/download permission checks are server-side, but there is no production object storage adapter, antivirus scanning, DLP, content moderation, automatic retention, or cleanup guarantee.
-- The frontend Docker service uses Vite dev server for MVP demonstration, not a hardened static production server.
-- Full Docker runtime startup must not be treated as verified unless `docker compose up --build` has actually run in a Docker-enabled environment. Current Supervisor follow-up tracks that evidence gap in Task 19.
-- Export storage is local filesystem storage by default. Use a durable volume or object storage adapter before production use.
+- Dataset import preview supports JSON arrays, JSONL, and `.xlsx` files up to configured row/file limits, but sensitive-data handling and retention remain undecided.
+- Field-level LLM assist stores prompt snapshots, model metadata, structured responses, and failure reasons in `llm_field_assist_logs`. Do not use live assist with sensitive production data until retention and privacy policy are decided.
+- Live AI review stores prompt snapshots, model metadata, structured responses, and failure metadata. Provider, region, retention, redaction, and audit policy need an owner decision before production use.
+- Upload storage needs a production object storage, scanning, retention, and deletion policy before production file/image collection.
+- Authentication needs a production identity and account lifecycle policy before exposing the app to non-demo users.
+- Multistage review staffing, escalation, and SLA policy are product decisions; the MVP implements initial review, re-review, and final review mechanics only.
+
+## Feature/Test Blockers
+
+- `cd frontend && npm run e2e` against Docker runtime failed in Task19:
+  - `auth-login.spec.ts` waits for English labels (`Email`) while the current login form exposes Chinese labels.
+  - `labelhub-happy-path.spec.ts` expects deterministic seeded AI review output, but the live Docker worker consumes the queued review with missing live-AI credentials and routes it to human review first.
+- Local deterministic E2E remains the supported smoke path when backend/frontend share the same SQLite database and the deterministic AI helper is used.
+- Export storage is production-local by default. Use durable volume policy or object storage before treating exports as production records.
+- Upload cleanup is manual for the MVP; deleting database rows does not automatically delete files.

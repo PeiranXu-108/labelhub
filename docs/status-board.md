@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pending dispatch before any expanded-scope MVP readiness claim.
+Tasks 11-19 are approved expanded-scope follow-ups. Expanded-scope MVP feature work is approved, with production hardening and live-AI policy blockers documented rather than claimed complete.
 
 ## Active Agents
 
@@ -29,7 +29,7 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 | LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | complete | `docs/handoffs/2026-05-31-task16-llm-field-loop-handoff.md` | approved |
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | complete | `docs/handoffs/2026-05-31-task17-labeler-navigation-handoff.md` | approved |
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | complete | `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md` | approved |
-| Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | drafted / not started | none | pending dispatch |
+| Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | complete | `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md` | approved with documented blockers |
 
 ## Frozen Contracts
 
@@ -91,6 +91,10 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 - Task 18 return decisions must match the active `initial_review` or `re_review`; approval decisions persist as terminal `final_review`, and invalid stage decisions return `INVALID_REVIEW_STAGE`.
 - Task 18 round diffs and migration backfill use persisted `submission_attempts` snapshots/timestamps rather than mutable current submission payloads.
 - Task 18 returned submissions reopen through `WorkflowService` and advance `review_stage` to `re_review`.
+- Task 19 Docker Compose runtime starts `api`, `frontend`, `worker`, `postgres`, and `redis`; API waits for Postgres/Redis healthchecks, and worker/frontend wait for API health.
+- Task 19 Compose uses named `export-storage` and `upload-storage` volumes mounted into API and worker for Docker-local shared storage.
+- Task 19 production preflight is `scripts/production_preflight.sh`; safe config validation blanks `LABELHUB_LLM_API_KEY`, uses `docker compose config --quiet`, and must not write expanded secret-bearing Compose config.
+- Task 19 missing live-AI credentials are an expected controlled fallback: AI review routes to human review and field assist returns provider-unavailable behavior without making a model call.
 
 ## Open Decisions
 
@@ -114,7 +118,7 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 | Dynamic custom validators | server-approved named validators only, no arbitrary code execution | yes before user-authored code validators | defaulted |
 | Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | defaulted |
 | Multistage review policy | initial review, re-review, final review implemented; staffing/escalation policy still product-defined | yes before staffing/escalation policy changes | defaulted |
-| Docker runtime validation | require Docker-enabled host for `docker compose up --build` evidence | yes if external handoff requires runtime proof | open |
+| Docker runtime validation | `docker compose up --build` verified on Docker Desktop 29.5.2 / Compose v5.1.3; Docker-mode E2E remains blocked | no for local evidence; yes if external host proof is required | verified with blockers |
 
 ## Task Status
 
@@ -139,7 +143,7 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 | 16 LLM Field Loop | LLM Field Loop Agent | complete | Tasks 03, 04, 15 | Approved; server-side assist route, structured output validation, audit logs, frontend suggest/prefill/confirm writeback, OpenAPI, docs, migration, and regression tests verified. |
 | 17 Labeler Navigation | Labeler Navigation Agent | complete | Tasks 07, 09, 10 | Approved; previous/next/skip navigation, draft preservation, skip audit, no-work-left behavior, skipped-assignment guards, OpenAPI, handoff, and regression tests verified. |
 | 18 Multistage Human Review | Multistage Human Review Agent | complete | Tasks 09, 10 | Approved; initial/re-review/final stages, stage-aware review contracts, round diff views, timestamp-safe migration backfill, WorkflowService-mediated transitions, OpenAPI, handoff, and regression tests verified. |
-| 19 Production Readiness | Production Readiness Agent | drafted / not started | Tasks 08, 10, Task 16 for live field LLM checks | Verify or document Docker runtime and live-AI readiness without overstating support. |
+| 19 Production Readiness | Production Readiness Agent | complete | Tasks 08, 10, Task 16 for live field LLM checks | Approved with blockers documented; Docker runtime startup, healthchecks, storage sharing, missing-key AI fallback, docs, preflight, tests, and build verified; Docker-mode E2E/live AI/static frontend/non-root worker/durable storage remain open. |
 
 ## Integration Risks
 
@@ -167,10 +171,10 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 - Task09 handoff separates owned changes from pre-existing mixed working-tree changes; downstream QA should preserve that file ownership context when reporting failures.
 - QA Docs Deploy may now start full E2E coverage and should include Task09 reviewer/template contract scenarios.
 - Task08 local E2E passes with backend/frontend/export-storage env aligned, and `README.md` plus `docs/deployment.md` now document the same `LABELHUB_EXPORT_STORAGE_PATH` for backend startup and Playwright helper commands.
-- Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
+- Task19 verified `docker compose up --build` runtime startup on Docker Desktop 29.5.2 / Compose v5.1.3; do not generalize this to other hosts without rerunning the preflight/runtime smoke there.
 - Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
-- Tasks 11-18 are approved expanded-scope features; do not declare expanded-scope readiness until Task 19 has a handoff and Supervisor approval.
+- Tasks 11-19 are approved expanded-scope features; readiness communication must still mention Task19's documented production hardening and live-AI blockers.
 - Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
 - Task 11 validation risk is resolved: non-string JSON values for text fields are rejected instead of being coerced with `str(value)`.
 - Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
@@ -180,10 +184,20 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 - Task 17 approved skipped assignments as retained/non-released MVP queue state; any reward/penalty or re-release policy requires an explicit product decision.
 - Task 18 approved `WorkflowService` stage/status metadata changes; future review-stage/status changes must still be reviewed as workflow contract changes.
 - Task 18 migration backfill intentionally derives historical human review rounds from persisted attempt snapshot timestamps; do not replace this with mutable current-submission attempt inference.
-- Task 19 must not mark Docker runtime verified unless `docker compose up --build` actually runs on a Docker-enabled host.
+- Task 19 approved runtime evidence, but Docker-mode E2E, live provider verification, production static frontend serving, non-root worker, durable/object storage, scanning, retention, backups, and production identity policy remain blockers.
 
 ## Latest Verification
 
+- Task 19 revised handoff reviewed from `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md`.
+- Task 19 review fix resolved the preflight secret-handling issue: `scripts/production_preflight.sh` now blanks `LABELHUB_LLM_API_KEY`, uses quiet Compose config validation, and does not leave `/tmp/labelhub-compose-config.yaml`.
+- Task 19 verification: fake-key preflight probe `rm -f /tmp/labelhub-compose-config.yaml && env LABELHUB_LLM_API_KEY=fake-task19-review-key scripts/production_preflight.sh && test ! -e /tmp/labelhub-compose-config.yaml` passed.
+- Task 19 verification: `command -v docker` passed, `/usr/local/bin/docker`.
+- Task 19 verification: `env LABELHUB_LLM_API_KEY= docker compose config --quiet` passed.
+- Task 19 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 119 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 19 verification: `cd frontend && npm test -- --run` passed, 10 files and 75 tests, with existing React Router future-flag warnings.
+- Task 19 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 19 verification: `git diff --check` passed.
+- Task 19 handoff records Docker Compose runtime startup, backend `/health`, frontend `/login`, Postgres, Redis, Alembic head, Celery worker ping, API/worker shared storage, and missing-key AI fallback as passed; full Docker-mode Playwright E2E and live provider calls remain documented blockers.
 - Task 18 revised handoff reviewed from `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md`.
 - Task 18 review fixes resolved timestamp-safe historical human review migration backfill and stale reviewer queue `current_stage` display after approve/return mutations.
 - Task 18 verification: `cd backend && ./.venv313/bin/pytest tests/test_review_api.py tests/test_review_integration_contracts.py tests/test_multistage_review.py tests/test_multistage_review_migration.py -q` passed, 10 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
@@ -455,4 +469,4 @@ Tasks 11-18 are approved expanded-scope follow-ups. Task 19 remains drafted/pend
 
 ## Next Recommended Action
 
-Dispatch Task 19 Production Readiness Agent if expanded-scope MVP readiness is the next priority.
+Address Task19's documented production blockers next: Docker-mode E2E, live provider verification with approved credentials/data policy, production static frontend serving, non-root worker, durable storage/scanning/retention/backups, and production identity policy.

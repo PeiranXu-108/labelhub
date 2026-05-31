@@ -7,9 +7,11 @@ Target length: 5-10 minutes.
 Start the stack:
 
 ```bash
-docker compose up --build
+env LABELHUB_LLM_API_KEY= docker compose up --build
 docker compose exec api python scripts/seed_e2e_data.py demo-users
 ```
+
+This default Docker demo intentionally uses missing-key AI fallback: no live provider call is made, AI review routes to human review when the worker cannot call the model, and field-level assist returns a controlled provider-unavailable response. To show live AI, export `LABELHUB_LLM_API_KEY` and provider settings from a secret source before startup.
 
 For local non-Docker demo, run backend migrations and start both servers.
 
@@ -78,14 +80,20 @@ Talk track: the labeler renders the frozen template snapshot assigned at claim/s
 
 ## 3. AI Review
 
-For a deterministic demo without live LLM credentials, run:
+Default Docker demo without live LLM credentials:
+
+- Labeler submission enqueues `ai_review.run_ai_review`.
+- The worker starts, detects missing `LABELHUB_LLM_API_KEY`, persists controlled failure metadata, and routes the submission to human review.
+- Field-level assist returns `LLM_PROVIDER_UNAVAILABLE`.
+
+For a deterministic structured AI review demo without live LLM credentials, use the local non-Docker stack or stop/skip the Docker worker before labeler submission, then run:
 
 ```bash
 cd backend
 ./.venv313/bin/python scripts/seed_e2e_data.py ai-review <submission_id>
 ```
 
-For live AI review and field-level LLM assist, configure `LABELHUB_LLM_API_KEY` in `.env` along with `LABELHUB_LLM_PROVIDER`, `LABELHUB_LLM_MODEL`, optional `LABELHUB_LLM_BASE_URL`, and optional `LABELHUB_LLM_TEMPERATURE`. AI review also requires the Celery worker. Labeler submission now enqueues `ai_review.run_ai_review` automatically; the helper above is only for deterministic demos without live LLM credentials. Field-level assist returns a controlled `LLM_PROVIDER_UNAVAILABLE` error when credentials are absent.
+For live AI review and field-level LLM assist, configure `LABELHUB_LLM_API_KEY` in an untracked `.env` or secret manager along with `LABELHUB_LLM_PROVIDER`, `LABELHUB_LLM_MODEL`, optional `LABELHUB_LLM_BASE_URL`, and optional `LABELHUB_LLM_TEMPERATURE`. AI review also requires the Celery worker. Labeler submission enqueues `ai_review.run_ai_review` automatically; the helper above is only for deterministic demos without live LLM credentials. Do not use live AI with sensitive demo data until retention and privacy policy are approved.
 
 Talk track: AI review is a system actor. Structured review output, score, model metadata, prompt snapshot, and workflow transition metadata are persisted.
 
@@ -105,7 +113,7 @@ Talk track: human review is stage-aware. Initial returns, re-review returns, and
 1. Log out, then sign in again as `owner@example.com`.
 2. Open the task export area.
 3. Create a JSONL export with review metadata.
-4. If no worker is running locally, run the export synchronously for demo:
+4. In Docker, the worker processes the export job and writes to the shared `export-storage` volume. If no worker is running locally, run the export synchronously for demo:
 
 ```bash
 cd backend
