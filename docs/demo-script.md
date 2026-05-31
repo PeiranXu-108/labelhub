@@ -55,6 +55,7 @@ Sign in through `http://localhost:5173/login` when switching roles. The app stor
    - `show_item` field for `item.payload.text`
    - required `radio` field for sentiment
    - required `textarea` field for summary
+   - optional `llm_trigger` field targeting `summary` with `mode: suggest`, `prefill`, or `overwrite_with_confirmation`
 7. Publish the template.
 8. Configure AI review criteria and thresholds.
 9. Publish the task.
@@ -67,9 +68,13 @@ Talk track: the owner controls the production contract: rich task instructions, 
 2. Open `http://localhost:5173/labeler/tasks`.
 3. Review the task instructions, tags, and reward policy shown in the marketplace, then claim the published task.
 4. Fill the annotation form.
-5. Submit the annotation.
+5. If the template includes an LLM trigger, click the assist control:
+   - `suggest` shows a structured suggestion without changing the answer.
+   - `prefill` writes the returned value into the target field and triggers autosave.
+   - `overwrite_with_confirmation` asks before replacing an existing answer.
+6. Submit the annotation.
 
-Talk track: the labeler renders the frozen template snapshot assigned at claim/submission time. Frontend validation helps, but backend validation is authoritative.
+Talk track: the labeler renders the frozen template snapshot assigned at claim/submission time. Field-level LLM assist calls the backend, not the browser, and returns structured `{ value, rationale, confidence }` output before any target-field writeback. Frontend validation helps, but backend validation is authoritative.
 
 ## 3. AI Review
 
@@ -80,7 +85,7 @@ cd backend
 ./.venv313/bin/python scripts/seed_e2e_data.py ai-review <submission_id>
 ```
 
-For live AI review, configure `LABELHUB_LLM_API_KEY` in `.env` and run the Celery worker. Labeler submission now enqueues `ai_review.run_ai_review` automatically; the helper above is only for deterministic demos without live LLM credentials.
+For live AI review and field-level LLM assist, configure `LABELHUB_LLM_API_KEY` in `.env` along with `LABELHUB_LLM_PROVIDER`, `LABELHUB_LLM_MODEL`, optional `LABELHUB_LLM_BASE_URL`, and optional `LABELHUB_LLM_TEMPERATURE`. AI review also requires the Celery worker. Labeler submission now enqueues `ai_review.run_ai_review` automatically; the helper above is only for deterministic demos without live LLM credentials. Field-level assist returns a controlled `LLM_PROVIDER_UNAVAILABLE` error when credentials are absent.
 
 Talk track: AI review is a system actor. Structured review output, score, model metadata, prompt snapshot, and workflow transition metadata are persisted.
 

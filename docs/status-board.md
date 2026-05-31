@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
+Tasks 11-16 are approved expanded-scope follow-ups. Tasks 17-19 remain drafted/pending dispatch before any expanded-scope MVP readiness claim.
 
 ## Active Agents
 
@@ -26,7 +26,7 @@ Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/p
 | Template Designer Builder Agent | `docs/tasks/13-template-designer-builder-agent.md` | complete | `docs/handoffs/2026-05-31-task13-template-designer-builder-handoff.md` | approved |
 | Rich Text and Media Fields Agent | `docs/tasks/14-rich-media-fields-agent.md` | complete | `docs/handoffs/2026-05-31-task14-rich-media-fields-handoff.md` | approved |
 | Dynamic Form Runtime Agent | `docs/tasks/15-dynamic-form-runtime-agent.md` | complete | `docs/handoffs/2026-05-31-task15-dynamic-form-runtime-handoff.md` | approved |
-| LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | drafted / not started | none | pending dispatch |
+| LLM Field Loop Agent | `docs/tasks/16-llm-field-loop-agent.md` | complete | `docs/handoffs/2026-05-31-task16-llm-field-loop-handoff.md` | approved |
 | Labeler Navigation Agent | `docs/tasks/17-labeler-navigation-agent.md` | drafted / not started | none | pending dispatch |
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | drafted / not started | none | pending dispatch |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | drafted / not started | none | pending dispatch |
@@ -77,6 +77,10 @@ Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/p
 - Task 14 upload storage root defaults to `storage/uploads`, overrideable by `LABELHUB_UPLOAD_STORAGE_PATH`; local filesystem storage is MVP-only with manual cleanup.
 - Task 14 rich-text answers are stored as safe structured markdown with backend-derived `plainText`; backend rejects unsafe markup patterns and does not trust client-provided fallback text.
 - Task 14 upload validation enforces required/count/size/type/extension/asset-ownership constraints against the frozen template snapshot and submission context.
+- Task 16 field-level LLM assist route is `POST /labeler/assignments/{assignment_id}/llm-assist` and is labeler-owned assignment scoped.
+- Task 16 `llm_trigger` fields support `mode`, `outputSchema`, `contextFields`, and whitelisted `temperature`; model credentials remain server-side.
+- Task 16 assist calls validate structured `{ value, rationale?, confidence? }` output against the configured output schema and target field before frontend writeback.
+- Task 16 assist attempts persist `llm_field_assist_logs` and a submission audit event with prompt snapshot, model metadata, target field, status, and failure reason.
 
 ## Open Decisions
 
@@ -98,7 +102,7 @@ Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/p
 | Dataset import limits/privacy | configurable row/file limits, no sensitive production data until policy exists | yes before production datasets | open |
 | Upload storage and scanning | local MVP storage, no antivirus/DLP guarantee | yes before production file/image uploads | open |
 | Dynamic custom validators | server-approved named validators only, no arbitrary code execution | yes before user-authored code validators | defaulted |
-| Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | open |
+| Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | defaulted |
 | Multistage review policy | initial review, re-review, final review | yes before staffing/escalation policy changes | open |
 | Docker runtime validation | require Docker-enabled host for `docker compose up --build` evidence | yes if external handoff requires runtime proof | open |
 
@@ -122,7 +126,7 @@ Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/p
 | 13 Template Designer Builder | Template Designer Builder Agent | complete | Tasks 03, 06 | Approved; drag/drop template builder, accessible reorder fallback, duplication/deletion, full MVP property inspector, frontend validation parity, preview, backend validation regression, handoff, and review fixes verified. |
 | 14 Rich Text and Media Fields | Rich Text and Media Fields Agent | complete | Tasks 03, 06, preferably Task 13 | Approved; rich text, image/file upload schema support, authenticated upload/download routes, local MVP storage, renderer/designer controls, OpenAPI, docs, migration, and regression tests verified. |
 | 15 Dynamic Form Runtime | Dynamic Form Runtime Agent | complete | Tasks 03, 13 | Approved; conditional visibility, linked validation, strict safe-regex subset, server-approved custom validators, group/tab layouts, OpenAPI, handoff, and regression tests verified. |
-| 16 LLM Field Loop | LLM Field Loop Agent | drafted / not started | Tasks 03, 04, 15 | Close `llm_trigger` loop with server-side model calls, structured output, and target-field writeback. |
+| 16 LLM Field Loop | LLM Field Loop Agent | complete | Tasks 03, 04, 15 | Approved; server-side assist route, structured output validation, audit logs, frontend suggest/prefill/confirm writeback, OpenAPI, docs, migration, and regression tests verified. |
 | 17 Labeler Navigation | Labeler Navigation Agent | drafted / not started | Tasks 07, 09, 10 | Add previous/next/skip navigation with draft preservation and skip audit. |
 | 18 Multistage Human Review | Multistage Human Review Agent | drafted / not started | Tasks 09, 10 | Add initial/re-review/final stages and round diff views while preserving WorkflowService authority. |
 | 19 Production Readiness | Production Readiness Agent | drafted / not started | Tasks 08, 10, Task 16 for live field LLM checks | Verify or document Docker runtime and live-AI readiness without overstating support. |
@@ -156,17 +160,28 @@ Tasks 11-15 are approved expanded-scope follow-ups. Tasks 16-19 remain drafted/p
 - Full `docker compose up --build` runtime startup remains unverified by design; Task08 documents Docker deployment as config-validated only. Decide separately whether full Docker runtime validation is required before external handoff.
 - Task10 approved real login; downstream work must preserve `labelhub.accessToken`, `/auth/login`, `/auth/me`, explicit demo-user seeding, and persisted-user bearer auth fail-closed behavior.
 - Full Task08 happy-path E2E export enqueue still depends on Redis/Docker availability; Task10 login-specific Playwright smoke passed and this is not a Task10 blocker.
-- Tasks 11-15 are approved expanded-scope features; do not declare expanded-scope readiness until remaining Tasks 16-19 each have a handoff and Supervisor approval.
+- Tasks 11-16 are approved expanded-scope features; do not declare expanded-scope readiness until remaining Tasks 17-19 each have a handoff and Supervisor approval.
 - Task 11 reward rules are metadata-only unless the user explicitly approves real payment/payout behavior.
 - Task 11 validation risk is resolved: non-string JSON values for text fields are rejected instead of being coerced with `str(value)`.
 - Task 12 and Task 14 both introduce data/privacy exposure through larger imports or file uploads; production use requires retention and sensitive-data policy decisions.
 - Task 13 approved with layout/visibility/runtime-rule authoring disabled; Task 15 approved renderer/backend runtime semantics, so any future authoring controls must preserve the same backend-authoritative validation and visibility behavior.
-- Task 14 approved server-side upload/download with local MVP storage only; production object storage, scanning, retention, and sensitive-data policy remain open, and Task 16 must keep LLM provider credentials server-side.
+- Task 14 approved server-side upload/download with local MVP storage only; production object storage, scanning, retention, and sensitive-data policy remain open.
+- Task 16 approved server-side field-level LLM assist; live calls still require provider credentials and sensitive-data retention/privacy policy before production use.
 - Task 18 may touch `WorkflowService`; any stage/status change must be reviewed as a workflow contract change.
 - Task 19 must not mark Docker runtime verified unless `docker compose up --build` actually runs on a Docker-enabled host.
 
 ## Latest Verification
 
+- Task 16 handoff reviewed from `docs/handoffs/2026-05-31-task16-llm-field-loop-handoff.md`.
+- Task 16 verification: `cd backend && ./.venv313/bin/pytest tests/test_llm_field_assist.py tests/test_ai_review_agent.py -q` passed, 15 tests, with existing passlib `crypt` deprecation warning.
+- Task 16 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 108 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task 16 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed and regenerated `frontend/src/api/openapi.json`.
+- Task 16 verification: `python -m json.tool frontend/src/api/openapi.json` could not run because this host has no `python` executable on PATH; `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task16-openapi-json-review.json` passed.
+- Task 16 verification: `cd frontend && npm test -- --run src/features/schema-renderer src/features/labeler` passed, 20 tests, with existing React Router future-flag warnings.
+- Task 16 verification: `cd frontend && npm test -- --run` passed, 10 files and 71 tests, with existing React Router future-flag warnings.
+- Task 16 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task 16 verification: `git diff --check` passed.
+- Task 16 migration smoke: `cd backend && env LABELHUB_DATABASE_URL=sqlite+pysqlite:////private/tmp/labelhub_task16_review_migration.sqlite ./.venv313/bin/alembic upgrade head` passed through `20260531_0006`.
 - Task 15 handoff reviewed from `docs/handoffs/2026-05-31-task15-dynamic-form-runtime-handoff.md`.
 - Task 15 review fixes resolved hidden retained source visibility and regex ReDoS risks by masking hidden source fields and constraining regex to a strict exact-repeat safe subset.
 - Task 15 verification: direct backend probes confirmed the prior adjacent optional-repeat ReDoS shape is rejected, variable repeats are rejected, `^TICKET-[0-9]{3}$` remains accepted, and an exact-repeat safe pattern validates quickly.

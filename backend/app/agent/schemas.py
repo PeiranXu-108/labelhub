@@ -16,3 +16,9 @@ class AIReviewResult(BaseModel):
     summary: str
     return_reasons: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+
+
+class FieldAssistResult(BaseModel):
+    value: object
+    rationale: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)

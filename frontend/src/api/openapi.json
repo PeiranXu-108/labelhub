@@ -1055,6 +1055,63 @@
         }
       }
     },
+    "/labeler/assignments/{assignment_id}/llm-assist": {
+      "post": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Invoke Assignment Llm Assist",
+        "operationId": "invoke_assignment_llm_assist_labeler_assignments__assignment_id__llm_assist_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMFieldAssistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMFieldAssistResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/labeler/assignments/{assignment_id}/draft": {
       "put": {
         "tags": [
@@ -3149,6 +3206,102 @@
         ],
         "title": "JsonField"
       },
+      "LLMFieldAssistRequest": {
+        "properties": {
+          "trigger_field_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Trigger Field Id"
+          },
+          "answer_payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Answer Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trigger_field_id"
+        ],
+        "title": "LLMFieldAssistRequest"
+      },
+      "LLMFieldAssistResponse": {
+        "properties": {
+          "log_id": {
+            "type": "string",
+            "title": "Log Id"
+          },
+          "trigger_field_id": {
+            "type": "string",
+            "title": "Trigger Field Id"
+          },
+          "target_field_id": {
+            "type": "string",
+            "title": "Target Field Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "suggest",
+              "prefill",
+              "overwrite_with_confirmation"
+            ],
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "const": "succeeded",
+            "title": "Status"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_id",
+          "trigger_field_id",
+          "target_field_id",
+          "mode",
+          "status",
+          "value",
+          "model_name",
+          "created_at"
+        ],
+        "title": "LLMFieldAssistResponse"
+      },
       "LayoutGroup": {
         "properties": {
           "id": {
@@ -3191,6 +3344,36 @@
           "fieldIds"
         ],
         "title": "LayoutGroup"
+      },
+      "LlmOutputSchema": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "target_field",
+              "text",
+              "number",
+              "json_object",
+              "json_array"
+            ],
+            "title": "Preset",
+            "default": "target_field"
+          },
+          "jsonSchema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jsonschema"
+          }
+        },
+        "type": "object",
+        "title": "LlmOutputSchema"
       },
       "LlmTool": {
         "properties": {
@@ -3275,6 +3458,40 @@
             "maxLength": 64,
             "minLength": 1,
             "title": "Targetfieldid"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "suggest",
+              "prefill",
+              "overwrite_with_confirmation"
+            ],
+            "title": "Mode",
+            "default": "suggest"
+          },
+          "outputSchema": {
+            "$ref": "#/components/schemas/LlmOutputSchema"
+          },
+          "contextFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Contextfields"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
           }
         },
         "type": "object",

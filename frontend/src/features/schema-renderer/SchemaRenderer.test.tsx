@@ -389,4 +389,213 @@ describe("SchemaRenderer", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Comment: 请填写Comment");
     expect(screen.getByRole("tab", { name: /Details.*1/ })).toBeInTheDocument();
   });
+
+  it("shows llm_trigger suggestions without changing answers", async () => {
+    localStorage.setItem("labelhub.accessToken", "token");
+    const onChange = vi.fn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          log_id: "assist-log-1",
+          trigger_field_id: "assist_summary",
+          target_field_id: "summary",
+          mode: "suggest",
+          status: "succeeded",
+          value: "Customer asks for a refund update.",
+          rationale: "Shortened the ticket.",
+          confidence: 0.9,
+          model_name: "mock-assist",
+          created_at: "2026-05-31T00:00:00Z",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const assistSchema = schemaWithAssist({ mode: "suggest" });
+
+    render(
+      <SchemaRenderer
+        schema={assistSchema}
+        item={{ payload: { text: "Customer asks for refund status." } }}
+        assistContext={{ assignmentId: "assignment-1" }}
+        initialAnswers={{ sentiment: "positive" }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate summary" }));
+
+    expect(await screen.findByText("Customer asks for a refund update.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Summary")).toHaveValue("");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/labeler/assignments/assignment-1/llm-assist"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer token" }),
+      }),
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      trigger_field_id: "assist_summary",
+      answer_payload: { sentiment: "positive" },
+    });
+  });
+
+  it("prefills the target field and calls onChange", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          log_id: "assist-log-2",
+          trigger_field_id: "assist_summary",
+          target_field_id: "summary",
+          mode: "prefill",
+          status: "succeeded",
+          value: "Prefilled summary",
+          rationale: null,
+          confidence: null,
+          model_name: "mock-assist",
+          created_at: "2026-05-31T00:00:00Z",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const onChange = vi.fn();
+
+    render(
+      <SchemaRenderer
+        schema={schemaWithAssist({ mode: "prefill" })}
+        item={{ payload: { text: "Needs summary" } }}
+        assistContext={{ assignmentId: "assignment-1" }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate summary" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Summary")).toHaveValue("Prefilled summary"));
+    expect(onChange).toHaveBeenCalledWith({ summary: "Prefilled summary" });
+  });
+
+  it("does not overwrite existing answers without confirmation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          log_id: "assist-log-3",
+          trigger_field_id: "assist_summary",
+          target_field_id: "summary",
+          mode: "overwrite_with_confirmation",
+          status: "succeeded",
+          value: "Replacement summary",
+          rationale: null,
+          confidence: null,
+          model_name: "mock-assist",
+          created_at: "2026-05-31T00:00:00Z",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const onChange = vi.fn();
+
+    render(
+      <SchemaRenderer
+        schema={schemaWithAssist({ mode: "overwrite_with_confirmation" })}
+        item={{ payload: { text: "Needs summary" } }}
+        assistContext={{ assignmentId: "assignment-1" }}
+        initialAnswers={{ summary: "Existing summary" }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate summary" }));
+
+    expect(await screen.findByText("Replacement summary")).toBeInTheDocument();
+    expect(screen.getByLabelText("Summary")).toHaveValue("Existing summary");
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /替\s*换/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Summary")).toHaveValue("Replacement summary"));
+    expect(onChange).toHaveBeenCalledWith({ summary: "Replacement summary" });
+  });
+
+  it("shows safe llm_trigger failures", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: {
+            code: "LLM_PROVIDER_UNAVAILABLE",
+            message: "Live field-level LLM assist requires server-side provider credentials.",
+          },
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    render(
+      <SchemaRenderer
+        schema={schemaWithAssist({ mode: "prefill" })}
+        item={{ payload: { text: "Needs summary" } }}
+        assistContext={{ assignmentId: "assignment-1" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate summary" }));
+
+    expect(await screen.findByText("Live field-level LLM assist requires server-side provider credentials.")).toBeInTheDocument();
+  });
+
+  it("does not invoke llm_trigger controls in read-only mode", () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    render(
+      <SchemaRenderer
+        readOnly
+        schema={schemaWithAssist({ mode: "prefill" })}
+        item={{ payload: { text: "Read only" } }}
+        assistContext={{ assignmentId: "assignment-1" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate summary" }));
+
+    expect(screen.getByRole("button", { name: "Generate summary" })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
+
+function schemaWithAssist({
+  mode,
+}: {
+  mode: "suggest" | "prefill" | "overwrite_with_confirmation";
+}): TemplateSchemaDocument {
+  return {
+    version: 1,
+    title: "Assist review",
+    layout: { type: "single", groups: [] },
+    fields: [
+      { id: "raw_text", type: "show_item", label: "Raw text", source: "item.payload.text" },
+      {
+        id: "sentiment",
+        type: "radio",
+        label: "Sentiment",
+        options: [
+          { label: "Positive", value: "positive" },
+          { label: "Negative", value: "negative" },
+        ],
+      },
+      { id: "summary", type: "textarea", label: "Summary" },
+      {
+        id: "assist_summary",
+        type: "llm_trigger",
+        label: "Generate summary",
+        promptTemplate: "Summarize {{item.payload.text}}",
+        targetFieldId: "summary",
+        mode,
+        outputSchema: { preset: "text" },
+        contextFields: ["sentiment"],
+      },
+    ],
+    llmTools: [],
+    validations: [],
+    visibilityRules: [],
+  };
+}

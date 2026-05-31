@@ -8,6 +8,7 @@ import type {
   FileUploadField,
   ImageUploadField,
   LayoutGroup,
+  LlmTriggerField,
   OptionField,
   RendererItem,
   RichTextField,
@@ -27,6 +28,9 @@ export type SchemaRendererProps = {
   initialAnswers?: AnswerPayload;
   readOnly?: boolean;
   uploadContext?: {
+    assignmentId: string;
+  };
+  assistContext?: {
     assignmentId: string;
   };
   onChange?: (answers: AnswerPayload) => void;
@@ -591,6 +595,7 @@ export function SchemaRenderer({
   initialAnswers,
   readOnly = false,
   uploadContext,
+  assistContext,
   onChange,
   onSubmit,
 }: SchemaRendererProps) {
@@ -631,7 +636,7 @@ export function SchemaRenderer({
     }
     return (
       <div className="schema-field" key={field.id}>
-        {renderField(field, item, answers, updateAnswer, readOnly, uploadContext)}
+        {renderField(field, item, answers, updateAnswer, readOnly, uploadContext, assistContext)}
         {errors[field.id] ? <div className="field-error">{errors[field.id]}</div> : null}
       </div>
     );
@@ -747,6 +752,7 @@ function renderField(
   updateAnswer: (fieldId: string, value: unknown) => void,
   readOnly: boolean,
   uploadContext: SchemaRendererProps["uploadContext"] | undefined,
+  assistContext: SchemaRendererProps["assistContext"] | undefined,
 ) {
   if (field.type === "show_item") {
     return (
@@ -916,12 +922,148 @@ function renderField(
     );
   }
 
+  if (field.type === "llm_trigger") {
+    return (
+      <LlmAssistControl
+        answers={answers}
+        assistContext={assistContext}
+        field={field}
+        readOnly={readOnly}
+        onApply={(fieldId, value) => updateAnswer(fieldId, value)}
+      />
+    );
+  }
+
+  return null;
+}
+
+type LlmAssistResponse = {
+  log_id: string;
+  trigger_field_id: string;
+  target_field_id: string;
+  mode: "suggest" | "prefill" | "overwrite_with_confirmation";
+  status: "succeeded";
+  value: unknown;
+  rationale?: string | null;
+  confidence?: number | null;
+  model_name: string;
+  created_at: string;
+};
+
+type LlmAssistControlProps = {
+  field: LlmTriggerField;
+  answers: AnswerPayload;
+  readOnly: boolean;
+  assistContext: SchemaRendererProps["assistContext"] | undefined;
+  onApply: (fieldId: string, value: unknown) => void;
+};
+
+function LlmAssistControl({
+  field,
+  answers,
+  readOnly,
+  assistContext,
+  onApply,
+}: LlmAssistControlProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<LlmAssistResponse | null>(null);
+  const [pendingOverwrite, setPendingOverwrite] = useState<LlmAssistResponse | null>(null);
+  const mode = field.mode ?? "suggest";
+
+  function applyResult(nextResult: LlmAssistResponse) {
+    onApply(nextResult.target_field_id, nextResult.value);
+    setPendingOverwrite(null);
+    setResult(nextResult);
+  }
+
+  async function handleAssist() {
+    if (readOnly) {
+      return;
+    }
+    if (!assistContext) {
+      setError("当前页面缺少 LLM 辅助上下文。");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setPendingOverwrite(null);
+    try {
+      const payload = await invokeFieldAssist(assistContext.assignmentId, field.id, answers);
+      setResult(payload);
+      const responseMode = payload.mode ?? mode;
+      if (responseMode === "suggest") {
+        return;
+      }
+      if (responseMode === "overwrite_with_confirmation" && !isEmpty(answers[payload.target_field_id])) {
+        setPendingOverwrite(payload);
+        return;
+      }
+      applyResult(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "LLM 辅助失败。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="schema-control">
+    <div className="schema-control llm-assist-control">
       <span>{field.label}</span>
-      <Button disabled={readOnly}>{field.label}</Button>
+      {field.helpText ? <Typography.Text type="secondary">{field.helpText}</Typography.Text> : null}
+      <Button disabled={readOnly || loading} loading={loading} onClick={() => void handleAssist()}>
+        {field.label}
+      </Button>
+      {result && mode === "suggest" ? (
+        <Alert
+          description={<pre className="show-item-value">{displayValue(result.value)}</pre>}
+          message="建议已生成"
+          type="success"
+        />
+      ) : null}
+      {pendingOverwrite ? (
+        <Alert
+          action={
+            <Space>
+              <Button size="small" type="primary" onClick={() => applyResult(pendingOverwrite)}>
+                替换
+              </Button>
+              <Button size="small" onClick={() => setPendingOverwrite(null)}>
+                保留
+              </Button>
+            </Space>
+          }
+          description={<pre className="show-item-value">{displayValue(pendingOverwrite.value)}</pre>}
+          message="是否替换现有答案？"
+          type="warning"
+        />
+      ) : null}
+      {result && mode !== "suggest" && !pendingOverwrite ? (
+        <Typography.Text type="success">已填入 {result.target_field_id}</Typography.Text>
+      ) : null}
+      {error ? <Alert message={error} type="error" /> : null}
     </div>
   );
+}
+
+async function invokeFieldAssist(
+  assignmentId: string,
+  triggerFieldId: string,
+  answers: AnswerPayload,
+): Promise<LlmAssistResponse> {
+  const response = await fetchWithAuth(`/labeler/assignments/${assignmentId}/llm-assist`, {
+    method: "POST",
+    json: true,
+    body: JSON.stringify({
+      trigger_field_id: triggerFieldId,
+      answer_payload: answers,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  return (await response.json()) as LlmAssistResponse;
 }
 
 function renderOptions(field: OptionField) {

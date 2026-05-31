@@ -208,10 +208,21 @@ class JsonField(BaseTemplateField):
     type: Literal["json"]
 
 
+class LlmOutputSchema(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    preset: Literal["target_field", "text", "number", "json_object", "json_array"] = "target_field"
+    json_schema: dict[str, Any] | None = Field(default=None, alias="jsonSchema")
+
+
 class LlmTriggerField(BaseTemplateField):
     type: Literal["llm_trigger"]
     prompt_template: str = Field(alias="promptTemplate", min_length=1, max_length=5000)
     target_field_id: str = Field(alias="targetFieldId", min_length=1, max_length=64)
+    mode: Literal["suggest", "prefill", "overwrite_with_confirmation"] = "suggest"
+    output_schema: LlmOutputSchema = Field(default_factory=LlmOutputSchema, alias="outputSchema")
+    context_fields: list[str] = Field(default_factory=list, alias="contextFields", max_length=20)
+    temperature: float | None = Field(default=None, ge=0, le=2)
     required: bool = False
 
     @field_validator("target_field_id")
@@ -219,6 +230,15 @@ class LlmTriggerField(BaseTemplateField):
     def validate_target_field_id(cls, value: str) -> str:
         if not FIELD_ID_PATTERN.match(value):
             raise ValueError("targetFieldId must reference a stable field id")
+        return value
+
+    @field_validator("context_fields")
+    @classmethod
+    def validate_context_fields(cls, value: list[str]) -> list[str]:
+        for field_id in value:
+            validate_field_reference(field_id, field_name="contextFields entry")
+        if len(value) != len(set(value)):
+            raise ValueError("contextFields values must be unique")
         return value
 
 
@@ -533,12 +553,23 @@ class TemplateDocument(BaseModel):
             raise ValueError("Field ids must be unique")
 
         field_id_set = set(field_ids)
+        fields_by_id = {field.id: field for field in self.fields}
         answerable_field_ids = {
             field.id for field in self.fields if not isinstance(field, (ShowItemField, LlmTriggerField))
         }
         for field in self.fields:
-            if isinstance(field, LlmTriggerField) and field.target_field_id not in field_id_set:
-                raise ValueError(f"llm_trigger targetFieldId '{field.target_field_id}' must reference an existing field")
+            if isinstance(field, LlmTriggerField):
+                if field.target_field_id not in answerable_field_ids:
+                    raise ValueError(
+                        f"llm_trigger targetFieldId '{field.target_field_id}' must reference an answerable field"
+                    )
+                for context_field_id in field.context_fields:
+                    if context_field_id not in field_id_set:
+                        raise ValueError(
+                            f"llm_trigger contextFields entry '{context_field_id}' must reference an existing field"
+                        )
+                    if isinstance(fields_by_id[context_field_id], LlmTriggerField):
+                        raise ValueError("llm_trigger contextFields cannot reference another llm_trigger field")
         for tool in self.llm_tools:
             if tool.target_field_id not in field_id_set:
                 raise ValueError(f"llmTools targetFieldId '{tool.target_field_id}' must reference an existing field")

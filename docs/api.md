@@ -146,6 +146,27 @@ Task 14 rich/media field additions:
 
 Field limits are backend-enforced: `maxFileSizeBytes` must be 1 byte through 25 MiB, `maxCount` must be 1 through 10, image MIME types are limited to `image/png`, `image/jpeg`, `image/webp`, and `image/gif`, and file extensions must start with a dot. Rich-text answers use safe markdown only; raw HTML tags, JavaScript URLs, HTML data URLs, and inline event-handler patterns are rejected. The backend derives `plainText` and does not trust a client-provided fallback.
 
+Task 16 field-level LLM assist extends `llm_trigger` fields:
+
+```json
+{
+  "id": "assist_summary",
+  "type": "llm_trigger",
+  "label": "Generate summary",
+  "promptTemplate": "Summarize {{item.payload.text}} using {{answers.sentiment}}.",
+  "targetFieldId": "summary",
+  "mode": "suggest | prefill | overwrite_with_confirmation",
+  "outputSchema": {
+    "preset": "target_field | text | number | json_object | json_array",
+    "jsonSchema": { "type": "string", "maxLength": 500 }
+  },
+  "contextFields": ["sentiment"],
+  "temperature": 0
+}
+```
+
+Defaults: `mode` is `suggest`, `outputSchema.preset` is `target_field`, `contextFields` is empty, and `temperature` falls back to server-side provider configuration. `targetFieldId` must reference an answerable field, and `contextFields` must reference existing non-`llm_trigger` fields. Provider credentials are never part of template JSON or frontend code.
+
 ## Labeler APIs
 
 - `GET /labeler/tasks`: labeler lists published marketplace tasks, including read-only task instructions, tags, reward policy, and quality rules when configured.
@@ -153,6 +174,7 @@ Field limits are backend-enforced: `maxFileSizeBytes` must be 1 byte through 25 
 - `GET /labeler/assignments/{assignment_id}`: labeler reads assignment detail, frozen template snapshot, current submission, task metadata, item, and latest human return reason.
 - `GET /labeler/assignments/{assignment_id}/agent-workflow`: labeler reads the agent workflow for their own assignment.
 - `POST /labeler/assignments/{assignment_id}/uploads`: labeler uploads one file for an upload field using multipart form data with `field_id` and `file`.
+- `POST /labeler/assignments/{assignment_id}/llm-assist`: labeler invokes a server-side `llm_trigger` for their own draft/returned assignment.
 - `PUT /labeler/assignments/{assignment_id}/draft`: labeler saves draft answers with `{ "answer_payload": ... }`.
 - `POST /labeler/assignments/{assignment_id}/submit`: labeler submits required answers with `{ "answer_payload": ... }`.
 - `GET /labeler/submissions`: labeler lists own submissions.
@@ -197,6 +219,37 @@ Submission answer shapes:
 ```
 
 Backend submission validation rejects unknown fields, invalid option values, missing required fields, unsafe rich text, upload count/size/type violations, and upload asset IDs that do not belong to the assignment/submission with `INVALID_SUBMISSION_PAYLOAD`.
+
+Field assist request:
+
+```json
+{
+  "trigger_field_id": "assist_summary",
+  "answer_payload": {
+    "sentiment": "positive",
+    "summary": "current draft value"
+  }
+}
+```
+
+Field assist success response:
+
+```json
+{
+  "log_id": "assist-log-id",
+  "trigger_field_id": "assist_summary",
+  "target_field_id": "summary",
+  "mode": "prefill",
+  "status": "succeeded",
+  "value": "Suggested field value",
+  "rationale": "Optional model rationale",
+  "confidence": 0.91,
+  "model_name": "deepseek-chat",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+```
+
+The backend builds the prompt from the frozen template snapshot, item payload, current answers, target field metadata, and optional `contextFields`. Model output must validate as the structured envelope `{ value, rationale?, confidence? }`; `value` is then checked against `outputSchema` and the target field type. Assist attempts persist `llm_field_assist_logs` plus a submission audit event with prompt snapshot, model metadata, target field, status, structured response, and failure reason. Missing provider credentials return `LLM_PROVIDER_UNAVAILABLE` without exposing secrets or stack traces.
 
 ## Upload APIs
 

@@ -5,13 +5,17 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
 from app.domain.enums import TaskStatus, UserRole
+from app.agent.config import LLMProviderConfig
+from app.agent.providers import FieldAssistModel
 from app.models import Assignment, HumanReview, Submission, Task, TaskItem, TemplateSchema
 from app.schemas.agent_workflow import AgentWorkflowRead
 from app.schemas.labeler import AssignmentDetailRead, ClaimRead
+from app.schemas.llm_assist import LLMFieldAssistRequest, LLMFieldAssistResponse
 from app.schemas.submission import DraftSaveRequest, SubmissionRead, SubmitRequest
 from app.schemas.task import TaskRead
 from app.services.submissions import SubmissionService
 from app.services.agent_workflow import AgentWorkflowService
+from app.services.llm_field_assist import LLMFieldAssistError, LLMFieldAssistService
 from app.services.workflow import ActorContext, WorkflowError
 
 router = APIRouter(prefix="/labeler", tags=["labeler"])
@@ -26,6 +30,18 @@ def _raise_workflow_error(exc: WorkflowError) -> None:
     if exc.code == "PERMISSION_DENIED":
         status_code = status.HTTP_403_FORBIDDEN
     raise api_error(exc.code, exc.message, status_code)
+
+
+def get_llm_field_assist_model() -> FieldAssistModel | None:
+    return None
+
+
+def get_llm_field_assist_provider_config() -> LLMProviderConfig | None:
+    return None
+
+
+def _raise_llm_field_assist_error(exc: LLMFieldAssistError) -> None:
+    raise api_error(exc.code, exc.message, exc.status_code)
 
 
 @router.get("/tasks", response_model=list[TaskRead])
@@ -122,6 +138,25 @@ def get_assignment_agent_workflow(
         return AgentWorkflowService(db).workflow_for_submission(assignment.submission)
     except WorkflowError as exc:
         _raise_workflow_error(exc)
+
+
+@router.post("/assignments/{assignment_id}/llm-assist", response_model=LLMFieldAssistResponse)
+def invoke_assignment_llm_assist(
+    assignment_id: str,
+    payload: LLMFieldAssistRequest,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+    model: FieldAssistModel | None = Depends(get_llm_field_assist_model),
+    provider_config: LLMProviderConfig | None = Depends(get_llm_field_assist_provider_config),
+) -> LLMFieldAssistResponse:
+    try:
+        return LLMFieldAssistService(db, model=model, provider_config=provider_config).assist_assignment(
+            assignment_id,
+            _actor_context(actor),
+            payload,
+        )
+    except LLMFieldAssistError as exc:
+        _raise_llm_field_assist_error(exc)
 
 
 @router.put("/assignments/{assignment_id}/draft", response_model=SubmissionRead)

@@ -90,10 +90,21 @@ export type FileUploadField = BaseTemplateField & {
   maxCount: number;
 };
 
+export type LlmTriggerMode = "suggest" | "prefill" | "overwrite_with_confirmation";
+
+export type LlmOutputSchema = {
+  preset?: "target_field" | "text" | "number" | "json_object" | "json_array";
+  jsonSchema?: Record<string, unknown> | null;
+};
+
 export type LlmTriggerField = BaseTemplateField & {
   type: "llm_trigger";
   promptTemplate: string;
   targetFieldId: string;
+  mode?: LlmTriggerMode;
+  outputSchema?: LlmOutputSchema;
+  contextFields?: string[];
+  temperature?: number | null;
 };
 
 export type TemplateField =

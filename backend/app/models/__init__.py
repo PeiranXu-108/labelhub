@@ -256,6 +256,37 @@ class AIReview(Base):
     submission: Mapped[Submission] = relationship(back_populates="ai_reviews")
 
 
+class LLMFieldAssistLog(Base):
+    __tablename__ = "llm_field_assist_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
+    assignment_id: Mapped[str] = mapped_column(ForeignKey("assignments.id"), nullable=False, index=True)
+    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id"), nullable=False, index=True)
+    template_schema_id: Mapped[str] = mapped_column(ForeignKey("template_schemas.id"), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    actor_role: Mapped[str] = mapped_column(String(50), nullable=False)
+    trigger_field_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    target_field_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    mode: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    prompt_snapshot: Mapped[str | None] = mapped_column(Text)
+    output_schema: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    structured_response: Mapped[dict | None] = mapped_column(JSON)
+    raw_provider_response: Mapped[dict | None] = mapped_column(JSON)
+    provider_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    task: Mapped[Task] = relationship()
+    assignment: Mapped[Assignment] = relationship()
+    submission: Mapped[Submission] = relationship()
+    template_schema: Mapped[TemplateSchema] = relationship()
+    actor: Mapped[User] = relationship()
+
+
 class HumanReview(Base):
     __tablename__ = "human_reviews"
 

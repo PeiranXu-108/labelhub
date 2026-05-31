@@ -4,10 +4,15 @@ from typing import Any, Protocol
 from langchain_openai import ChatOpenAI
 
 from app.agent.config import LLMProviderConfig
-from app.agent.schemas import AIReviewResult
+from app.agent.schemas import AIReviewResult, FieldAssistResult
 
 
 class ReviewModel(Protocol):
+    def invoke(self, prompt: str) -> object:
+        ...
+
+
+class FieldAssistModel(Protocol):
     def invoke(self, prompt: str) -> object:
         ...
 
@@ -18,6 +23,15 @@ class MissingCredentialsReviewModel:
             "Missing LABELHUB_LLM_API_KEY. Configure LABELHUB_LLM_PROVIDER, "
             "LABELHUB_LLM_MODEL, LABELHUB_LLM_BASE_URL, LABELHUB_LLM_API_KEY, "
             "and LABELHUB_LLM_TEMPERATURE for live AI review calls."
+        )
+
+
+class MissingCredentialsFieldAssistModel:
+    def invoke(self, _prompt: str) -> object:
+        raise RuntimeError(
+            "Missing LABELHUB_LLM_API_KEY. Configure LABELHUB_LLM_PROVIDER, "
+            "LABELHUB_LLM_MODEL, LABELHUB_LLM_BASE_URL, LABELHUB_LLM_API_KEY, "
+            "and LABELHUB_LLM_TEMPERATURE for live field-level LLM assist calls."
         )
 
 
@@ -35,6 +49,22 @@ class JSONReviewModel:
             )
         payload = _parse_json_object(str(content))
         return AIReviewResult.model_validate(payload)
+
+
+class JSONFieldAssistModel:
+    def __init__(self, model: ChatOpenAI) -> None:
+        self.model = model
+
+    def invoke(self, prompt: str) -> FieldAssistResult:
+        response = self.model.invoke(prompt)
+        content = getattr(response, "content", response)
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        payload = _parse_json_object(str(content))
+        return FieldAssistResult.model_validate(payload)
 
 
 def build_review_model(config: LLMProviderConfig) -> ReviewModel:
@@ -55,6 +85,26 @@ def build_review_model(config: LLMProviderConfig) -> ReviewModel:
     if config.provider == "deepseek":
         return JSONReviewModel(model)
     return model.with_structured_output(AIReviewResult)
+
+
+def build_field_assist_model(config: LLMProviderConfig) -> FieldAssistModel:
+    if not config.has_credentials:
+        return MissingCredentialsFieldAssistModel()
+
+    model_kwargs: dict[str, Any] = {}
+    if config.provider == "deepseek":
+        model_kwargs["response_format"] = {"type": "json_object"}
+
+    model = ChatOpenAI(
+        model=config.model,
+        api_key=config.api_key,
+        base_url=config.base_url,
+        temperature=config.temperature,
+        model_kwargs=model_kwargs,
+    )
+    if config.provider == "deepseek":
+        return JSONFieldAssistModel(model)
+    return model.with_structured_output(FieldAssistResult)
 
 
 def _parse_json_object(content: str) -> dict[str, Any]:
