@@ -41,6 +41,7 @@ export function TaskAgentWorkflowSummary({ summary }: TaskAgentWorkflowSummaryPr
           dataSource={statusRows}
           pagination={false}
           rowKey="status"
+          scroll={{ x: "max-content" }}
           size="small"
         />
         <Table
@@ -51,6 +52,7 @@ export function TaskAgentWorkflowSummary({ summary }: TaskAgentWorkflowSummaryPr
           dataSource={decisionRows}
           pagination={false}
           rowKey="status"
+          scroll={{ x: "max-content" }}
           size="small"
         />
       </div>
@@ -64,6 +66,7 @@ export function TaskAgentWorkflowSummary({ summary }: TaskAgentWorkflowSummaryPr
         dataSource={recentRows}
         pagination={false}
         rowKey="submission_id"
+        scroll={{ x: "max-content" }}
         size="small"
       />
     </StudioPanel>

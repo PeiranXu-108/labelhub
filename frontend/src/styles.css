@@ -669,6 +669,9 @@ body {
 .studio-nav a {
   color: #5f665f;
   font-size: 13px;
+  min-height: 36px;
+  padding: 0 10px;
+  line-height: 1;
   border: 1px solid transparent;
   transition:
     color 160ms ease,
@@ -695,9 +698,16 @@ body {
   gap: 8px;
   padding: 5px 8px;
   color: #34342f;
+  line-height: 1.2;
   background: #f4f3ec;
   border: 1px solid rgb(24 24 22 / 8%);
   border-radius: 8px;
+}
+
+.user-chip .ant-tag {
+  margin-inline-end: 0;
+  padding: 0 6px;
+  line-height: 18px;
 }
 
 .page-shell {
@@ -1298,5 +1308,208 @@ body {
   .login-role-list div {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+}
+
+/* Layout remediation: keep min-content widths from propagating to the viewport. */
+.page-shell,
+.owner-shell,
+.studio-with-rail,
+.studio-main-column,
+.studio-main-column > *,
+.studio-page-header,
+.studio-panel,
+.ops-card,
+.owner-tabs,
+.ant-tabs,
+.ant-tabs-content-holder,
+.ant-tabs-tabpane,
+.dashboard-stack,
+.template-designer {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.studio-main-column {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-main-column.owner-section {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.studio-page-header,
+.studio-panel-header {
+  min-width: 0;
+}
+
+.studio-page-actions,
+.studio-panel-actions {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.studio-page-actions .ant-space,
+.studio-panel-actions .ant-space,
+.section-actions,
+.drawer-actions {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.studio-page-copy,
+.studio-page-copy .ant-typography,
+.studio-panel-header > div,
+.studio-header-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.owner-tabs .ant-tabs-nav,
+.owner-tabs .ant-tabs-nav-wrap,
+.owner-tabs .ant-tabs-content-holder,
+.owner-tabs .ant-tabs-content,
+.owner-tabs .ant-tabs-tabpane {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.studio-main-column .ant-table-wrapper,
+.responsive-table,
+.ant-table-wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.studio-main-column .ant-table-wrapper,
+.responsive-table {
+  overflow-x: auto;
+}
+
+.form-grid-2,
+.filter-row,
+.review-filters,
+.import-mapping-grid,
+.import-batch-tools {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.ant-radio-group,
+.ant-checkbox-wrapper,
+.ant-segmented {
+  max-width: 100%;
+}
+
+.ant-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.ant-btn,
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select,
+.ant-picker,
+.ant-segmented {
+  max-width: 100%;
+}
+
+@media (max-width: 1240px) {
+  .studio-with-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assistant-rail {
+    position: static;
+    max-height: none;
+  }
+}
+
+.designer-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(320px, 1fr) minmax(240px, 280px);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.designer-panel,
+.designer-canvas,
+.inspector-form,
+.inspector-grid,
+.option-row,
+.inspector-form > *,
+.schema-control,
+.layout-disabled {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.inspector-form,
+.schema-control,
+.layout-disabled {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.designer-canvas {
+  overflow: auto;
+}
+
+@media (max-width: 1100px) {
+  .designer-grid {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  }
+
+  .designer-grid .inspector-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    width: calc(100% - 24px);
+    padding: 24px 0;
+  }
+
+  .studio-page-header,
+  .studio-panel {
+    padding: 16px;
+  }
+
+  .designer-grid,
+  .form-grid-2,
+  .dashboard-tables,
+  .filter-row,
+  .review-filters,
+  .workbench-grid,
+  .review-detail-grid,
+  .ai-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .designer-toolbar,
+  .canvas-header,
+  .panel-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inspector-grid,
+  .option-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-page-actions,
+  .studio-panel-actions,
+  .studio-page-actions .ant-space,
+  .studio-panel-actions .ant-space,
+  .section-actions,
+  .drawer-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }

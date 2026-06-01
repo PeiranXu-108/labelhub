@@ -184,6 +184,7 @@ export function LabelerMarketplace() {
             loading={loading}
             pagination={{ pageSize: 8 }}
             rowKey="id"
+            scroll={{ x: "max-content" }}
           />
         </StudioPanel>
 
@@ -227,6 +228,7 @@ export function LabelerMarketplace() {
             dataSource={submissions}
             pagination={{ pageSize: 5 }}
             rowKey="id"
+            scroll={{ x: "max-content" }}
             size="small"
           />
         </StudioPanel>

@@ -165,6 +165,7 @@ export function ExportCenter({ taskId, jobs, onJobsChanged }: ExportCenterProps)
         loading={loading}
         pagination={false}
         rowKey="id"
+        scroll={{ x: "max-content" }}
         size="small"
       />
     </section>

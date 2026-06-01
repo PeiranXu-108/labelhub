@@ -297,6 +297,7 @@ export function ReviewQueue() {
             pagination={{ pageSize: 8 }}
             rowKey={(record) => record.submission.id}
             rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
+            scroll={{ x: "max-content" }}
           />
         </StudioPanel>
 

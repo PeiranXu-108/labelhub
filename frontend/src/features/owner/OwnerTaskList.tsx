@@ -207,6 +207,7 @@ export function OwnerTaskList() {
             loading={loading}
             pagination={{ pageSize: 8 }}
             rowKey="id"
+            scroll={{ x: "max-content" }}
             size="middle"
           />
         </StudioPanel>

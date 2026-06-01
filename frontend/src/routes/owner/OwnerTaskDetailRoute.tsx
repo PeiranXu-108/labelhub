@@ -139,7 +139,7 @@ export function OwnerTaskDetailRoute() {
   return (
     <main className="page-shell owner-shell">
       <section className="studio-with-rail">
-        <div className="studio-main-column owner-section">
+        <div className="studio-main-column">
           <StudioPageHeader
             title={task.name}
             description={task.description || "暂无描述"}

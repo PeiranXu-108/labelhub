@@ -321,6 +321,7 @@ export function ReviewSubmissionDetail() {
                       dataSource={diff.fields}
                       pagination={false}
                       rowKey={(field) => `${diff.from_attempt}-${diff.to_attempt}-${field.field_id}`}
+                      scroll={{ x: "max-content" }}
                       size="small"
                     />
                   ) : (

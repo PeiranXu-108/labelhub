@@ -351,7 +351,7 @@ export function DatasetImportPanel({ taskId, onImported }: DatasetImportPanelPro
         dataSource={visibleRows}
         pagination={false}
         rowKey="key"
-        scroll={{ x: true }}
+        scroll={{ x: "max-content" }}
         size="small"
       />
     </section>

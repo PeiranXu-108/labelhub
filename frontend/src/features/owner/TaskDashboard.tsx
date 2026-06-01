@@ -39,6 +39,7 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
             dataSource={itemStatusCounts}
             pagination={false}
             rowKey="status"
+            scroll={{ x: "max-content" }}
             size="small"
           />
           <Table
@@ -49,6 +50,7 @@ export function TaskDashboard({ task, items, template, exports, agentWorkflow }:
             dataSource={exportStatusCounts}
             pagination={false}
             rowKey="status"
+            scroll={{ x: "max-content" }}
             size="small"
           />
         </div>
