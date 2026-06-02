@@ -7,7 +7,7 @@ import { TaskDrawer } from "./TaskDrawer";
 import type { TaskCreate, TaskRead, TaskStatus } from "./types";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
-import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 
 const statusColors: Record<TaskStatus, string> = {
   draft: "default",
@@ -15,6 +15,7 @@ const statusColors: Record<TaskStatus, string> = {
   paused: "gold",
   ended: "red",
 };
+const progressColumnWidth = 180;
 
 export function OwnerTaskList() {
   const showOperationError = useOperationMessage();
@@ -79,7 +80,9 @@ export function OwnerTaskList() {
       {
         title: "进度",
         key: "progress",
-        render: () => <Progress percent={0} size="small" status="normal" />,
+        className: "owner-task-progress-cell",
+        width: progressColumnWidth,
+        render: () => <Progress className="owner-task-progress" percent={0} size="small" status="normal" />,
       },
       {
         title: "截止时间",
@@ -91,17 +94,18 @@ export function OwnerTaskList() {
         title: "操作",
         key: "actions",
         render: (_: unknown, record: TaskRead) => (
-          <Space>
-            <Button size="small" onClick={() => openEdit(record)}>
+          <Space className="owner-task-actions" size={8}>
+            <Button className="owner-task-action-control" size="small" onClick={() => openEdit(record)}>
               编辑
             </Button>
             {record.status === "draft" || record.status === "paused" ? (
-              <Link className="ant-btn ant-btn-primary ant-btn-sm" to={`/owner/tasks/${record.id}`}>
+              <Link className="owner-task-action-link" to={`/owner/tasks/${record.id}`}>
                 配置
               </Link>
             ) : null}
             {record.status === "published" ? (
               <Button
+                className="owner-task-action-control"
                 loading={transitioningId === record.id}
                 size="small"
                 onClick={() => runTransition(record.id, "pause")}
@@ -111,6 +115,7 @@ export function OwnerTaskList() {
             ) : null}
             {record.status === "published" || record.status === "paused" ? (
               <Button
+                className="owner-task-action-control"
                 danger
                 loading={transitioningId === record.id}
                 size="small"
@@ -219,13 +224,6 @@ export function OwnerTaskList() {
           onSubmit={submitTask}
         />
       </div>
-      <AssistantRail
-        context="负责人视角会优先关注任务状态、模板发布、数据导入和可导出的已批准结果。"
-        facts={[
-          { label: "任务总数", value: tasks.length },
-          { label: "待配置", value: tasks.filter((task) => task.status === "draft" || task.status === "paused").length },
-        ]}
-      />
     </section>
   );
 }

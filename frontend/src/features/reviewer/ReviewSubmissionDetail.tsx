@@ -6,7 +6,7 @@ import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatKnownText, formatLabel } from "../i18n/labels";
 import { SchemaRenderer } from "../schema-renderer";
-import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type {
@@ -343,15 +343,6 @@ export function ReviewSubmissionDetail() {
           onConfirm={(reason) => void returnWithReason(reason)}
         />
       </div>
-      <AssistantRail
-        context="审核详情助手会把 AI 分数、Prompt 快照、人工审核和审计轨迹整理为复核建议。"
-        facts={[
-          { label: "AI 审核", value: aiReviews.length },
-          { label: "人工审核", value: humanReviews.length },
-          { label: "历史尝试", value: detail.previous_attempts.length },
-          { label: "阶段", value: detail.current_stage ? formatLabel(detail.current_stage) : "无" },
-        ]}
-      />
     </section>
   );
 }

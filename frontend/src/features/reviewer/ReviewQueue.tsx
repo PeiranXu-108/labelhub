@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { normalizeError, useOperationMessage } from "../feedback";
 import type { ReviewStage } from "../labeler/types";
 import { formatLabel } from "../i18n/labels";
-import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { approveSubmission, batchReview, listReviewQueue, returnSubmission } from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type { ReviewQueueItemRead } from "./types";
@@ -309,14 +309,6 @@ export function ReviewQueue() {
           onConfirm={(reason) => void returnWithReason(reason)}
         />
       </div>
-      <AssistantRail
-        context="审核助手会优先解释 AI 决策、分数范围和批量处理风险。"
-        facts={[
-          { label: "队列项", value: queueItems.length },
-          { label: "已选", value: selectedIds.length },
-          { label: "分数", value: `${scoreRange[0]}-${scoreRange[1]}` },
-        ]}
-      />
     </section>
   );
 }

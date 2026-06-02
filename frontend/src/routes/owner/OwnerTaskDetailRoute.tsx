@@ -18,7 +18,7 @@ import {
 import { ReviewConfigEditor } from "../../features/owner/ReviewConfigEditor";
 import { TaskDashboard } from "../../features/owner/TaskDashboard";
 import { TemplateWorkspace } from "../../features/owner/TemplateWorkspace";
-import { AssistantRail, StudioPageHeader, StatusPill } from "../../features/studio";
+import { StudioPageHeader, StatusPill } from "../../features/studio";
 import { formatLabel } from "../../features/i18n/labels";
 import type {
   ExportJobRead,
@@ -226,14 +226,6 @@ export function OwnerTaskDetailRoute() {
             ]}
           />
         </div>
-        <AssistantRail
-          context="任务运营助手会围绕数据集、模板、审核配置和导出状态提供下一步建议。"
-          facts={[
-            { label: "数据项", value: items.length },
-            { label: "模板版本", value: template?.version ?? 0 },
-            { label: "导出任务", value: exports.length },
-          ]}
-        />
       </section>
     </main>
   );

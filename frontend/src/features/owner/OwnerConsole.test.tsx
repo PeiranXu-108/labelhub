@@ -186,9 +186,17 @@ describe("owner console", () => {
     );
 
     const row = await screen.findByRole("row", { name: /Sentiment QA/i });
+    const progressHeader = screen.getByRole("columnheader", { name: "进度" });
+    const progressCol = document.querySelector("col[style*='width: 180px']");
 
     expect(within(row).queryByRole("button", { name: /发\s*布/ })).not.toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: "配置" })).toHaveAttribute("href", "/owner/tasks/task-1");
+    expect(progressHeader).toHaveClass("owner-task-progress-cell");
+    expect(progressCol).toBeInTheDocument();
+
+    const setupLink = within(row).getByRole("link", { name: "配置" });
+    expect(setupLink).toHaveAttribute("href", "/owner/tasks/task-1");
+    expect(setupLink).toHaveClass("owner-task-action-link");
+    expect(setupLink).not.toHaveClass("ant-btn-primary");
   });
 
   it("publishes a ready draft task from the task detail route", async () => {

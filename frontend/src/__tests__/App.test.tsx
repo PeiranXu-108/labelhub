@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +23,24 @@ const reviewerUser = {
   email: "reviewer@example.com",
   name: "Reviewer",
   role: "reviewer",
+};
+
+const ownerTask = {
+  id: "task-1",
+  name: "Sentiment QA",
+  description: "Owner detail",
+  instruction_rich_text: null,
+  instruction_plain_text: null,
+  tags: [],
+  reward_rule: { mode: "none", currency: null, amount: null, description: null },
+  quality_rules: [],
+  status: "paused",
+  distribution_strategy: "manual",
+  quota_per_labeler: null,
+  deadline_at: null,
+  created_by: "owner-1",
+  created_at: "2026-05-23T00:00:00Z",
+  updated_at: "2026-05-23T00:00:00Z",
 };
 
 function renderApp(path: string) {
@@ -54,6 +72,7 @@ describe("App auth routes", () => {
 
     expect(screen.getByRole("heading", { name: "LabelHub Studio" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "总结待审核风险" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "LabelHub Assistant" })).not.toBeInTheDocument();
   });
 
   it("redirects protected routes to login when no token is stored", async () => {
@@ -124,6 +143,72 @@ describe("App auth routes", () => {
     expect(await screen.findByRole("heading", { name: "标注任务" })).toBeInTheDocument();
   });
 
+  it("shows header route navigation and the owner account dashboard popover", async () => {
+    localStorage.setItem("labelhub.accessToken", "owner-token");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me")) {
+        return mockJson(ownerUser);
+      }
+      if (url.endsWith("/tasks")) {
+        return mockJson([
+          { ...ownerTask, id: "task-1", status: "paused" },
+          { ...ownerTask, id: "task-2", status: "published" },
+        ]);
+      }
+      if (url.endsWith("/tasks/task-1")) {
+        return mockJson(ownerTask);
+      }
+      if (url.endsWith("/tasks/task-1/items")) {
+        return mockJson([]);
+      }
+      if (url.endsWith("/tasks/task-1/review-config")) {
+        return mockJson({
+          prompt_template: "",
+          criteria: [],
+          pass_threshold: 80,
+          return_threshold: 40,
+          manual_review_threshold: 60,
+          model_name: "deepseek-chat",
+          temperature: 0,
+          max_retries: 2,
+        });
+      }
+      if (url.endsWith("/tasks/task-1/template")) {
+        return mockJson(null);
+      }
+      if (url.endsWith("/tasks/task-1/exports")) {
+        return mockJson([]);
+      }
+      if (url.endsWith("/tasks/task-1/agent-workflow")) {
+        return mockJson(null);
+      }
+      return mockJson({ detail: { message: `Unexpected request: ${url}` } }, 500);
+    });
+
+    renderApp("/owner/tasks/task-1");
+
+    expect(await screen.findByRole("heading", { name: "Sentiment QA" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "主导航" })).not.toBeInTheDocument();
+
+    const header = screen.getByRole("banner");
+    const routeNav = within(header).getByRole("navigation", { name: "路由导航" });
+    expect(within(routeNav).getByRole("link", { name: "首页" })).toHaveAttribute("href", "/");
+    expect(within(routeNav).getByRole("link", { name: "任务列表" })).toHaveAttribute("href", "/owner/tasks");
+    expect(within(routeNav).getByText("任务详情")).toBeInTheDocument();
+    expect(within(header).queryByRole("button", { name: "退出登录" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(header).getByRole("button", { name: "当前用户" }));
+
+    const dashboard = await screen.findByRole("region", { name: "账号工作内容看板" });
+    expect(within(dashboard).getByText("Owner")).toBeInTheDocument();
+    expect(within(dashboard).getByText("任务总数")).toBeInTheDocument();
+    expect(within(dashboard).getByText("2")).toBeInTheDocument();
+    expect(within(dashboard).getByText("已发布")).toBeInTheDocument();
+    expect(within(dashboard).getByRole("link", { name: "进入工作台" })).toHaveAttribute("href", "/owner/tasks");
+    expect(within(dashboard).getByRole("button", { name: "退出登录" })).toBeInTheDocument();
+  });
+
   it("logs out by clearing the stored token and returning to login", async () => {
     localStorage.setItem("labelhub.accessToken", "owner-token");
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -139,7 +224,12 @@ describe("App auth routes", () => {
     renderApp("/owner/tasks");
 
     expect(await screen.findByRole("heading", { name: "负责人任务" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "退出登录" }));
+    const header = screen.getByRole("banner");
+    expect(within(header).queryByRole("button", { name: "退出登录" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(header).getByRole("button", { name: "当前用户" }));
+    const dashboard = await screen.findByRole("region", { name: "账号工作内容看板" });
+    fireEvent.click(within(dashboard).getByRole("button", { name: "退出登录" }));
 
     await waitFor(() => expect(localStorage.getItem("labelhub.accessToken")).toBeNull());
     expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();

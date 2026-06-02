@@ -6,7 +6,7 @@ import { claimTask, listMarketplaceTasks, listOwnSubmissions } from "./api";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
 import type { TaskRead } from "../owner/types";
-import { AssistantRail, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { formatRewardRule } from "../task-metadata/TaskMetadataPanel";
 import type { SubmissionRead } from "./types";
 
@@ -233,13 +233,6 @@ export function LabelerMarketplace() {
           />
         </StudioPanel>
       </div>
-      <AssistantRail
-        context="标注员视角会优先关注可认领任务、退回修订和自动保存状态。"
-        facts={[
-          { label: "可认领", value: filteredTasks.length },
-          { label: "提交记录", value: submissions.length },
-        ]}
-      />
     </section>
   );
 }

@@ -1,25 +1,33 @@
-import { Bubble, Prompts, Sender, ThoughtChain, Welcome } from "@ant-design/x/lib";
-import type { PromptProps, ThoughtChainItem } from "@ant-design/x/lib";
-import { Avatar, Button, Layout, Space, Tag, Typography } from "antd";
+import { Alert, Avatar, Button, Layout, Popover, Spin, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import type { UserSummary } from "../auth/types";
-import { defaultAssistantPrompts } from "./assistant";
-import type { StudioPrompt } from "./assistant";
+import { listMarketplaceTasks, listOwnSubmissions } from "../labeler/api";
+import { listTasks } from "../owner/api";
+import { listReviewQueue } from "../reviewer/api";
 
-export type StudioNavItem = {
-  path: string;
+type RouteNavItem = {
   label: string;
+  path?: string;
 };
 
 type AppShellProps = {
   user?: UserSummary | null;
-  navigationItems: StudioNavItem[];
   onLogout: () => void;
   children: ReactNode;
 };
+
+type AccountDashboardMetric = {
+  label: string;
+  value: number;
+};
+
+type AccountDashboardState =
+  | { status: "idle" | "loading"; metrics: AccountDashboardMetric[] }
+  | { status: "ready"; metrics: AccountDashboardMetric[] }
+  | { status: "error"; metrics: AccountDashboardMetric[]; message: string };
 
 const roleLabels: Record<string, string> = {
   owner: "负责人",
@@ -27,8 +35,164 @@ const roleLabels: Record<string, string> = {
   reviewer: "审核员",
 };
 
-export function AppShell({ user, navigationItems, onLogout, children }: AppShellProps) {
+function getRouteNavigation(pathname: string): RouteNavItem[] {
+  if (pathname === "/") {
+    return [];
+  }
+  if (pathname === "/login") {
+    return [{ label: "首页", path: "/" }, { label: "登录" }];
+  }
+  if (pathname === "/owner/tasks") {
+    return [{ label: "首页", path: "/" }, { label: "任务列表" }];
+  }
+  if (pathname.startsWith("/owner/tasks/")) {
+    return [{ label: "首页", path: "/" }, { label: "任务列表", path: "/owner/tasks" }, { label: "任务详情" }];
+  }
+  if (pathname === "/labeler/tasks") {
+    return [{ label: "首页", path: "/" }, { label: "标注任务" }];
+  }
+  if (pathname.startsWith("/labeler/assignments/")) {
+    return [{ label: "首页", path: "/" }, { label: "标注任务", path: "/labeler/tasks" }, { label: "标注详情" }];
+  }
+  if (pathname === "/review/queue") {
+    return [{ label: "首页", path: "/" }, { label: "审核队列" }];
+  }
+  if (pathname.startsWith("/review/submissions/")) {
+    return [{ label: "首页", path: "/" }, { label: "审核队列", path: "/review/queue" }, { label: "提交详情" }];
+  }
+  return [{ label: "首页", path: "/" }, { label: "当前页面" }];
+}
+
+const roleEntryPath: Record<string, string> = {
+  owner: "/owner/tasks",
+  labeler: "/labeler/tasks",
+  reviewer: "/review/queue",
+};
+
+async function loadAccountMetrics(user: UserSummary): Promise<AccountDashboardMetric[]> {
+  if (user.role === "owner") {
+    const tasks = await listTasks();
+    return [
+      { label: "任务总数", value: tasks.length },
+      { label: "已发布", value: tasks.filter((task) => task.status === "published").length },
+      { label: "待配置", value: tasks.filter((task) => task.status === "draft" || task.status === "paused").length },
+      { label: "已结束", value: tasks.filter((task) => task.status === "ended").length },
+    ];
+  }
+
+  if (user.role === "labeler") {
+    const [tasks, submissions] = await Promise.all([listMarketplaceTasks(), listOwnSubmissions()]);
+    return [
+      { label: "可认领", value: tasks.length },
+      { label: "我的提交", value: submissions.length },
+      { label: "待修订", value: submissions.filter((submission) => submission.status === "returned" || submission.status === "ai_returned").length },
+      { label: "已通过", value: submissions.filter((submission) => submission.status === "approved" || submission.status === "exportable").length },
+    ];
+  }
+
+  if (user.role === "reviewer") {
+    const queueItems = await listReviewQueue();
+    return [
+      { label: "队列总数", value: queueItems.length },
+      { label: "待人工", value: queueItems.filter((item) => item.submission.status === "needs_human_review").length },
+      { label: "AI 通过", value: queueItems.filter((item) => item.submission.status === "ai_passed").length },
+      { label: "最终复核", value: queueItems.filter((item) => item.current_stage === "final_review").length },
+    ];
+  }
+
+  return [];
+}
+
+function AccountDashboard({
+  user,
+  state,
+  onRetry,
+  onLogout,
+}: {
+  user: UserSummary;
+  state: AccountDashboardState;
+  onRetry: () => void;
+  onLogout: () => void;
+}) {
+  const roleLabel = roleLabels[user.role] ?? user.role;
+  const entryPath = roleEntryPath[user.role] ?? "/";
+
+  return (
+    <section className="account-dashboard-popover" aria-label="账号工作内容看板">
+      <div className="account-dashboard-identity">
+        <Avatar size={40}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+        <div>
+          <Typography.Text strong>{user.name}</Typography.Text>
+          <Typography.Text type="secondary">{user.email}</Typography.Text>
+        </div>
+        <Tag>{roleLabel}</Tag>
+      </div>
+      {state.status === "loading" || state.status === "idle" ? (
+        <div className="account-dashboard-loading">
+          <Spin size="small" />
+          <Typography.Text type="secondary">加载工作内容</Typography.Text>
+        </div>
+      ) : null}
+      {state.status === "error" ? (
+        <Alert
+          action={
+            <Button size="small" onClick={onRetry}>
+              重试
+            </Button>
+          }
+          message={state.message}
+          type="error"
+        />
+      ) : null}
+      {state.status === "ready" ? (
+        <div className="account-dashboard-metrics">
+          {state.metrics.map((metric) => (
+            <div className="account-dashboard-metric" key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="account-dashboard-actions">
+        <Link className="account-dashboard-entry" to={entryPath}>
+          进入工作台
+        </Link>
+        <Button onClick={onLogout}>退出登录</Button>
+      </div>
+    </section>
+  );
+}
+
+export function AppShell({ user, onLogout, children }: AppShellProps) {
   const location = useLocation();
+  const routeNavigation = getRouteNavigation(location.pathname);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [dashboardState, setDashboardState] = useState<AccountDashboardState>({ status: "idle", metrics: [] });
+
+  useEffect(() => {
+    setAccountOpen(false);
+    setDashboardState({ status: "idle", metrics: [] });
+  }, [user?.id, user?.role]);
+
+  const loadDashboard = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+    setDashboardState({ status: "loading", metrics: [] });
+    try {
+      setDashboardState({ status: "ready", metrics: await loadAccountMetrics(user) });
+    } catch {
+      setDashboardState({ status: "error", metrics: [], message: "看板加载失败" });
+    }
+  }, [user]);
+
+  function handleAccountOpenChange(open: boolean) {
+    setAccountOpen(open);
+    if (open && dashboardState.status === "idle") {
+      void loadDashboard();
+    }
+  }
 
   return (
     <Layout className="app-layout studio-app">
@@ -42,25 +206,33 @@ export function AppShell({ user, navigationItems, onLogout, children }: AppShell
             <small>Studio</small>
           </span>
         </Link>
-        <nav className="app-nav studio-nav" aria-label="主导航">
-          {navigationItems.map((item) => (
-            <Link
-              className={location.pathname.startsWith(item.path) ? "active" : undefined}
-              key={item.path}
-              to={item.path}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        {routeNavigation.length > 0 ? (
+          <nav className="route-nav" aria-label="路由导航">
+            <div className="route-nav-inner">
+              {routeNavigation.map((item, index) => (
+                <span className="route-nav-item" key={`${item.label}-${index}`}>
+                  {item.path ? <Link to={item.path}>{item.label}</Link> : <span aria-current="page">{item.label}</span>}
+                </span>
+              ))}
+            </div>
+          </nav>
+        ) : null}
         {user ? (
           <div className="auth-summary studio-auth-summary">
-            <div className="user-chip" aria-label="当前用户">
-              <Avatar size={28}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
-              <span>{user.name}</span>
-              <Tag>{roleLabels[user.role] ?? user.role}</Tag>
-            </div>
-            <Button onClick={onLogout}>退出登录</Button>
+            <Popover
+              arrow={false}
+              content={<AccountDashboard state={dashboardState} user={user} onLogout={onLogout} onRetry={loadDashboard} />}
+              open={accountOpen}
+              placement="bottomRight"
+              trigger="click"
+              onOpenChange={handleAccountOpenChange}
+            >
+              <button className="user-chip account-trigger" aria-label="当前用户" type="button">
+                <Avatar size={28}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                <span className="user-chip-name">{user.name}</span>
+                <Tag>{roleLabels[user.role] ?? user.role}</Tag>
+              </button>
+            </Popover>
           </div>
         ) : null}
       </Layout.Header>
@@ -163,139 +335,4 @@ export function StatusPill({ status, children }: { status: string; children: Rea
 
 export function JsonViewer({ value, className }: { value: unknown; className?: string }) {
   return <pre className={["json-panel studio-json-viewer", className].filter(Boolean).join(" ")}>{JSON.stringify(value, null, 2)}</pre>;
-}
-
-type AssistantRailProps = {
-  title?: string;
-  description?: ReactNode;
-  context?: ReactNode;
-  prompts?: StudioPrompt[];
-  facts?: Array<{ label: ReactNode; value: ReactNode }>;
-  workflowItems?: ThoughtChainItem[];
-  className?: string;
-};
-
-type AssistantMessage = {
-  id: string;
-  role: "assistant" | "user";
-  content: string;
-};
-
-export function AssistantRail({
-  title = "LabelHub Assistant",
-  description = "基于当前页面上下文的前端体验层，不会调用后端聊天接口。",
-  context,
-  prompts = defaultAssistantPrompts,
-  facts = [],
-  workflowItems,
-  className,
-}: AssistantRailProps) {
-  const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<AssistantMessage[]>([
-    {
-      id: "intro",
-      role: "assistant",
-      content: "我会把当前任务、模板、AI 审核和导出状态整理成下一步建议。",
-    },
-  ]);
-
-  const promptItems: PromptProps[] = useMemo(
-    () =>
-      prompts.map((prompt) => ({
-        key: prompt.key,
-        label: prompt.label,
-        description: prompt.description,
-      })),
-    [prompts],
-  );
-
-  function appendExchange(userText: string, assistantText: string) {
-    setMessages((current) => [
-      ...current,
-      { id: `user-${Date.now()}`, role: "user", content: userText },
-      { id: `assistant-${Date.now()}`, role: "assistant", content: assistantText },
-    ]);
-  }
-
-  function handlePrompt(key: string) {
-    const prompt = prompts.find((item) => item.key === key);
-    if (!prompt) {
-      return;
-    }
-    appendExchange(prompt.label, prompt.response);
-  }
-
-  function handleSubmit(message: string) {
-    const trimmed = message.trim();
-    if (!trimmed) {
-      return;
-    }
-    appendExchange(trimmed, `已记录：“${trimmed}”。当前版本会在本地生成建议，后续可以接入真实助手 API。`);
-    setDraft("");
-  }
-
-  return (
-    <aside className={["assistant-rail", className].filter(Boolean).join(" ")} aria-label={title}>
-      <Welcome
-        className="assistant-welcome"
-        title={title}
-        description={description}
-        icon={<span className="assistant-mark" aria-hidden="true" />}
-      />
-      {context ? <div className="assistant-context">{context}</div> : null}
-      {facts.length > 0 ? (
-        <div className="assistant-facts">
-          {facts.map((fact, index) => (
-            <div key={index}>
-              <span>{fact.label}</span>
-              <strong>{fact.value}</strong>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {workflowItems && workflowItems.length > 0 ? (
-        <ThoughtChain className="assistant-thought-chain" items={workflowItems} size="small" />
-      ) : null}
-      <Prompts
-        className="assistant-prompts"
-        items={promptItems}
-        title="建议操作"
-        vertical
-        onItemClick={({ data }) => handlePrompt(data.key)}
-      />
-      <Bubble.List
-        className="assistant-bubbles"
-        items={messages.map((message) => ({
-          key: message.id,
-          role: message.role,
-          content: message.content,
-        }))}
-        roles={{
-          assistant: {
-            avatar: { children: "AI" },
-            placement: "start",
-            variant: "shadow",
-          },
-          user: {
-            avatar: { children: "我" },
-            placement: "end",
-            variant: "filled",
-          },
-        }}
-      />
-      <Sender
-        autoSize={{ minRows: 1, maxRows: 3 }}
-        className="assistant-sender"
-        placeholder="输入一个本地助手问题"
-        submitType="enter"
-        value={draft}
-        onChange={setDraft}
-        onSubmit={handleSubmit}
-      />
-      <Space className="assistant-note">
-        <span />
-        <Typography.Text type="secondary">本地交互</Typography.Text>
-      </Space>
-    </aside>
-  );
 }

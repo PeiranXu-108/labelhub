@@ -1,6 +1,6 @@
 import { XProvider } from "@ant-design/x/lib";
 import { App as AntdApp, Button, ConfigProvider, Space, Spin, Typography } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
@@ -14,24 +14,13 @@ import { OwnerTaskDetailRoute } from "./routes/owner/OwnerTaskDetailRoute";
 import { OwnerTasksRoute } from "./routes/owner/OwnerTasksRoute";
 import { ReviewQueueRoute } from "./routes/review/ReviewQueueRoute";
 import { ReviewSubmissionRoute } from "./routes/review/ReviewSubmissionRoute";
-import {
-  AppShell,
-  AssistantRail,
-  MetricStrip,
-  StudioPanel,
-} from "./features/studio";
+import { AppShell, MetricStrip, StudioPanel } from "./features/studio";
 import { defaultAssistantPrompts } from "./features/studio/assistant";
 
 type AuthState =
   | { status: "checking"; user: null }
   | { status: "anonymous"; user: null }
   | { status: "authenticated"; user: UserSummary };
-
-const navigationByRole: Partial<Record<UserRole, { path: string; label: string }[]>> = {
-  owner: [{ path: "/owner/tasks", label: "负责人" }],
-  labeler: [{ path: "/labeler/tasks", label: "标注员" }],
-  reviewer: [{ path: "/review/queue", label: "审核" }],
-};
 
 function HomePage() {
   return (
@@ -58,10 +47,6 @@ function HomePage() {
             ]}
           />
         </div>
-        <AssistantRail
-          title="LabelHub Assistant"
-          context="在业务页面中，我会结合当前任务、模板、提交和审核状态给出本地建议。"
-        />
       </section>
       <div className="home-panel-grid">
         <StudioPanel title="负责人" description="创建任务、导入数据、发布模板，并跟踪 Agent 审核产线。">
@@ -119,11 +104,6 @@ export default function App() {
   const [authState, setAuthState] = useState<AuthState>(() =>
     getAccessToken() ? { status: "checking", user: null } : { status: "anonymous", user: null },
   );
-  const navigationItems = useMemo(
-    () => (authState.user ? (navigationByRole[authState.user.role] ?? []) : []),
-    [authState.user],
-  );
-
   useEffect(() => {
     if (!getAccessToken()) {
       setAuthState({ status: "anonymous", user: null });
@@ -175,7 +155,7 @@ export default function App() {
     >
       <XProvider>
         <AntdApp message={{ duration: 4, maxCount: 3, top: 76 }}>
-          <AppShell user={authState.user} navigationItems={navigationItems} onLogout={handleLogout}>
+          <AppShell user={authState.user} onLogout={handleLogout}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route

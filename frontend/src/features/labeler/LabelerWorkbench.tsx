@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AgentWorkflowTimeline } from "../agent-workflow/AgentWorkflowTimeline";
 import { normalizeError, useOperationMessage } from "../feedback";
 import { formatLabel } from "../i18n/labels";
-import { AssistantRail, JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import { JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
 import { TaskMetadataPanel } from "../task-metadata/TaskMetadataPanel";
 import type { AgentWorkflowRead } from "../agent-workflow/types";
 import { SchemaRenderer } from "../schema-renderer";
@@ -382,14 +382,6 @@ export function LabelerWorkbench() {
           </div>
         </Space>
       </Modal>
-      <AssistantRail
-        context="标注工作台助手会关注退回原因、必填字段、Schema 版本和自动保存状态。"
-        facts={[
-          { label: "尝试次数", value: submission.attempt },
-          { label: "Schema", value: submission.schema_version },
-          { label: "自动保存", value: formatLabel(autosaveState) },
-        ]}
-      />
     </section>
   );
 }
