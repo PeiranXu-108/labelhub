@@ -1,4 +1,4 @@
-import { Alert, Button, Descriptions, Input, Modal, Result, Skeleton, Space, Tag, Typography } from "antd";
+import { Alert, Button, Descriptions, Input, List, Modal, Progress, Select, Result, Skeleton, Space, Tag, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -16,11 +16,18 @@ import {
   getAssignmentWithTemplate,
   navigateToNextAssignment,
   navigateToPreviousAssignment,
+  reportAssignmentProblem,
   saveAssignmentDraft,
   skipAssignment,
   submitAssignment,
 } from "./api";
-import type { AssignmentDetailRead, AssignmentNavigationMoveRead, AssignmentNavigationRead, SubmissionRead } from "./types";
+import type {
+  AssignmentDetailRead,
+  AssignmentNavigationItemRead,
+  AssignmentNavigationMoveRead,
+  AssignmentNavigationRead,
+  SubmissionRead,
+} from "./types";
 import type { TemplateSchemaRead } from "../owner/types";
 
 const AUTOSAVE_DEBOUNCE_MS = 900;
@@ -30,6 +37,20 @@ type NavigationAction = "previous" | "next" | "skip";
 
 function sameAnswers(left: AnswerPayload, right: AnswerPayload) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function isEditableShortcutTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tagName = target.tagName.toLowerCase();
+  if (["input", "textarea", "select"].includes(tagName)) {
+    return true;
+  }
+  return Boolean(target.closest("[contenteditable='true'], .ant-select, .ant-input, .ant-input-number"));
 }
 
 export function LabelerWorkbench() {
@@ -50,7 +71,16 @@ export function LabelerWorkbench() {
   const [navigating, setNavigating] = useState<NavigationAction | null>(null);
   const [skipModalOpen, setSkipModalOpen] = useState(false);
   const [skipReason, setSkipReason] = useState("");
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState("bad_source");
+  const [reportNote, setReportNote] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const schemaRendererRef = useRef<HTMLDivElement | null>(null);
+  const hasPrevious = Boolean(navigationState?.has_previous);
+  const hasNext = Boolean(navigationState?.has_next);
+  const navigationBusy = navigating !== null;
 
   const load = useCallback(async () => {
     if (!assignmentId) {
@@ -74,6 +104,7 @@ export function LabelerWorkbench() {
       latestAnswers.current = result.assignment.submission.answer_payload ?? {};
       editedRef.current = false;
       setAutosaveState("idle");
+      setReportSuccess(null);
     } catch (err) {
       setError(normalizeError(err, "加载作业失败。"));
     } finally {
@@ -119,8 +150,8 @@ export function LabelerWorkbench() {
     setAnswers(nextAnswers);
   }
 
-  async function saveDraftBeforeNavigation() {
-    if (!assignmentId || !editedRef.current) {
+  async function persistCurrentDraft(errorMessage: string) {
+    if (!assignmentId) {
       return true;
     }
     const snapshot = latestAnswers.current;
@@ -134,8 +165,27 @@ export function LabelerWorkbench() {
       setAutosaveState("saved");
       return true;
     } catch (err) {
-      showOperationError(err, "离开前保存草稿失败。");
+      showOperationError(err, errorMessage);
       setAutosaveState("error");
+      throw err;
+    }
+  }
+
+  async function handleSaveDraft() {
+    try {
+      await persistCurrentDraft("保存草稿失败。");
+    } catch {
+      // Error message is already surfaced through the operation message hook.
+    }
+  }
+
+  async function saveDraftBeforeNavigation() {
+    if (!assignmentId || !editedRef.current) {
+      return true;
+    }
+    try {
+      return await persistCurrentDraft("离开前保存草稿失败。");
+    } catch {
       return window.confirm("草稿保存失败，仍要离开当前作业吗？未保存更改会丢失。");
     }
   }
@@ -203,6 +253,45 @@ export function LabelerWorkbench() {
     }
   }
 
+  async function handleReportProblem() {
+    if (!assignmentId || !reportNote.trim()) {
+      return;
+    }
+    setReporting(true);
+    try {
+      await reportAssignmentProblem(assignmentId, reportCategory, reportNote.trim());
+      setReportModalOpen(false);
+      setReportNote("");
+      setReportCategory("bad_source");
+      setReportSuccess("问题已记录。");
+      const refreshedNavigationState = await getAssignmentNavigation(assignmentId).catch(() => null);
+      if (refreshedNavigationState) {
+        setNavigationState(refreshedNavigationState);
+      }
+    } catch (err) {
+      showOperationError(err, "报告问题失败。");
+    } finally {
+      setReporting(false);
+    }
+  }
+
+  async function handleNavigationItemClick(item: AssignmentNavigationItemRead) {
+    if (!item.is_navigable || item.is_current) {
+      return;
+    }
+    if (item.navigation_action === "next") {
+      await handleNavigate("next");
+      return;
+    }
+    if (!item.assignment_id) {
+      return;
+    }
+    const canLeave = await saveDraftBeforeNavigation();
+    if (canLeave) {
+      navigate(`/labeler/assignments/${item.assignment_id}`);
+    }
+  }
+
   async function handleSubmit(nextAnswers: AnswerPayload) {
     if (!assignmentId) {
       return;
@@ -210,8 +299,15 @@ export function LabelerWorkbench() {
     setSubmitting(true);
     try {
       const saved = await submitAssignment(assignmentId, nextAnswers);
+      const [refreshedAgentWorkflow, refreshedNavigationState] = await Promise.all([
+        getAssignmentAgentWorkflow(assignmentId).catch(() => null),
+        getAssignmentNavigation(assignmentId).catch(() => null),
+      ]);
       setSubmission(saved);
-      setAgentWorkflow(await getAssignmentAgentWorkflow(assignmentId).catch(() => null));
+      setAgentWorkflow(refreshedAgentWorkflow);
+      if (refreshedNavigationState) {
+        setNavigationState(refreshedNavigationState);
+      }
       setAnswers(saved.answer_payload);
       latestAnswers.current = saved.answer_payload;
       editedRef.current = false;
@@ -222,6 +318,48 @@ export function LabelerWorkbench() {
       setSubmitting(false);
     }
   }
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (event.defaultPrevented || isEditableShortcutTarget(event.target)) {
+        return;
+      }
+      if (skipModalOpen || reportModalOpen) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === "s") {
+        event.preventDefault();
+        void handleSaveDraft();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        const submitButton = schemaRendererRef.current?.querySelector(
+          ".schema-renderer > .ant-btn-primary",
+        ) as HTMLButtonElement | null;
+        submitButton?.click();
+        return;
+      }
+      if (event.altKey && event.key === "ArrowLeft" && navigationState?.has_previous && !navigationBusy) {
+        event.preventDefault();
+        void handleNavigate("previous");
+        return;
+      }
+      if (event.altKey && event.key === "ArrowRight" && navigationState?.has_next && !navigationBusy) {
+        event.preventDefault();
+        void handleNavigate("next");
+        return;
+      }
+      if (event.altKey && key === "r") {
+        event.preventDefault();
+        setReportModalOpen(true);
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  });
 
   if (loading) {
     return (
@@ -253,9 +391,8 @@ export function LabelerWorkbench() {
   const isReturned = submission.status === "returned" || submission.status === "ai_returned";
   const returnReason = assignment.latest_human_review?.reason;
   const returnStage = assignment.latest_human_review?.stage ?? submission.review_stage;
-  const hasPrevious = Boolean(navigationState?.has_previous);
-  const hasNext = Boolean(navigationState?.has_next);
-  const navigationBusy = navigating !== null;
+  const currentPosition = navigationState?.current_position ?? null;
+  const totalCount = navigationState?.total_count ?? null;
 
   return (
     <section className="studio-with-rail" aria-labelledby="assignment-heading">
@@ -287,6 +424,12 @@ export function LabelerWorkbench() {
               >
                 下一个
               </Button>
+              <Button disabled={submitting || navigationBusy} onClick={() => void handleSaveDraft()}>
+                保存草稿
+              </Button>
+              <Button disabled={submitting || navigationBusy} onClick={() => setReportModalOpen(true)}>
+                报告问题
+              </Button>
               <Button danger disabled={navigationBusy || submitting} onClick={() => setSkipModalOpen(true)}>
                 跳过
               </Button>
@@ -294,6 +437,7 @@ export function LabelerWorkbench() {
           }
         />
 
+        {reportSuccess ? <Alert message={reportSuccess} type="success" showIcon /> : null}
         {navigationState?.no_work_left ? (
           <Alert message="没有更多可标注的数据项。" type="info" showIcon />
         ) : null}
@@ -339,25 +483,116 @@ export function LabelerWorkbench() {
 
         <AgentWorkflowTimeline compact workflow={agentWorkflow} />
 
+        <div className="workbench-productivity-grid">
+          <StudioPanel title="作业导航" className="ops-card">
+            {currentPosition && totalCount ? (
+              <Space className="workbench-progress" direction="vertical">
+                <Space wrap>
+                  <Typography.Text strong>{`${currentPosition} / ${totalCount}`}</Typography.Text>
+                  <Typography.Text type="secondary">当前任务进度</Typography.Text>
+                </Space>
+                <Progress
+                  percent={Math.round((currentPosition / Math.max(totalCount, 1)) * 100)}
+                  showInfo={false}
+                  size="small"
+                />
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">导航信息暂不可用</Typography.Text>
+            )}
+            <List
+              className="assignment-nav-list"
+              dataSource={navigationState?.items ?? []}
+              locale={{ emptyText: "暂无可显示的作业" }}
+              renderItem={(item) => (
+                <List.Item>
+                  <Button
+                    block
+                    className="assignment-nav-item"
+                    disabled={!item.is_navigable || item.is_current || navigationBusy}
+                    type={item.is_current ? "primary" : "default"}
+                    onClick={() => void handleNavigationItemClick(item)}
+                  >
+                    <span>{`#${item.position}`}</span>
+                    <span>{item.external_id ?? item.item_id}</span>
+                    <Tag>{formatLabel(item.status)}</Tag>
+                  </Button>
+                </List.Item>
+              )}
+            />
+          </StudioPanel>
+
+          <StudioPanel title="我的贡献" className="ops-card">
+            {navigationState?.contribution ? (
+              <Space className="contribution-summary" wrap>
+                <Tag>{`草稿/进行中 ${navigationState.contribution.draft_count}`}</Tag>
+                <Tag>{`已提交 ${navigationState.contribution.submitted_count}`}</Tag>
+                <Tag>{`通过/批准 ${navigationState.contribution.approved_passed_count}`}</Tag>
+                <Tag>{`退回/拒绝 ${navigationState.contribution.returned_rejected_count}`}</Tag>
+                <Tag>{`我的作业 ${navigationState.contribution.total_owned_count}`}</Tag>
+              </Space>
+            ) : (
+              <Typography.Text type="secondary">贡献统计暂不可用</Typography.Text>
+            )}
+          </StudioPanel>
+
+          <StudioPanel title="当前作业历史" className="ops-card">
+            <List
+              className="assignment-history-list"
+              dataSource={navigationState?.history ?? []}
+              locale={{ emptyText: "暂无历史记录" }}
+              renderItem={(event) => (
+                <List.Item>
+                  <Space direction="vertical" size={2}>
+                    <Space wrap>
+                      <Typography.Text strong>{event.title}</Typography.Text>
+                      <Tag>{formatLabel(event.actor_role)}</Tag>
+                    </Space>
+                    {event.summary ? <Typography.Text type="secondary">{event.summary}</Typography.Text> : null}
+                    <Typography.Text type="secondary">{new Date(event.created_at).toLocaleString()}</Typography.Text>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          </StudioPanel>
+
+          <StudioPanel title="快捷键" className="ops-card">
+            <div className="shortcut-grid">
+              <Typography.Text>Ctrl/⌘ + S</Typography.Text>
+              <Typography.Text>保存草稿</Typography.Text>
+              <Typography.Text>Ctrl/⌘ + Enter</Typography.Text>
+              <Typography.Text>提交</Typography.Text>
+              <Typography.Text>Alt + ←</Typography.Text>
+              <Typography.Text>上一个</Typography.Text>
+              <Typography.Text>Alt + →</Typography.Text>
+              <Typography.Text>下一个</Typography.Text>
+              <Typography.Text>Alt + R</Typography.Text>
+              <Typography.Text>报告问题</Typography.Text>
+            </div>
+          </StudioPanel>
+        </div>
+
         <div className="workbench-grid">
           <StudioPanel title="数据项内容">
             <JsonViewer value={assignment.item.payload} />
           </StudioPanel>
           <StudioPanel>
-            <SchemaRenderer
-              key={`${template.id}-${submission.id}`}
-              schema={template.schema_payload}
-              item={{
-                id: assignment.item.id,
-                external_id: assignment.item.external_id,
-                payload: assignment.item.payload,
-              }}
-              initialAnswers={answers}
-              assistContext={{ assignmentId: assignment.id }}
-              uploadContext={{ assignmentId: assignment.id }}
-              onChange={handleChange}
-              onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
-            />
+            <div ref={schemaRendererRef}>
+              <SchemaRenderer
+                key={`${template.id}-${submission.id}`}
+                schema={template.schema_payload}
+                item={{
+                  id: assignment.item.id,
+                  external_id: assignment.item.external_id,
+                  payload: assignment.item.payload,
+                }}
+                initialAnswers={answers}
+                assistContext={{ assignmentId: assignment.id }}
+                uploadContext={{ assignmentId: assignment.id }}
+                onChange={handleChange}
+                onSubmit={(nextAnswers) => void handleSubmit(nextAnswers)}
+              />
+            </div>
             {submitting ? <Typography.Text type="secondary">正在提交当前答案...</Typography.Text> : null}
           </StudioPanel>
         </div>
@@ -378,6 +613,41 @@ export function LabelerWorkbench() {
             <Button onClick={() => setSkipModalOpen(false)}>取消</Button>
             <Button danger loading={navigating === "skip"} type="primary" onClick={() => void handleSkipConfirm()}>
               确认跳过
+            </Button>
+          </div>
+        </Space>
+      </Modal>
+      <Modal footer={null} open={reportModalOpen} title="报告问题" onCancel={() => setReportModalOpen(false)}>
+        <Space className="modal-stack" direction="vertical">
+          <Typography.Text type="secondary">
+            报告只记录当前数据项问题，不会提交答案，也不会改变作业状态。
+          </Typography.Text>
+          <Select
+            aria-label="问题类别"
+            options={[
+              { label: "数据源问题", value: "bad_source" },
+              { label: "模板问题", value: "template_issue" },
+              { label: "其他问题", value: "other" },
+            ]}
+            value={reportCategory}
+            onChange={setReportCategory}
+          />
+          <Input.TextArea
+            aria-label="问题说明"
+            autoSize={{ minRows: 4 }}
+            placeholder="说明当前数据项的问题"
+            value={reportNote}
+            onChange={(event) => setReportNote(event.target.value)}
+          />
+          <div className="drawer-actions">
+            <Button onClick={() => setReportModalOpen(false)}>取消</Button>
+            <Button
+              disabled={!reportNote.trim()}
+              loading={reporting}
+              type="primary"
+              onClick={() => void handleReportProblem()}
+            >
+              提交报告
             </Button>
           </div>
         </Space>

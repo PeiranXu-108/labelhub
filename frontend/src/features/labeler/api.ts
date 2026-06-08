@@ -8,6 +8,7 @@ import type {
   AssignmentNavigationMoveRead,
   AssignmentNavigationRead,
   ClaimRead,
+  ProblemReportRead,
   SubmissionRead,
 } from "./types";
 
@@ -69,6 +70,13 @@ export function skipAssignment(assignmentId: string, reason: string | null) {
   return apiRequest<AssignmentNavigationMoveRead>(`/labeler/assignments/${assignmentId}/skip`, {
     method: "POST",
     body: { reason },
+  });
+}
+
+export function reportAssignmentProblem(assignmentId: string, category: string, note: string) {
+  return apiRequest<ProblemReportRead>(`/labeler/assignments/${assignmentId}/problem-reports`, {
+    method: "POST",
+    body: { category, note },
   });
 }
 

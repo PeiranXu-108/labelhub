@@ -14,6 +14,8 @@ from app.schemas.labeler import (
     AssignmentNavigationMoveRead,
     AssignmentNavigationRead,
     ClaimRead,
+    ProblemReportRead,
+    ProblemReportRequest,
     SkipAssignmentRequest,
 )
 from app.schemas.llm_assist import LLMFieldAssistRequest, LLMFieldAssistResponse
@@ -243,6 +245,37 @@ def skip_assignment(
             skipped_assignment_id=assignment_id,
             skip_reason=reason,
         )
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+
+
+@router.post(
+    "/assignments/{assignment_id}/problem-reports",
+    response_model=ProblemReportRead,
+    status_code=201,
+)
+def report_assignment_problem(
+    assignment_id: str,
+    payload: ProblemReportRequest,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.LABELER)),
+) -> dict:
+    try:
+        audit = SubmissionService(db).report_problem(
+            assignment_id,
+            _actor_context(actor),
+            category=payload.category,
+            note=payload.note,
+        )
+        return {
+            "id": audit.id,
+            "assignment_id": audit.details["assignment_id"],
+            "task_item_id": audit.details["task_item_id"],
+            "labeler_id": audit.details["labeler_id"],
+            "category": audit.details["category"],
+            "note": audit.details["note"],
+            "created_at": audit.created_at,
+        }
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

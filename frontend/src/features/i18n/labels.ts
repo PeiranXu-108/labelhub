@@ -9,6 +9,7 @@ const labelMap: Record<string, string> = {
   authenticated: "已认证",
   auto_claim: "自动认领",
   checking: "检查中",
+  claimable: "可认领",
   complete: "已完成",
   csv: "CSV",
   draft: "草稿",

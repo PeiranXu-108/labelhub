@@ -1407,6 +1407,63 @@
         }
       }
     },
+    "/labeler/assignments/{assignment_id}/problem-reports": {
+      "post": {
+        "tags": [
+          "labeler"
+        ],
+        "summary": "Report Assignment Problem",
+        "operationId": "report_assignment_problem_labeler_assignments__assignment_id__problem_reports_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProblemReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemReportRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/labeler/assignments/{assignment_id}/agent-workflow": {
       "get": {
         "tags": [
@@ -2526,6 +2583,49 @@
         ],
         "title": "AgentWorkflowStepRead"
       },
+      "AssignmentContributionRead": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "labeler_id": {
+            "type": "string",
+            "title": "Labeler Id"
+          },
+          "draft_count": {
+            "type": "integer",
+            "title": "Draft Count"
+          },
+          "submitted_count": {
+            "type": "integer",
+            "title": "Submitted Count"
+          },
+          "approved_passed_count": {
+            "type": "integer",
+            "title": "Approved Passed Count"
+          },
+          "returned_rejected_count": {
+            "type": "integer",
+            "title": "Returned Rejected Count"
+          },
+          "total_owned_count": {
+            "type": "integer",
+            "title": "Total Owned Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "labeler_id",
+          "draft_count",
+          "submitted_count",
+          "approved_passed_count",
+          "returned_rejected_count",
+          "total_owned_count"
+        ],
+        "title": "AssignmentContributionRead"
+      },
       "AssignmentDetailRead": {
         "properties": {
           "id": {
@@ -2604,6 +2704,193 @@
           "latest_human_review"
         ],
         "title": "AssignmentDetailRead"
+      },
+      "AssignmentHistoryEventRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "audit",
+              "ai_review",
+              "human_review"
+            ],
+            "title": "Kind"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "actor_role": {
+            "type": "string",
+            "title": "Actor Role"
+          },
+          "from_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Status"
+          },
+          "to_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "action",
+          "title",
+          "summary",
+          "actor_role",
+          "created_at"
+        ],
+        "title": "AssignmentHistoryEventRead"
+      },
+      "AssignmentNavigationItemRead": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          },
+          "labeler_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labeler Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "assignment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Status"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          },
+          "is_navigable": {
+            "type": "boolean",
+            "title": "Is Navigable"
+          },
+          "navigation_action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "next"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Navigation Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "external_id",
+          "assignment_id",
+          "submission_id",
+          "labeler_id",
+          "position",
+          "status",
+          "assignment_status",
+          "is_current",
+          "is_navigable",
+          "navigation_action"
+        ],
+        "title": "AssignmentNavigationItemRead"
       },
       "AssignmentNavigationMoveRead": {
         "properties": {
@@ -2724,6 +3011,31 @@
           "no_work_left": {
             "type": "boolean",
             "title": "No Work Left"
+          },
+          "current_position": {
+            "type": "integer",
+            "title": "Current Position"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentNavigationItemRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "contribution": {
+            "$ref": "#/components/schemas/AssignmentContributionRead"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentHistoryEventRead"
+            },
+            "type": "array",
+            "title": "History"
           }
         },
         "type": "object",
@@ -2735,7 +3047,10 @@
           "can_claim_next",
           "has_previous",
           "has_next",
-          "no_work_left"
+          "no_work_left",
+          "current_position",
+          "total_count",
+          "contribution"
         ],
         "title": "AssignmentNavigationRead"
       },
@@ -4378,6 +4693,72 @@
           "value"
         ],
         "title": "NumberMinValidation"
+      },
+      "ProblemReportRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "assignment_id": {
+            "type": "string",
+            "title": "Assignment Id"
+          },
+          "task_item_id": {
+            "type": "string",
+            "title": "Task Item Id"
+          },
+          "labeler_id": {
+            "type": "string",
+            "title": "Labeler Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assignment_id",
+          "task_item_id",
+          "labeler_id",
+          "category",
+          "note",
+          "created_at"
+        ],
+        "title": "ProblemReportRead"
+      },
+      "ProblemReportRequest": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Category"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "note"
+        ],
+        "title": "ProblemReportRequest"
       },
       "QualityRule": {
         "properties": {

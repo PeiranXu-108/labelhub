@@ -102,6 +102,17 @@ const template = {
   published_at: "2026-05-23T00:00:00Z",
 };
 
+const textTemplate = {
+  ...template,
+  schema_payload: {
+    ...template.schema_payload,
+    fields: [
+      { id: "source", type: "show_item", label: "Source text", source: "item.payload.text" },
+      { id: "summary", type: "text", label: "Summary", required: true },
+    ],
+  },
+};
+
 const assignmentDetail = {
   id: "assignment-1",
   task_id: "task-1",
@@ -115,6 +126,11 @@ const assignmentDetail = {
   task,
   template_schema: template,
   latest_human_review: null,
+};
+
+const assignmentDetailWithTextInput = {
+  ...assignmentDetail,
+  template_schema: textTemplate,
 };
 
 const assignmentDetail2 = {
@@ -148,6 +164,97 @@ const agentWorkflow = {
       actor_role: "system",
       summary: "AI review job queued.",
       metadata: {},
+    },
+  ],
+};
+
+const navigationProductivity = {
+  assignment_id: "assignment-1",
+  task_id: "task-1",
+  previous_assignment_id: null,
+  next_assignment_id: "assignment-2",
+  can_claim_next: false,
+  has_previous: false,
+  has_next: true,
+  no_work_left: false,
+  current_position: 1,
+  total_count: 2,
+  items: [
+    {
+      item_id: "item-1",
+      external_id: "ticket-1",
+      assignment_id: "assignment-1",
+      submission_id: "sub-1",
+      labeler_id: "labeler-1",
+      position: 1,
+      status: "draft",
+      assignment_status: "active",
+      is_current: true,
+      is_navigable: true,
+      navigation_action: "open",
+    },
+    {
+      item_id: "item-2",
+      external_id: "ticket-2",
+      assignment_id: "assignment-2",
+      submission_id: "sub-2",
+      labeler_id: "labeler-1",
+      position: 2,
+      status: "submitted",
+      assignment_status: "submitted",
+      is_current: false,
+      is_navigable: true,
+      navigation_action: "open",
+    },
+  ],
+  contribution: {
+    task_id: "task-1",
+    labeler_id: "labeler-1",
+    draft_count: 1,
+    submitted_count: 1,
+    approved_passed_count: 0,
+    returned_rejected_count: 0,
+    total_owned_count: 2,
+  },
+  history: [
+    {
+      id: "audit-1",
+      kind: "audit",
+      action: "save_draft",
+      title: "草稿已保存",
+      summary: "标注员保存了当前草稿。",
+      actor_role: "labeler",
+      from_status: null,
+      to_status: null,
+      created_at: "2026-05-23T00:10:00Z",
+    },
+  ],
+};
+
+const navigationAfterSubmit = {
+  ...navigationProductivity,
+  items: navigationProductivity.items.map((navItem) =>
+    navItem.item_id === "item-1"
+      ? { ...navItem, status: "submitted", assignment_status: "submitted" }
+      : navItem,
+  ),
+  contribution: {
+    ...navigationProductivity.contribution,
+    draft_count: 0,
+    submitted_count: 2,
+  },
+  history: [
+    ...navigationProductivity.history,
+    {
+      id: "audit-2",
+      kind: "audit",
+      action: "submit",
+      title: "答案已提交",
+      summary: "标注员提交了当前答案。",
+      actor_role: "labeler",
+      from_status: "draft",
+      to_status: "submitted",
+      created_at: "2026-05-23T00:12:00Z",
     },
   ],
 };
@@ -438,6 +545,166 @@ describe("labeler workspace", () => {
     expect(await screen.findByRole("button", { name: "上一个" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
     expect(screen.getByText("没有更多可标注的数据项。")).toBeInTheDocument();
+  });
+
+  it("renders assignment navigation, contribution summary, and persisted history", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse(navigationProductivity);
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("作业导航")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("ticket-1")).toBeInTheDocument();
+    expect(screen.getByText("ticket-2")).toBeInTheDocument();
+    expect(screen.getAllByText("草稿").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("已提交").length).toBeGreaterThan(0);
+    expect(screen.getByText("我的贡献")).toBeInTheDocument();
+    expect(screen.getByText("草稿/进行中 1")).toBeInTheDocument();
+    expect(screen.getByText("当前作业历史")).toBeInTheDocument();
+    expect(screen.getByText("草稿已保存")).toBeInTheDocument();
+  });
+
+  it("refreshes contribution summary and history after a successful submit", async () => {
+    let navigationCalls = 0;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        navigationCalls += 1;
+        return jsonResponse(navigationCalls === 1 ? navigationProductivity : navigationAfterSubmit);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/submit")) {
+        return jsonResponse({
+          ...submission,
+          status: "submitted",
+          answer_payload: JSON.parse(String(init?.body)).answer_payload,
+          submitted_at: "2026-05-23T00:12:00Z",
+        });
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/agent-workflow")) {
+        return jsonResponse(agentWorkflow);
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("草稿/进行中 1")).toBeInTheDocument();
+    expect(screen.queryByText("答案已提交")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Positive"));
+    fireEvent.click(screen.getByText("提 交"));
+
+    expect(await screen.findByText("答案已提交")).toBeInTheDocument();
+    expect(screen.getByText("草稿/进行中 0")).toBeInTheDocument();
+    expect(screen.getByText("已提交 2")).toBeInTheDocument();
+    expect(navigationCalls).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/labeler/assignments/assignment-1/navigation"),
+      expect.anything(),
+    );
+  });
+
+  it("reports a problem from the modal without submitting the annotation", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetail);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse(navigationProductivity);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/problem-reports")) {
+        return jsonResponse({
+          id: "audit-2",
+          assignment_id: "assignment-1",
+          task_item_id: "item-1",
+          labeler_id: "labeler-1",
+          category: JSON.parse(String(init?.body)).category,
+          note: JSON.parse(String(init?.body)).note,
+          created_at: "2026-05-23T00:12:00Z",
+        }, 201);
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "报告问题" }));
+    fireEvent.change(screen.getByLabelText("问题说明"), {
+      target: { value: "The source text is truncated." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交报告" }));
+
+    expect(await screen.findByText("问题已记录。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/labeler/assignments/assignment-1/problem-reports"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ category: "bad_source", note: "The source text is truncated." }),
+      }),
+    );
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/submit"))).toBe(false);
+  });
+
+  it("does not run keyboard shortcuts while typing in form inputs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/labeler/assignments/assignment-1")) {
+        return jsonResponse(assignmentDetailWithTextInput);
+      }
+      if (url.endsWith("/labeler/assignments/assignment-1/navigation")) {
+        return jsonResponse(navigationProductivity);
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/labeler/assignments/assignment-1"]}>
+        <Routes>
+          <Route path="/labeler/assignments/:assignmentId" element={<LabelerAssignmentRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const summaryInput = await screen.findByLabelText("Summary");
+    fireEvent.change(summaryInput, { target: { value: "typing should be safe" } });
+    fireEvent.keyDown(summaryInput, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(summaryInput, { key: "ArrowRight", altKey: true });
+    fireEvent.keyDown(summaryInput, { key: "r", altKey: true });
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/submit"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/next"))).toBe(false);
+    expect(screen.queryByRole("dialog", { name: "报告问题" })).not.toBeInTheDocument();
   });
 
   it("saves unsaved draft answers before navigating to the next assignment", async () => {

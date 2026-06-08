@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.enums import SubmissionStatus, TaskStatus, UserRole
-from app.models import Assignment, AuditLog, SubmissionAttempt, Task, TaskItem, TemplateSchema
+from app.models import Assignment, AuditLog, Submission, SubmissionAttempt, Task, TaskItem, TemplateSchema
 from tests.conftest import auth_headers
 
 
@@ -184,6 +184,136 @@ def test_navigation_denies_cross_labeler_access(client: TestClient, db_session: 
     assert skip_response.json()["detail"]["code"] == "PERMISSION_DENIED"
 
 
+def test_navigation_list_hides_other_labeler_assignment_details(
+    client: TestClient, db_session: Session
+) -> None:
+    task_id = _create_navigation_task(db_session, item_count=4)
+    first = _claim_assignment(client, task_id)
+    other_assignment = _claim_assignment(client, task_id, user_id="other-labeler")
+    third = _claim_assignment(client, task_id)
+
+    response = client.get(
+        f"/labeler/assignments/{first['id']}/navigation",
+        headers=auth_headers(UserRole.LABELER),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_position"] == 1
+    assert payload["total_count"] == 4
+    assert {entry["assignment_id"] for entry in payload["items"] if entry["assignment_id"]} == {
+        first["id"],
+        third["id"],
+    }
+    assert all(entry["assignment_id"] != other_assignment["id"] for entry in payload["items"])
+    assert all(entry.get("labeler_id") in {None, "test-labeler"} for entry in payload["items"])
+    assert payload["items"][0]["is_current"] is True
+    assert payload["items"][0]["status"] == "draft"
+
+
+def test_contribution_summary_counts_only_authenticated_labeler(
+    client: TestClient, db_session: Session
+) -> None:
+    task_id = _create_navigation_task(db_session, item_count=6)
+    own_draft = _claim_assignment(client, task_id)
+    own_submitted = _claim_assignment(client, task_id)
+    own_returned = _claim_assignment(client, task_id)
+    own_approved = _claim_assignment(client, task_id)
+    other_approved = _claim_assignment(client, task_id, user_id="other-labeler")
+
+    _set_submission_status(db_session, own_submitted["submission"]["id"], SubmissionStatus.SUBMITTED)
+    _set_submission_status(db_session, own_returned["submission"]["id"], SubmissionStatus.RETURNED)
+    _set_submission_status(db_session, own_approved["submission"]["id"], SubmissionStatus.APPROVED)
+    _set_submission_status(db_session, other_approved["submission"]["id"], SubmissionStatus.APPROVED)
+    db_session.commit()
+
+    response = client.get(
+        f"/labeler/assignments/{own_draft['id']}/navigation",
+        headers=auth_headers(UserRole.LABELER),
+    )
+
+    assert response.status_code == 200
+    contribution = response.json()["contribution"]
+    assert contribution == {
+        "task_id": task_id,
+        "labeler_id": "test-labeler",
+        "draft_count": 1,
+        "submitted_count": 1,
+        "approved_passed_count": 1,
+        "returned_rejected_count": 1,
+        "total_owned_count": 4,
+    }
+
+
+def test_report_problem_persists_without_submitting_or_changing_status(
+    client: TestClient, db_session: Session
+) -> None:
+    task_id = _create_navigation_task(db_session, item_count=1)
+    assignment = _claim_assignment(client, task_id)
+    draft_response = client.put(
+        f"/labeler/assignments/{assignment['id']}/draft",
+        headers=auth_headers(UserRole.LABELER),
+        json={"answer_payload": {"sentiment": "positive"}},
+    )
+    assert draft_response.status_code == 200
+
+    report_response = client.post(
+        f"/labeler/assignments/{assignment['id']}/problem-reports",
+        headers=auth_headers(UserRole.LABELER),
+        json={"category": "bad_source", "note": "The source text is truncated."},
+    )
+
+    assert report_response.status_code == 201
+    payload = report_response.json()
+    assert payload["assignment_id"] == assignment["id"]
+    assert payload["task_item_id"] == assignment["item_id"]
+    assert payload["labeler_id"] == "test-labeler"
+    assert payload["category"] == "bad_source"
+    assert payload["note"] == "The source text is truncated."
+    db_assignment = db_session.get(Assignment, assignment["id"])
+    assert db_assignment.status == "active"
+    assert db_assignment.item.status == "assigned"
+    assert db_assignment.submission.status == SubmissionStatus.DRAFT
+    assert db_assignment.submission.answer_payload == {"sentiment": "positive"}
+    assert db_assignment.submission.submitted_at is None
+    assert db_session.scalar(
+        select(SubmissionAttempt).where(SubmissionAttempt.submission_id == db_assignment.submission.id)
+    ) is None
+    audit = db_session.scalar(
+        select(AuditLog).where(
+            AuditLog.entity_type == "assignment",
+            AuditLog.entity_id == assignment["id"],
+            AuditLog.action == "report_problem",
+        )
+    )
+    assert audit is not None
+    assert audit.reason == "bad_source"
+    assert audit.details["task_item_id"] == assignment["item_id"]
+    assert audit.details["labeler_id"] == "test-labeler"
+    assert audit.details["note"] == "The source text is truncated."
+
+
+def test_report_problem_denies_cross_labeler_access(client: TestClient, db_session: Session) -> None:
+    task_id = _create_navigation_task(db_session, item_count=1)
+    assignment = _claim_assignment(client, task_id)
+
+    response = client.post(
+        f"/labeler/assignments/{assignment['id']}/problem-reports",
+        headers=auth_headers(UserRole.LABELER, user_id="other-labeler"),
+        json={"category": "bad_source", "note": "Not my assignment."},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "PERMISSION_DENIED"
+    assert db_session.scalar(
+        select(AuditLog).where(
+            AuditLog.entity_type == "assignment",
+            AuditLog.entity_id == assignment["id"],
+            AuditLog.action == "report_problem",
+        )
+    ) is None
+
+
 def _create_navigation_task(db_session: Session, *, item_count: int) -> str:
     task = Task(
         name="Navigation task",
@@ -250,3 +380,15 @@ def _claim_assignment(
     )
     assert response.status_code == 201
     return response.json()
+
+
+def _set_submission_status(
+    db_session: Session,
+    submission_id: str,
+    status: SubmissionStatus,
+) -> None:
+    submission = db_session.get(Submission, submission_id)
+    assert submission is not None
+    submission.status = status
+    if status != SubmissionStatus.DRAFT:
+        submission.submitted_at = datetime(2026, 5, 31, 1, 0, tzinfo=UTC)

@@ -5,8 +5,9 @@ from typing import Any
 from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.domain.enums import ReviewStage, SubmissionAction, SubmissionStatus, TaskStatus
+from app.domain.enums import ReviewStage, SubmissionAction, SubmissionStatus, TaskStatus, UserRole
 from app.models import (
+    AIReview,
     Assignment,
     AuditLog,
     HumanReview,
@@ -90,6 +91,7 @@ class SubmissionService:
         previous_assignment = self._owned_neighbor_assignment(assignment, actor, direction="previous")
         next_assignment = self._owned_neighbor_assignment(assignment, actor, direction="next")
         can_claim_next = next_assignment is None and self._next_claimable_item(assignment) is not None
+        item_positions = self._task_item_positions(assignment.task_id)
         return {
             "assignment_id": assignment.id,
             "task_id": assignment.task_id,
@@ -99,6 +101,16 @@ class SubmissionService:
             "has_previous": previous_assignment is not None,
             "has_next": next_assignment is not None or can_claim_next,
             "no_work_left": next_assignment is None and not can_claim_next,
+            "current_position": item_positions.get(assignment.item_id, 0),
+            "total_count": len(item_positions),
+            "items": self._navigation_items(
+                assignment,
+                actor,
+                item_positions=item_positions,
+                next_assignment=next_assignment,
+            ),
+            "contribution": self._contribution_summary(assignment.task_id, actor),
+            "history": self.assignment_history(assignment),
         }
 
     def previous_assignment(self, assignment_id: str, actor: ActorContext) -> Assignment | None:
@@ -166,6 +178,43 @@ class SubmissionService:
         if target is not None:
             self.db.refresh(target)
         return target
+
+    def report_problem(
+        self,
+        assignment_id: str,
+        actor: ActorContext,
+        *,
+        category: str,
+        note: str,
+    ) -> AuditLog:
+        assignment = self.get_owned_assignment(assignment_id, actor)
+        normalized_category = category.strip()
+        normalized_note = note.strip()
+        if not normalized_category:
+            raise WorkflowError("PROBLEM_CATEGORY_REQUIRED", "Problem category is required")
+        if not normalized_note:
+            raise WorkflowError("PROBLEM_NOTE_REQUIRED", "Problem note is required")
+        audit = AuditLog(
+            entity_type="assignment",
+            entity_id=assignment.id,
+            action="report_problem",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            reason=normalized_category,
+            details={
+                "assignment_id": assignment.id,
+                "task_id": assignment.task_id,
+                "task_item_id": assignment.item_id,
+                "labeler_id": actor.user_id,
+                "submission_id": assignment.submission.id,
+                "category": normalized_category,
+                "note": normalized_note,
+            },
+        )
+        self.db.add(audit)
+        self.db.commit()
+        self.db.refresh(audit)
+        return audit
 
     def submit_assignment(
         self, assignment_id: str, actor: ActorContext, answer_payload: dict[str, Any]
@@ -337,6 +386,198 @@ class SubmissionService:
     def _ensure_assignment_not_skipped(self, assignment: Assignment) -> None:
         if assignment.status == "skipped":
             raise WorkflowError("INVALID_TRANSITION", "Skipped assignments cannot be edited or submitted")
+
+    def assignment_history(self, assignment: Assignment) -> list[dict[str, Any]]:
+        submission = assignment.submission
+        audit_events = [
+            {
+                "id": audit.id,
+                "kind": "audit",
+                "action": audit.action,
+                "title": self._audit_event_title(audit.action),
+                "summary": audit.reason,
+                "actor_role": audit.actor_role,
+                "from_status": audit.from_status,
+                "to_status": audit.to_status,
+                "created_at": audit.created_at,
+            }
+            for audit in self.db.scalars(
+                select(AuditLog)
+                .where(
+                    or_(
+                        and_(AuditLog.entity_type == "assignment", AuditLog.entity_id == assignment.id),
+                        and_(AuditLog.entity_type == "submission", AuditLog.entity_id == submission.id),
+                    )
+                )
+                .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
+            )
+        ]
+        ai_events = [
+            {
+                "id": review.id,
+                "kind": "ai_review",
+                "action": review.decision.value,
+                "title": self._ai_review_title(review.decision.value),
+                "summary": review.structured_response.get("summary") if isinstance(review.structured_response, dict) else None,
+                "actor_role": UserRole.AI_AGENT.value,
+                "from_status": None,
+                "to_status": review.decision.value,
+                "created_at": review.created_at,
+            }
+            for review in self.db.scalars(
+                select(AIReview)
+                .where(AIReview.submission_id == submission.id)
+                .order_by(AIReview.created_at.asc(), AIReview.id.asc())
+            )
+        ]
+        human_events = [
+            {
+                "id": review.id,
+                "kind": "human_review",
+                "action": review.decision,
+                "title": "人工审核通过" if review.decision == "approve" else "人工审核退回",
+                "summary": review.reason,
+                "actor_role": UserRole.REVIEWER.value,
+                "from_status": None,
+                "to_status": review.decision,
+                "created_at": review.created_at,
+            }
+            for review in self.db.scalars(
+                select(HumanReview)
+                .where(HumanReview.submission_id == submission.id)
+                .order_by(HumanReview.created_at.asc(), HumanReview.id.asc())
+            )
+        ]
+        return sorted(
+            [*audit_events, *ai_events, *human_events],
+            key=lambda event: (event["created_at"], event["id"]),
+        )
+
+    def _task_item_positions(self, task_id: str) -> dict[str, int]:
+        items = list(
+            self.db.scalars(
+                select(TaskItem)
+                .where(TaskItem.task_id == task_id)
+                .order_by(TaskItem.created_at.asc(), TaskItem.id.asc())
+            )
+        )
+        return {item.id: index + 1 for index, item in enumerate(items)}
+
+    def _navigation_items(
+        self,
+        assignment: Assignment,
+        actor: ActorContext,
+        *,
+        item_positions: dict[str, int],
+        next_assignment: Assignment | None,
+    ) -> list[dict[str, Any]]:
+        owned_assignments = list(
+            self.db.scalars(
+                select(Assignment)
+                .join(Assignment.item)
+                .options(joinedload(Assignment.item), joinedload(Assignment.submission))
+                .where(
+                    Assignment.task_id == assignment.task_id,
+                    Assignment.labeler_id == actor.user_id,
+                )
+                .order_by(TaskItem.created_at.asc(), TaskItem.id.asc())
+            )
+        )
+        entries = [
+            {
+                "item_id": owned.item_id,
+                "external_id": owned.item.external_id,
+                "assignment_id": owned.id,
+                "submission_id": owned.submission.id,
+                "labeler_id": owned.labeler_id,
+                "position": item_positions.get(owned.item_id, 0),
+                "status": owned.submission.status.value,
+                "assignment_status": owned.status,
+                "is_current": owned.id == assignment.id,
+                "is_navigable": owned.status != "skipped",
+                "navigation_action": "open" if owned.status != "skipped" else None,
+            }
+            for owned in owned_assignments
+        ]
+        if next_assignment is None:
+            claimable_item = self._next_claimable_item(assignment)
+            if claimable_item is not None:
+                entries.append(
+                    {
+                        "item_id": claimable_item.id,
+                        "external_id": claimable_item.external_id,
+                        "assignment_id": None,
+                        "submission_id": None,
+                        "labeler_id": None,
+                        "position": item_positions.get(claimable_item.id, 0),
+                        "status": "claimable",
+                        "assignment_status": None,
+                        "is_current": False,
+                        "is_navigable": True,
+                        "navigation_action": "next",
+                    }
+                )
+        return sorted(entries, key=lambda entry: (entry["position"], entry["item_id"]))
+
+    def _contribution_summary(self, task_id: str, actor: ActorContext) -> dict[str, Any]:
+        submissions = list(
+            self.db.scalars(
+                select(Submission)
+                .join(Submission.assignment)
+                .where(
+                    Submission.task_id == task_id,
+                    Submission.labeler_id == actor.user_id,
+                    Assignment.status != "skipped",
+                )
+            )
+        )
+        submitted_statuses = {
+            SubmissionStatus.SUBMITTED,
+            SubmissionStatus.AI_REVIEWING,
+            SubmissionStatus.NEEDS_HUMAN_REVIEW,
+            SubmissionStatus.HUMAN_REVIEWING,
+        }
+        approved_statuses = {
+            SubmissionStatus.AI_PASSED,
+            SubmissionStatus.APPROVED,
+            SubmissionStatus.EXPORTABLE,
+        }
+        returned_statuses = {
+            SubmissionStatus.AI_RETURNED,
+            SubmissionStatus.RETURNED,
+        }
+        return {
+            "task_id": task_id,
+            "labeler_id": actor.user_id,
+            "draft_count": sum(1 for submission in submissions if submission.status == SubmissionStatus.DRAFT),
+            "submitted_count": sum(1 for submission in submissions if submission.status in submitted_statuses),
+            "approved_passed_count": sum(1 for submission in submissions if submission.status in approved_statuses),
+            "returned_rejected_count": sum(1 for submission in submissions if submission.status in returned_statuses),
+            "total_owned_count": len(submissions),
+        }
+
+    def _audit_event_title(self, action: str) -> str:
+        return {
+            "claim": "作业已认领",
+            "save_draft": "草稿已保存",
+            "submit": "作业已提交",
+            "skip": "作业已跳过",
+            "report_problem": "问题已报告",
+            "ai_pass": "AI 审核通过",
+            "ai_return": "AI 审核退回",
+            "require_human_review": "转入人工审核",
+            "start_human_review": "人工审核开始",
+            "approve": "人工审核通过",
+            "return": "人工审核退回",
+            "reopen": "退回后重新编辑",
+        }.get(action, action)
+
+    def _ai_review_title(self, decision: str) -> str:
+        return {
+            "pass": "AI 审核通过",
+            "return": "AI 审核退回",
+            "human_review": "AI 建议人工审核",
+        }.get(decision, "AI 审核完成")
 
     def _audit(
         self,

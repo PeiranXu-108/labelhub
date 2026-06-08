@@ -89,6 +89,47 @@ export type AssignmentNavigationRead = {
   has_previous: boolean;
   has_next: boolean;
   no_work_left: boolean;
+  current_position: number;
+  total_count: number;
+  items: AssignmentNavigationItemRead[];
+  contribution: AssignmentContributionRead;
+  history: AssignmentHistoryEventRead[];
+};
+
+export type AssignmentNavigationItemRead = {
+  item_id: string;
+  external_id: string | null;
+  assignment_id: string | null;
+  submission_id: string | null;
+  labeler_id: string | null;
+  position: number;
+  status: string;
+  assignment_status: string | null;
+  is_current: boolean;
+  is_navigable: boolean;
+  navigation_action: "open" | "next" | null;
+};
+
+export type AssignmentContributionRead = {
+  task_id: string;
+  labeler_id: string;
+  draft_count: number;
+  submitted_count: number;
+  approved_passed_count: number;
+  returned_rejected_count: number;
+  total_owned_count: number;
+};
+
+export type AssignmentHistoryEventRead = {
+  id: string;
+  kind: "audit" | "ai_review" | "human_review";
+  action: string;
+  title: string;
+  summary: string | null;
+  actor_role: string;
+  from_status: string | null;
+  to_status: string | null;
+  created_at: string;
 };
 
 export type AssignmentNavigationMoveRead = {
@@ -99,4 +140,14 @@ export type AssignmentNavigationMoveRead = {
   message: string;
   skipped_assignment_id: string | null;
   skip_reason: string | null;
+};
+
+export type ProblemReportRead = {
+  id: string;
+  assignment_id: string;
+  task_item_id: string;
+  labeler_id: string;
+  category: string;
+  note: string;
+  created_at: string;
 };

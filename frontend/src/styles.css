@@ -232,6 +232,7 @@ body {
 }
 
 .filter-row,
+.workbench-productivity-grid,
 .workbench-grid,
 .review-detail-grid,
 .ai-review-grid {
@@ -252,6 +253,35 @@ body {
 .review-detail-grid {
   grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
   align-items: start;
+}
+
+.workbench-productivity-grid {
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.8fr);
+  align-items: start;
+}
+
+.workbench-progress,
+.assignment-nav-list,
+.assignment-history-list {
+  width: 100%;
+}
+
+.assignment-nav-item {
+  height: auto;
+  min-height: 40px;
+  justify-content: space-between;
+  white-space: normal;
+}
+
+.contribution-summary {
+  width: 100%;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 14px;
+  align-items: center;
 }
 
 .ai-review-grid {
@@ -609,6 +639,7 @@ body {
   .dashboard-tables,
   .filter-row,
   .review-filters,
+  .workbench-productivity-grid,
   .workbench-grid,
   .review-detail-grid,
   .ai-review-grid {
