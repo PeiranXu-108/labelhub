@@ -6,10 +6,18 @@ import { Link } from "react-router-dom";
 import { normalizeError, useOperationMessage } from "../feedback";
 import type { ReviewStage } from "../labeler/types";
 import { formatLabel } from "../i18n/labels";
-import { StudioPageHeader, StudioPanel, StatusPill } from "../studio";
-import { approveSubmission, batchReview, listReviewQueue, returnSubmission } from "./api";
+import { MetricStrip, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
+import {
+  approveSubmission,
+  batchReview,
+  downloadTaskAuditExport,
+  getReviewerMetrics,
+  listReviewQueue,
+  returnSubmission,
+  saveReviewAuditFile,
+} from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
-import type { ReviewQueueItemRead } from "./types";
+import type { ReviewerMetricsRead, ReviewQueueItemRead, ReviewerSLAContextRead } from "./types";
 
 const reviewableStatuses = [
   "all",
@@ -25,6 +33,7 @@ const reviewStages = ["all", "initial_review", "re_review", "final_review"];
 export function ReviewQueue() {
   const showOperationError = useOperationMessage();
   const [queueItems, setQueueItems] = useState<ReviewQueueItemRead[]>([]);
+  const [metrics, setMetrics] = useState<ReviewerMetricsRead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Key[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -52,7 +61,12 @@ export function ReviewQueue() {
     setLoading(true);
     setError(null);
     try {
-      setQueueItems(await listReviewQueue(queueFilters));
+      const [queueResult, metricsResult] = await Promise.all([
+        listReviewQueue(queueFilters),
+        getReviewerMetrics(),
+      ]);
+      setQueueItems(queueResult);
+      setMetrics(metricsResult);
     } catch (err) {
       setError(normalizeError(err, "加载审核队列失败。"));
     } finally {
@@ -89,6 +103,22 @@ export function ReviewQueue() {
       setSelectedIds([]);
     } catch (err) {
       showOperationError(err, "批量批准提交失败。");
+    } finally {
+      setMutating(null);
+    }
+  }
+
+  async function exportTaskAudit() {
+    const taskId = taskFilter.trim();
+    if (!taskId) {
+      return;
+    }
+    setMutating("audit-export");
+    setError(null);
+    try {
+      saveReviewAuditFile(await downloadTaskAuditExport(taskId));
+    } catch (err) {
+      showOperationError(err, "导出任务审计失败。");
     } finally {
       setMutating(null);
     }
@@ -136,14 +166,59 @@ export function ReviewQueue() {
         <StudioPageHeader
           title={<span id="review-heading">审核队列</span>}
           description="检查 AI 分流的提交，并执行人工审核决策。"
-          actions={<Button onClick={load}>刷新</Button>}
+          actions={
+            <Space>
+              <Button
+                disabled={!taskFilter.trim()}
+                loading={mutating === "audit-export"}
+                onClick={() => void exportTaskAudit()}
+              >
+                导出任务审计
+              </Button>
+              <Button onClick={load}>刷新</Button>
+            </Space>
+          }
           meta={
             <Space wrap>
-              <StatusPill status="needs_human_review">队列 {queueItems.length}</StatusPill>
+              <StatusPill status={metrics?.sla.overdue_count ? "returned" : "needs_human_review"}>
+                待审 {metrics?.pending_review_count ?? queueItems.length}
+              </StatusPill>
               <StatusPill status="active">已选 {selectedIds.length}</StatusPill>
             </Space>
           }
         />
+
+        {metrics ? (
+          <StudioPanel className="owner-section">
+            <MetricStrip
+              items={[
+                {
+                  label: "今日已审",
+                  value: metrics.reviewed_today,
+                  detail: `通过 ${metrics.approved_today} / 退回 ${metrics.returned_today}`,
+                  tone: "accent",
+                },
+                {
+                  label: "通过率",
+                  value: formatPercent(metrics.pass_rate),
+                  detail: "按今日人工审核记录计算",
+                  tone: "good",
+                },
+                {
+                  label: "待审",
+                  value: metrics.pending_review_count,
+                  detail: "AI 通过、待人工、审核中",
+                },
+                {
+                  label: "SLA",
+                  value: formatSlaStatus(metrics.sla),
+                  detail: formatSlaDetail(metrics.sla),
+                  tone: metrics.sla.overdue_count ? "danger" : "warning",
+                },
+              ]}
+            />
+          </StudioPanel>
+        ) : null}
 
         <StudioPanel className="owner-section table-studio-panel">
           {error ? <Alert className="section-alert" message={error} type="error" /> : null}
@@ -206,7 +281,7 @@ export function ReviewQueue() {
 
           <div className="section-actions">
             <Button disabled={selectedIds.length === 0} loading={mutating === "batch"} onClick={() => void approveSelected()}>
-              批量批准
+              批量终审批准
             </Button>
             <Button
               danger
@@ -214,7 +289,7 @@ export function ReviewQueue() {
               loading={mutating === "batch"}
               onClick={() => setReturnTarget("batch")}
             >
-              批量退回
+              批量退回修订
             </Button>
           </div>
 
@@ -271,6 +346,11 @@ export function ReviewQueue() {
                   new Date(record.submission.updated_at).toLocaleString(),
               },
               {
+                title: "SLA",
+                key: "sla",
+                render: (_: unknown, record: ReviewQueueItemRead) => formatDeadline(record.task.deadline_at),
+              },
+              {
                 title: "操作",
                 key: "actions",
                 render: (_: unknown, record: ReviewQueueItemRead) => (
@@ -279,14 +359,14 @@ export function ReviewQueue() {
                       loading={mutating === record.submission.id}
                       onClick={() => void approveOne(record.submission.id)}
                     >
-                      批准
+                      终审批准
                     </Button>
                     <Button
                       danger
                       loading={mutating === record.submission.id}
                       onClick={() => setReturnTarget(record.submission.id)}
                     >
-                      退回
+                      退回修订
                     </Button>
                   </Space>
                 ),
@@ -311,4 +391,50 @@ export function ReviewQueue() {
       </div>
     </section>
   );
+}
+
+function formatPercent(value: number | null) {
+  if (value === null) {
+    return "无";
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatSlaStatus(sla: ReviewerSLAContextRead) {
+  if (sla.pending_with_deadline_count === 0) {
+    return "无截止时间";
+  }
+  if (sla.overdue_count > 0) {
+    return `SLA 已超时 ${sla.overdue_count}`;
+  }
+  return `SLA 剩余 ${formatDuration(sla.seconds_until_nearest_deadline)}`;
+}
+
+function formatSlaDetail(sla: ReviewerSLAContextRead) {
+  if (!sla.nearest_deadline_at) {
+    return "任务未设置截止时间";
+  }
+  return `最近截止 ${new Date(sla.nearest_deadline_at).toLocaleString()}`;
+}
+
+function formatDeadline(deadlineAt: string | null) {
+  if (!deadlineAt) {
+    return <Typography.Text type="secondary">无截止时间</Typography.Text>;
+  }
+  const deadline = new Date(deadlineAt);
+  const overdue = deadline.getTime() < Date.now();
+  return <Tag color={overdue ? "red" : "gold"}>{overdue ? "已超时" : deadline.toLocaleString()}</Tag>;
+}
+
+function formatDuration(seconds: number | null) {
+  if (seconds === null) {
+    return "未知";
+  }
+  const absolute = Math.max(0, seconds);
+  const hours = Math.floor(absolute / 3600);
+  const minutes = Math.floor((absolute % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}小时${minutes}分`;
+  }
+  return `${minutes}分`;
 }

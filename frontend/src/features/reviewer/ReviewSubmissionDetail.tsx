@@ -7,7 +7,13 @@ import { normalizeError, useOperationMessage } from "../feedback";
 import { formatKnownText, formatLabel } from "../i18n/labels";
 import { SchemaRenderer } from "../schema-renderer";
 import { JsonViewer, StudioPageHeader, StudioPanel, StatusPill } from "../studio";
-import { approveSubmission, getReviewSubmission, returnSubmission } from "./api";
+import {
+  approveSubmission,
+  downloadSubmissionAuditExport,
+  getReviewSubmission,
+  returnSubmission,
+  saveReviewAuditFile,
+} from "./api";
 import { ReturnReasonModal } from "./ReturnReasonModal";
 import type {
   AIReviewRead,
@@ -22,6 +28,7 @@ export function ReviewSubmissionDetail() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -51,6 +58,7 @@ export function ReviewSubmissionDetail() {
   const stageHistory = useMemo(() => detail?.stage_history ?? [], [detail?.stage_history]);
   const roundDiffs = useMemo(() => detail?.round_diffs ?? [], [detail?.round_diffs]);
   const auditLogs = useMemo(() => detail?.audit_logs ?? [], [detail?.audit_logs]);
+  const latestHumanReview = humanReviews[humanReviews.length - 1] ?? null;
 
   async function approve() {
     if (!submissionId || !detail) {
@@ -82,6 +90,20 @@ export function ReviewSubmissionDetail() {
       showOperationError(err, "退回提交失败。");
     } finally {
       setMutating(false);
+    }
+  }
+
+  async function exportSubmissionAudit() {
+    if (!submissionId) {
+      return;
+    }
+    setExporting(true);
+    try {
+      saveReviewAuditFile(await downloadSubmissionAuditExport(submissionId));
+    } catch (err) {
+      showOperationError(err, "导出审计失败。");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -120,11 +142,14 @@ export function ReviewSubmissionDetail() {
           backLink={<Link to="/review/queue">返回审核队列</Link>}
           actions={
             <Space>
+              <Button aria-label="导出审计" loading={exporting} onClick={() => void exportSubmissionAudit()}>
+                导出审计
+              </Button>
               <Button loading={mutating} type="primary" onClick={() => void approve()}>
-                批准
+                终审批准
               </Button>
               <Button danger loading={mutating} onClick={() => setReturnOpen(true)}>
-                退回
+                退回修订
               </Button>
             </Space>
           }
@@ -158,6 +183,11 @@ export function ReviewSubmissionDetail() {
             <Descriptions.Item label="提交时间">
               {detail.submission.submitted_at ? new Date(detail.submission.submitted_at).toLocaleString() : "未提交"}
             </Descriptions.Item>
+            <Descriptions.Item label="SLA">{formatSubmissionSla(detail.task.deadline_at)}</Descriptions.Item>
+            <Descriptions.Item label="审核归属">
+              {latestHumanReview ? latestHumanReview.reviewer_id : "未分配"}
+            </Descriptions.Item>
+            <Descriptions.Item label="下一步">{formatNextAction(detail.submission.status)}</Descriptions.Item>
           </Descriptions>
         </StudioPanel>
 
@@ -365,6 +395,39 @@ function formatChangeType(changeType: ReviewRoundDiffFieldRead["change_type"]) {
     return "移除";
   }
   return "变更";
+}
+
+function formatSubmissionSla(deadlineAt: string | null) {
+  if (!deadlineAt) {
+    return "无截止时间";
+  }
+  const deadline = new Date(deadlineAt);
+  if (deadline.getTime() < Date.now()) {
+    return `SLA 已超时：${deadline.toLocaleString()}`;
+  }
+  return `SLA 剩余：${formatDuration(Math.floor((deadline.getTime() - Date.now()) / 1000))}`;
+}
+
+function formatNextAction(status: string) {
+  if (status === "approved" || status === "exportable") {
+    return "等待负责人导出";
+  }
+  if (status === "returned") {
+    return "等待标注员修订后重新提交";
+  }
+  if (status === "ai_passed" || status === "needs_human_review" || status === "human_reviewing") {
+    return "审核员批准或退回";
+  }
+  return "等待工作流进入人工审核";
+}
+
+function formatDuration(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}小时${minutes}分`;
+  }
+  return `${minutes}分`;
 }
 
 function JsonCard({ title, value }: { title: string; value: unknown }) {

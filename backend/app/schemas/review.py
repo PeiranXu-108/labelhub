@@ -74,6 +74,24 @@ class ReviewQueueItemRead(BaseModel):
     latest_human_review: HumanReviewRead | None
 
 
+class ReviewerSLAContextRead(BaseModel):
+    source: str
+    reference_time: datetime
+    nearest_deadline_at: datetime | None
+    seconds_until_nearest_deadline: int | None
+    overdue_count: int
+    pending_with_deadline_count: int
+
+
+class ReviewerMetricsRead(BaseModel):
+    reviewed_today: int
+    approved_today: int
+    returned_today: int
+    pass_rate: float | None
+    pending_review_count: int
+    sla: ReviewerSLAContextRead
+
+
 class ReviewRoundDiffFieldRead(BaseModel):
     field_id: str
     field_label: str
@@ -101,3 +119,19 @@ class ReviewSubmissionDetail(BaseModel):
     round_diffs: list[ReviewRoundDiffRead]
     audit_logs: list[AuditLogRead]
     previous_attempts: list[SubmissionAttemptRead]
+
+
+class ReviewAuditExportSubmissionRead(BaseModel):
+    submission: SubmissionRead
+    task: TaskRead
+    audit_logs: list[AuditLogRead]
+    ai_reviews: list[AIReviewRead]
+    human_reviews: list[HumanReviewRead]
+
+
+class ReviewAuditExportRead(BaseModel):
+    scope: str
+    task_id: str
+    generated_at: datetime
+    submission_count: int
+    submissions: list[ReviewAuditExportSubmissionRead]

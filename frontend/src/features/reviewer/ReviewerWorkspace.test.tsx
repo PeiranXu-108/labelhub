@@ -215,6 +215,38 @@ const queueItem = {
   latest_human_review: null,
 };
 
+const reviewerMetrics = {
+  reviewed_today: 2,
+  approved_today: 1,
+  returned_today: 1,
+  pass_rate: 0.5,
+  pending_review_count: 4,
+  sla: {
+    source: "task.deadline_at",
+    reference_time: "2026-05-23T00:30:00Z",
+    nearest_deadline_at: "2026-05-23T00:15:00Z",
+    seconds_until_nearest_deadline: -900,
+    overdue_count: 1,
+    pending_with_deadline_count: 2,
+  },
+};
+
+const auditExport = {
+  scope: "submission",
+  task_id: "task-1",
+  generated_at: "2026-05-23T00:30:00Z",
+  submission_count: 1,
+  submissions: [
+    {
+      submission,
+      task,
+      audit_logs: [audit],
+      ai_reviews: [aiReview],
+      human_reviews: [humanReview],
+    },
+  ],
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -237,6 +269,7 @@ describe("reviewer workspace", () => {
   it("sends server-backed review queue filters and approves a submission", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
+      if (url.endsWith("/review/metrics")) return jsonResponse(reviewerMetrics);
       if (url.includes("/review/queue")) return jsonResponse([queueItem]);
       if (url.endsWith("/review/submissions/sub-1/approve")) {
         return jsonResponse({ ...submission, status: "approved" });
@@ -286,6 +319,32 @@ describe("reviewer workspace", () => {
     );
   });
 
+  it("renders reviewer metrics from the backend", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/metrics")) return jsonResponse(reviewerMetrics);
+      if (url.includes("/review/queue")) return jsonResponse([queueItem]);
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/queue"]}>
+        <Routes>
+          <Route path="/review/queue" element={<ReviewQueueRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("今日已审")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("待审 4")).toBeInTheDocument();
+    expect(screen.getByText(/SLA 已超时/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/review/metrics"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("blocks return actions until a reason is provided", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
@@ -312,6 +371,7 @@ describe("reviewer workspace", () => {
     let approved = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
+      if (url.endsWith("/review/metrics")) return jsonResponse(reviewerMetrics);
       if (url.includes("/review/queue")) return jsonResponse(approved ? [] : [queueItem]);
       if (url.endsWith("/review/submissions/sub-1/approve")) {
         approved = true;
@@ -405,6 +465,68 @@ describe("reviewer workspace", () => {
     expect(screen.getAllByText(/negative/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText("提交").length).toBeGreaterThan(0);
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/audit?"))).toBe(false);
+  });
+
+  it("downloads submission audit export from the detail action", async () => {
+    const createObjectUrl = vi.fn(() => "blob:review-audit");
+    const revokeObjectUrl = vi.fn();
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/submissions/sub-1")) return jsonResponse(detail);
+      if (url.endsWith("/review/submissions/sub-1/audit-export")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(auditExport), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Disposition": 'attachment; filename="review-audit-submission-sub-1.json"',
+            },
+          }),
+        );
+      }
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/submissions/sub-1"]}>
+        <Routes>
+          <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "导出审计" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/review/submissions/sub-1/audit-export"),
+        expect.objectContaining({ method: "GET" }),
+      ),
+    );
+    expect(createObjectUrl).toHaveBeenCalled();
+    expect(clickAnchor).toHaveBeenCalled();
+  });
+
+  it("does not expose direct reviewer revision controls without an approved policy", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/review/submissions/sub-1")) return jsonResponse(detail);
+      return jsonResponse({ detail: { message: `Unhandled ${url}` } }, 404);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/review/submissions/sub-1"]}>
+        <Routes>
+          <Route path="/review/submissions/:submissionId" element={<ReviewSubmissionRoute />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("提交详情")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /直接修订|编辑答案/ })).not.toBeInTheDocument();
   });
 
   it("renders uploaded file and image answers through read-only media controls", async () => {

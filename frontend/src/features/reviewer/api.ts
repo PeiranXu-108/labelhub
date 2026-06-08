@@ -1,12 +1,18 @@
-import { apiRequest } from "../auth/http";
+import { apiRequest, fetchWithAuth, readError } from "../auth/http";
 import type { SubmissionRead } from "../labeler/types";
 import type { ReviewStage } from "../labeler/types";
 import type {
   AuditLogRead,
   ReviewQueueFilters,
   ReviewQueueItemRead,
+  ReviewerMetricsRead,
   ReviewSubmissionDetail,
 } from "./types";
+
+export type DownloadedReviewAuditFile = {
+  blob: Blob;
+  filename: string;
+};
 
 export function listReviewQueue(filters: ReviewQueueFilters = {}) {
   const query = new URLSearchParams();
@@ -17,6 +23,10 @@ export function listReviewQueue(filters: ReviewQueueFilters = {}) {
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<ReviewQueueItemRead[]>(`/review/queue${suffix}`);
+}
+
+export function getReviewerMetrics() {
+  return apiRequest<ReviewerMetricsRead>("/review/metrics");
 }
 
 export function getReviewSubmission(submissionId: string) {
@@ -52,4 +62,53 @@ export function batchReview(
 export function listSubmissionAudit(submissionId: string) {
   const query = new URLSearchParams({ entity_type: "submission", entity_id: submissionId });
   return apiRequest<AuditLogRead[]>(`/audit?${query.toString()}`);
+}
+
+export function downloadSubmissionAuditExport(submissionId: string) {
+  return downloadReviewAuditExport(
+    `/review/submissions/${submissionId}/audit-export`,
+    `review-audit-submission-${submissionId}.json`,
+  );
+}
+
+export function downloadTaskAuditExport(taskId: string) {
+  return downloadReviewAuditExport(
+    `/review/tasks/${taskId}/audit-export`,
+    `review-audit-task-${taskId}.json`,
+  );
+}
+
+export function saveReviewAuditFile(file: DownloadedReviewAuditFile) {
+  const objectUrl = URL.createObjectURL(file.blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = file.filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function downloadReviewAuditExport(path: string, fallbackFilename: string): Promise<DownloadedReviewAuditFile> {
+  const response = await fetchWithAuth(path, { method: "GET" });
+  if (!response.ok) {
+    const detail = await readError(response);
+    throw new Error(detail);
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: parseFilename(response.headers.get("Content-Disposition")) ?? fallbackFilename,
+  };
+}
+
+function parseFilename(contentDisposition: string | null) {
+  if (!contentDisposition) {
+    return null;
+  }
+  const filenameMatch = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(contentDisposition);
+  if (!filenameMatch) {
+    return null;
+  }
+  return decodeURIComponent(filenameMatch[1].replace(/"$/, ""));
 }

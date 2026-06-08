@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,10 +9,13 @@ from app.models import AIReview, AuditLog, HumanReview, Submission, SubmissionAt
 from app.schemas.review import (
     BatchReviewRequest,
     ReviewActionRequest,
+    ReviewAuditExportRead,
     ReviewQueueItemRead,
     ReviewSubmissionDetail,
+    ReviewerMetricsRead,
 )
 from app.schemas.submission import SubmissionRead
+from app.services.review_operations import ReviewOperationsService
 from app.services.submissions import SubmissionService
 from app.services.agent_workflow import AgentWorkflowService
 from app.services.review_stages import build_round_diffs, current_review_stage
@@ -30,6 +33,49 @@ def _raise_workflow_error(exc: WorkflowError) -> None:
     if exc.code == "PERMISSION_DENIED":
         status_code = status.HTTP_403_FORBIDDEN
     raise api_error(exc.code, exc.message, status_code)
+
+
+@router.get("/metrics", response_model=ReviewerMetricsRead)
+def review_metrics(
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.REVIEWER)),
+) -> dict:
+    return ReviewOperationsService(db).reviewer_metrics(_actor_context(actor))
+
+
+@router.get("/submissions/{submission_id}/audit-export", response_model=ReviewAuditExportRead)
+def export_submission_review_audit(
+    submission_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
+) -> dict:
+    try:
+        payload = ReviewOperationsService(db).submission_audit_export(
+            submission_id,
+            _actor_context(actor),
+        )
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="review-audit-submission-{submission_id}.json"'
+    )
+    return payload
+
+
+@router.get("/tasks/{task_id}/audit-export", response_model=ReviewAuditExportRead)
+def export_task_review_audit(
+    task_id: str,
+    response: Response,
+    db: Session = Depends(get_db),
+    actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
+) -> dict:
+    try:
+        payload = ReviewOperationsService(db).task_audit_export(task_id, _actor_context(actor))
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
+    response.headers["Content-Disposition"] = f'attachment; filename="review-audit-task-{task_id}.json"'
+    return payload
 
 
 @router.get("/queue", response_model=list[ReviewQueueItemRead])

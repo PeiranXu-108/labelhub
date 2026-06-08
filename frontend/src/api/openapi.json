@@ -1712,6 +1712,126 @@
         ]
       }
     },
+    "/review/metrics": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Review Metrics",
+        "operationId": "review_metrics_review_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewerMetricsRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/review/submissions/{submission_id}/audit-export": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Export Submission Review Audit",
+        "operationId": "export_submission_review_audit_review_submissions__submission_id__audit_export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAuditExportRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review/tasks/{task_id}/audit-export": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Export Task Review Audit",
+        "operationId": "export_task_review_audit_review_tasks__task_id__audit_export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewAuditExportRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/review/queue": {
       "get": {
         "tags": [
@@ -5828,6 +5948,83 @@
         "type": "object",
         "title": "ReviewActionRequest"
       },
+      "ReviewAuditExportRead": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "submission_count": {
+            "type": "integer",
+            "title": "Submission Count"
+          },
+          "submissions": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewAuditExportSubmissionRead"
+            },
+            "type": "array",
+            "title": "Submissions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "task_id",
+          "generated_at",
+          "submission_count",
+          "submissions"
+        ],
+        "title": "ReviewAuditExportRead"
+      },
+      "ReviewAuditExportSubmissionRead": {
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/SubmissionRead"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRead"
+          },
+          "audit_logs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogRead"
+            },
+            "type": "array",
+            "title": "Audit Logs"
+          },
+          "ai_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/AIReviewRead"
+            },
+            "type": "array",
+            "title": "Ai Reviews"
+          },
+          "human_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/HumanReviewRead"
+            },
+            "type": "array",
+            "title": "Human Reviews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submission",
+          "task",
+          "audit_logs",
+          "ai_reviews",
+          "human_reviews"
+        ],
+        "title": "ReviewAuditExportSubmissionRead"
+      },
       "ReviewConfigRead": {
         "properties": {
           "prompt_template": {
@@ -6181,6 +6378,104 @@
           "previous_attempts"
         ],
         "title": "ReviewSubmissionDetail"
+      },
+      "ReviewerMetricsRead": {
+        "properties": {
+          "reviewed_today": {
+            "type": "integer",
+            "title": "Reviewed Today"
+          },
+          "approved_today": {
+            "type": "integer",
+            "title": "Approved Today"
+          },
+          "returned_today": {
+            "type": "integer",
+            "title": "Returned Today"
+          },
+          "pass_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass Rate"
+          },
+          "pending_review_count": {
+            "type": "integer",
+            "title": "Pending Review Count"
+          },
+          "sla": {
+            "$ref": "#/components/schemas/ReviewerSLAContextRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewed_today",
+          "approved_today",
+          "returned_today",
+          "pass_rate",
+          "pending_review_count",
+          "sla"
+        ],
+        "title": "ReviewerMetricsRead"
+      },
+      "ReviewerSLAContextRead": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "reference_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reference Time"
+          },
+          "nearest_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Deadline At"
+          },
+          "seconds_until_nearest_deadline": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds Until Nearest Deadline"
+          },
+          "overdue_count": {
+            "type": "integer",
+            "title": "Overdue Count"
+          },
+          "pending_with_deadline_count": {
+            "type": "integer",
+            "title": "Pending With Deadline Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "reference_time",
+          "nearest_deadline_at",
+          "seconds_until_nearest_deadline",
+          "overdue_count",
+          "pending_with_deadline_count"
+        ],
+        "title": "ReviewerSLAContextRead"
       },
       "RewardRule-Input": {
         "properties": {

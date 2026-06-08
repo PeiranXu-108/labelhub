@@ -47,6 +47,24 @@ export type ReviewQueueItemRead = {
   latest_human_review: HumanReviewRead | null;
 };
 
+export type ReviewerSLAContextRead = {
+  source: string;
+  reference_time: string;
+  nearest_deadline_at: string | null;
+  seconds_until_nearest_deadline: number | null;
+  overdue_count: number;
+  pending_with_deadline_count: number;
+};
+
+export type ReviewerMetricsRead = {
+  reviewed_today: number;
+  approved_today: number;
+  returned_today: number;
+  pass_rate: number | null;
+  pending_review_count: number;
+  sla: ReviewerSLAContextRead;
+};
+
 export type ReviewQueueFilters = {
   task_id?: string;
   status?: string;
@@ -83,4 +101,20 @@ export type ReviewSubmissionDetail = {
   round_diffs: ReviewRoundDiffRead[];
   audit_logs: AuditLogRead[];
   previous_attempts: SubmissionAttemptRead[];
+};
+
+export type ReviewAuditExportSubmissionRead = {
+  submission: SubmissionRead;
+  task: TaskRead;
+  audit_logs: AuditLogRead[];
+  ai_reviews: AIReviewRead[];
+  human_reviews: HumanReviewRead[];
+};
+
+export type ReviewAuditExportRead = {
+  scope: string;
+  task_id: string;
+  generated_at: string;
+  submission_count: number;
+  submissions: ReviewAuditExportSubmissionRead[];
 };
