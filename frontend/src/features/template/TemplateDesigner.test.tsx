@@ -271,6 +271,231 @@ describe("TemplateDesigner", () => {
     },
   );
 
+  it("authors a regex validation rule into the runtime validations array", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [{ id: "ticket", type: "text", label: "Ticket" }],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "验证" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加正则验证" }));
+    fireEvent.change(screen.getByLabelText("正则表达式"), {
+      target: { value: "^TICKET-[0-9]{3}$" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "忽略大小写" }));
+
+    expect(latestSchema(onChange).validations).toEqual([
+      {
+        type: "regex",
+        fieldId: "ticket",
+        pattern: "^TICKET-[0-9]{3}$",
+        flags: ["i"],
+      },
+    ]);
+    expect(validateTemplateSchema(latestSchema(onChange))).toEqual([]);
+  });
+
+  it("surfaces unsafe regex validation authored in the inspector", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [{ id: "ticket", type: "text", label: "Ticket" }],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "验证" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加正则验证" }));
+    fireEvent.change(screen.getByLabelText("正则表达式"), {
+      target: { value: "(a+)+$" },
+    });
+
+    expect(screen.getByText("ticket 的正则表达式只能使用安全子集")).toBeInTheDocument();
+    expect(validateTemplateSchema(latestSchema(onChange))).toContain(
+      "ticket 的正则表达式只能使用安全子集",
+    );
+  });
+
+  it("authors a visibility rule for the selected target field", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [
+            {
+              id: "decision",
+              type: "radio",
+              label: "Decision",
+              options: [
+                { label: "Accept", value: "accept" },
+                { label: "Return", value: "return" },
+              ],
+            },
+            { id: "reason", type: "textarea", label: "Reason" },
+          ],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Reason"));
+    fireEvent.click(screen.getByRole("tab", { name: "联动" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加显示规则" }));
+    fireEvent.change(screen.getByLabelText("显示条件值"), { target: { value: "return" } });
+
+    expect(latestSchema(onChange).visibilityRules).toEqual([
+      {
+        id: "show_reason",
+        targetFieldId: "reason",
+        effect: "show",
+        condition: {
+          sourceFieldId: "decision",
+          operator: "equals",
+          value: "return",
+        },
+      },
+    ]);
+    expect(validateTemplateSchema(latestSchema(onChange))).toEqual([]);
+  });
+
+  it("authors group and tab layouts while leaving unassigned fields ungrouped", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [
+            { id: "comment", type: "textarea", label: "Comment" },
+            { id: "score", type: "number", label: "Score" },
+          ],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "联动" }));
+    fireEvent.click(screen.getByRole("radio", { name: "分组" }));
+    fireEvent.change(screen.getByLabelText("布局分组 1 标题"), {
+      target: { value: "质量信息" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "标签页" }));
+
+    const schema = latestSchema(onChange);
+    expect(schema.layout).toEqual({
+      type: "tabs",
+      groups: [
+        expect.objectContaining({
+          id: "group_1",
+          title: "质量信息",
+          fieldIds: ["comment"],
+        }),
+      ],
+    });
+    expect(schema.fields.map((field) => field.id)).toEqual(["comment", "score"]);
+    expect(validateTemplateSchema(schema)).toEqual([]);
+  });
+
+  it("authors LLM trigger mode, output schema, context fields, and temperature", () => {
+    const onChange = vi.fn();
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [
+            { id: "summary", type: "textarea", label: "Summary" },
+            {
+              id: "assist",
+              type: "llm_trigger",
+              label: "Assist",
+              promptTemplate: "Summarize {{item.payload.text}}",
+              targetFieldId: "summary",
+            },
+          ],
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Assist"));
+    fireEvent.click(screen.getByRole("radio", { name: "自动填入" }));
+    fireEvent.click(screen.getByRole("radio", { name: "JSON 对象" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Summary (summary)" }));
+    fireEvent.click(screen.getByRole("radio", { name: "0.7" }));
+
+    expect(latestSchema(onChange).fields[1]).toEqual(
+      expect.objectContaining({
+        type: "llm_trigger",
+        mode: "prefill",
+        outputSchema: { preset: "json_object" },
+        contextFields: ["summary"],
+        temperature: 0.7,
+      }),
+    );
+    expect(validateTemplateSchema(latestSchema(onChange))).toEqual([]);
+  });
+
+  it("does not expose display-only fields as LLM trigger target options", async () => {
+    render(
+      <TemplateDesigner
+        initialSchema={{
+          ...baseSchema,
+          fields: [
+            {
+              id: "raw_text",
+              type: "show_item",
+              label: "Raw text",
+              source: "item.payload.text",
+            },
+            { id: "summary", type: "textarea", label: "Summary" },
+            {
+              id: "assist",
+              type: "llm_trigger",
+              label: "Assist",
+              promptTemplate: "Summarize {{item.payload.text}}",
+              targetFieldId: "summary",
+            },
+          ],
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Assist"));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "目标字段" }));
+
+    expect(await screen.findByRole("option", { name: "Summary (summary)" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Raw text (raw_text)" })).not.toBeInTheDocument();
+  });
+
+  it("rejects LLM trigger temperatures outside the authorable preset list", () => {
+    const schema: TemplateSchemaDocument = {
+      ...baseSchema,
+      fields: [
+        { id: "summary", type: "textarea", label: "Summary" },
+        {
+          id: "assist",
+          type: "llm_trigger",
+          label: "Assist",
+          promptTemplate: "Summarize {{item.payload.text}}",
+          targetFieldId: "summary",
+          temperature: 0.1,
+        },
+      ],
+    };
+
+    expect(validateTemplateSchema(schema)).toContain("assist 的温度必须使用预设值");
+  });
+
   it("ignores canvas drops without LabelHub drag payloads", () => {
     const onChange = vi.fn();
     render(<TemplateDesigner initialSchema={baseSchema} onChange={onChange} />);

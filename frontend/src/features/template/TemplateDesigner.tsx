@@ -10,6 +10,8 @@ import {
   createField,
   duplicateField,
   moveField,
+  removeSchemaFieldReferences,
+  replaceSchemaFieldReferences,
   validateTemplateSchema,
 } from "./templateDesignerModel";
 
@@ -72,16 +74,15 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
     }
     const currentField = schema.fields[selectedIndex];
     const nextField = updater(currentField);
-    const nextFields = schema.fields.map((field, index) =>
-      index === selectedIndex ? nextField : updateFieldReferences(field, currentField.id, nextField.id),
+    const nextSchema = replaceSchemaFieldReferences(
+      {
+        ...schema,
+        fields: schema.fields.map((field, index) => (index === selectedIndex ? nextField : field)),
+      },
+      currentField.id,
+      nextField.id,
     );
-    commit({
-      ...schema,
-      fields: nextFields,
-      llmTools: schema.llmTools.map((tool) =>
-        tool.targetFieldId === currentField.id ? { ...tool, targetFieldId: nextField.id } : tool,
-      ),
-    });
+    commit(nextSchema);
   }
 
   function moveFieldByIndex(fromIndex: number, toIndex: number) {
@@ -112,7 +113,7 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
     }
     const nextFields = schema.fields.filter((_, fieldIndex) => fieldIndex !== index);
     setSelectedIndex(nextFields.length === 0 ? null : Math.min(index, nextFields.length - 1));
-    commit({ ...schema, fields: nextFields });
+    commit(removeSchemaFieldReferences({ ...schema, fields: nextFields }, schema.fields[index].id));
   }
 
   return (
@@ -155,8 +156,10 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
               field={selectedField}
               fields={schema.fields}
               issues={validationIssues}
+              schema={schema}
               onDelete={() => selectedIndex != null && deleteFieldByIndex(selectedIndex)}
               onDuplicate={() => selectedIndex != null && duplicateFieldByIndex(selectedIndex)}
+              onSchemaChange={commit}
               onUpdate={updateSelectedField}
             />
           </div>
@@ -164,13 +167,6 @@ export function TemplateDesigner({ initialSchema, onChange }: TemplateDesignerPr
       )}
     </section>
   );
-}
-
-function updateFieldReferences(field: TemplateField, previousId: string, nextId: string): TemplateField {
-  if (field.type === "llm_trigger" && field.targetFieldId === previousId) {
-    return { ...field, targetFieldId: nextId };
-  }
-  return field;
 }
 
 function nextSelectedIndexAfterMove(

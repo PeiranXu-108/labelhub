@@ -270,6 +270,196 @@ def test_rich_media_field_constraints_are_rejected(client: TestClient) -> None:
     assert "acceptedExtensions entries must start with a dot" in response.text
 
 
+def test_advanced_authoring_schema_is_accepted_by_backend_validation(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers, name="Advanced authoring schema")
+    payload = {
+        "version": 1,
+        "title": "Advanced authoring schema",
+        "layout": {
+            "type": "tabs",
+            "groups": [
+                {
+                    "id": "decision_tab",
+                    "title": "Decision",
+                    "description": "Primary labeling fields.",
+                    "fieldIds": ["decision", "ticket"],
+                }
+            ],
+        },
+        "fields": [
+            {
+                "id": "raw_text",
+                "type": "show_item",
+                "label": "Raw text",
+                "source": "item.payload.text",
+            },
+            {
+                "id": "decision",
+                "type": "radio",
+                "label": "Decision",
+                "required": True,
+                "options": [
+                    {"label": "Accept", "value": "accept"},
+                    {"label": "Return", "value": "return"},
+                ],
+            },
+            {"id": "ticket", "type": "text", "label": "Ticket"},
+            {"id": "return_reason", "type": "textarea", "label": "Return reason"},
+            {"id": "summary", "type": "textarea", "label": "Summary"},
+            {
+                "id": "assist_summary",
+                "type": "llm_trigger",
+                "label": "Assist summary",
+                "promptTemplate": "Summarize {{item.payload.text}} using {{answers.decision}}.",
+                "targetFieldId": "summary",
+                "mode": "prefill",
+                "outputSchema": {"preset": "text"},
+                "contextFields": ["decision", "ticket"],
+                "temperature": 0.7,
+            },
+        ],
+        "llmTools": [],
+        "visibilityRules": [
+            {
+                "id": "show_return_reason",
+                "targetFieldId": "return_reason",
+                "condition": {"sourceFieldId": "decision", "operator": "equals", "value": "return"},
+            }
+        ],
+        "validations": [
+            {"type": "required", "fieldId": "decision"},
+            {"type": "regex", "fieldId": "ticket", "pattern": "^TICKET-[0-9]{3}$", "flags": ["i"]},
+            {"type": "custom", "fieldId": "summary", "name": "no_whitespace_edges"},
+        ],
+    }
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 201
+    schema_payload = response.json()["schema_payload"]
+    assert schema_payload["layout"]["type"] == "tabs"
+    assert schema_payload["visibilityRules"] == [
+        {
+            **payload["visibilityRules"][0],
+            "effect": "show",
+        }
+    ]
+    assert schema_payload["validations"][0] == {
+        "type": "required",
+        "fieldId": "decision",
+        "message": None,
+    }
+    assert schema_payload["validations"][1] == {
+        "type": "regex",
+        "fieldId": "ticket",
+        "message": None,
+        "pattern": "^TICKET-[0-9]{3}$",
+        "flags": ["i"],
+    }
+    assert schema_payload["validations"][2] == {
+        "type": "custom",
+        "fieldId": "summary",
+        "message": None,
+        "name": "no_whitespace_edges",
+    }
+    trigger = schema_payload["fields"][5]
+    assert trigger["mode"] == "prefill"
+    assert trigger["outputSchema"] == {"preset": "text", "jsonSchema": None}
+    assert trigger["contextFields"] == ["decision", "ticket"]
+    assert trigger["temperature"] == 0.7
+
+
+def test_llm_trigger_temperature_must_use_authorable_allowlist(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers, name="Invalid LLM temperature schema")
+    payload = {
+        "version": 1,
+        "title": "Invalid LLM temperature schema",
+        "layout": {"type": "single", "groups": []},
+        "fields": [
+            {"id": "summary", "type": "textarea", "label": "Summary"},
+            {
+                "id": "assist_summary",
+                "type": "llm_trigger",
+                "label": "Assist summary",
+                "promptTemplate": "Summarize {{item.payload.text}}.",
+                "targetFieldId": "summary",
+                "temperature": 0.1,
+            },
+        ],
+        "llmTools": [],
+        "visibilityRules": [],
+        "validations": [],
+    }
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 422
+    assert "temperature must use an allowed preset" in response.text
+
+
+def test_visibility_rules_reject_self_reference_and_cycles(client: TestClient) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    task = _create_task(client, owner_headers, name="Invalid visibility schema")
+    payload = {
+        "version": 1,
+        "title": "Invalid visibility schema",
+        "layout": {"type": "single", "groups": []},
+        "fields": [
+            {"id": "decision", "type": "radio", "label": "Decision", "options": [{"label": "Return", "value": "return"}]},
+            {"id": "return_reason", "type": "textarea", "label": "Return reason"},
+        ],
+        "llmTools": [],
+        "visibilityRules": [
+            {
+                "id": "decision_depends_on_decision",
+                "targetFieldId": "decision",
+                "condition": {"sourceFieldId": "decision", "operator": "equals", "value": "return"},
+            }
+        ],
+        "validations": [],
+    }
+
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 422
+    assert "visibility rule targetFieldId cannot reference its sourceFieldId" in response.text
+
+    payload["visibilityRules"] = [
+        {
+            "id": "show_return_reason",
+            "targetFieldId": "return_reason",
+            "condition": {"sourceFieldId": "decision", "operator": "equals", "value": "return"},
+        },
+        {
+            "id": "show_decision",
+            "targetFieldId": "decision",
+            "condition": {"sourceFieldId": "return_reason", "operator": "is_not_empty"},
+        },
+    ]
+    response = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": payload},
+    )
+
+    assert response.status_code == 422
+    assert "visibility rules cannot form a cycle" in response.text
+
+
 def test_publish_creates_immutable_versions(
     client: TestClient, db_session: Session
 ) -> None:

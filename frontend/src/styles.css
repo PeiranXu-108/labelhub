@@ -308,7 +308,8 @@ body {
 .field-list,
 .palette-buttons,
 .inspector-form,
-.option-editor {
+.option-editor,
+.advanced-editor {
   display: grid;
   gap: 12px;
 }
@@ -546,6 +547,30 @@ body {
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid #e4eaf2;
+}
+
+.inspector-tabs .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+.advanced-button-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.advanced-rule-card,
+.layout-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fafd;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+}
+
+.advanced-rule-header {
+  justify-content: space-between;
 }
 
 @media (max-width: 680px) {
@@ -1622,7 +1647,10 @@ body {
 
 .inspector-form,
 .schema-control,
-.layout-disabled {
+.layout-disabled,
+.advanced-editor,
+.advanced-rule-card,
+.layout-editor {
   grid-template-columns: minmax(0, 1fr);
 }
 

@@ -1,7 +1,9 @@
-import { Checkbox, Input, InputNumber, Select, Typography } from "antd";
+import { Checkbox, Input, InputNumber, Radio, Select, Tabs, Typography } from "antd";
 
-import type { TemplateField, TemplateOption } from "../schema-renderer";
+import type { TemplateField, TemplateOption, TemplateSchemaDocument } from "../schema-renderer";
+import { LinkageRuleEditor, ValidationRuleEditor } from "./TemplateAdvancedEditors";
 import {
+  answerableFields,
   emptyToNull,
   isLlmTriggerField,
   isNumberField,
@@ -11,14 +13,19 @@ import {
   isShowItemField,
   isTextField,
   isUploadField,
+  llmModeOptions,
+  llmOutputPresetOptions,
+  llmTemperatureOptions,
 } from "./templateDesignerModel";
 
 type TemplatePropertyInspectorProps = {
   field: TemplateField | null;
   fields: TemplateField[];
   issues: string[];
+  schema: TemplateSchemaDocument;
   onDelete: () => void;
   onDuplicate: () => void;
+  onSchemaChange: (schema: TemplateSchemaDocument) => void;
   onUpdate: (updater: (field: TemplateField) => TemplateField) => void;
 };
 
@@ -26,8 +33,10 @@ export function TemplatePropertyInspector({
   field,
   fields,
   issues: _issues,
+  schema,
   onDelete,
   onDuplicate,
+  onSchemaChange,
   onUpdate,
 }: TemplatePropertyInspectorProps) {
   return (
@@ -36,19 +45,39 @@ export function TemplatePropertyInspector({
       {!field ? (
         <Typography.Text type="secondary">请选择一个字段</Typography.Text>
       ) : (
-        <div className="inspector-form">
-          <div className="inspector-actions">
-            <button aria-label="复制当前字段" onClick={onDuplicate} type="button">
-              复制
-            </button>
-            <button aria-label="删除当前字段" onClick={onDelete} type="button">
-              删除
-            </button>
-          </div>
-          <CommonFieldEditor field={field} onUpdate={onUpdate} />
-          {renderSpecificEditor(field, fields, onUpdate)}
-          <LayoutEditor />
-        </div>
+        <Tabs
+          className="inspector-tabs"
+          items={[
+            {
+              key: "basic",
+              label: "基础",
+              children: (
+                <div className="inspector-form">
+                  <div className="inspector-actions">
+                    <button aria-label="复制当前字段" onClick={onDuplicate} type="button">
+                      复制
+                    </button>
+                    <button aria-label="删除当前字段" onClick={onDelete} type="button">
+                      删除
+                    </button>
+                  </div>
+                  <CommonFieldEditor field={field} onUpdate={onUpdate} />
+                  {renderSpecificEditor(field, fields, onUpdate)}
+                </div>
+              ),
+            },
+            {
+              key: "validation",
+              label: "验证",
+              children: <ValidationRuleEditor field={field} schema={schema} onSchemaChange={onSchemaChange} />,
+            },
+            {
+              key: "linkage",
+              label: "联动",
+              children: <LinkageRuleEditor field={field} schema={schema} onSchemaChange={onSchemaChange} />,
+            },
+          ]}
+        />
       )}
     </aside>
   );
@@ -291,7 +320,11 @@ function renderSpecificEditor(
   }
 
   if (isLlmTriggerField(field)) {
-    const targetOptions = fields
+    const targetOptions = answerableFields(fields).map((candidate) => ({
+      label: `${candidate.label} (${candidate.id})`,
+      value: candidate.id,
+    }));
+    const contextOptions = fields
       .filter((candidate) => candidate.type !== "llm_trigger")
       .map((candidate) => ({ label: `${candidate.label} (${candidate.id})`, value: candidate.id }));
     return (
@@ -323,6 +356,58 @@ function renderSpecificEditor(
             }
           />
         </label>
+        <div className="schema-control">
+          <span>触发模式</span>
+          <Radio.Group
+            options={[...llmModeOptions]}
+            value={field.mode ?? "suggest"}
+            onChange={(event) =>
+              onUpdate((current) =>
+                isLlmTriggerField(current) ? { ...current, mode: event.target.value } : current,
+              )
+            }
+          />
+        </div>
+        <div className="schema-control">
+          <span>输出结构</span>
+          <Radio.Group
+            options={[...llmOutputPresetOptions]}
+            value={field.outputSchema?.preset ?? "target_field"}
+            onChange={(event) =>
+              onUpdate((current) =>
+                isLlmTriggerField(current)
+                  ? { ...current, outputSchema: { ...(current.outputSchema ?? {}), preset: event.target.value } }
+                  : current,
+              )
+            }
+          />
+        </div>
+        <div className="schema-control">
+          <span>上下文字段</span>
+          <Checkbox.Group
+            options={contextOptions}
+            value={field.contextFields ?? []}
+            onChange={(values) =>
+              onUpdate((current) =>
+                isLlmTriggerField(current)
+                  ? { ...current, contextFields: values.map(String) }
+                  : current,
+              )
+            }
+          />
+        </div>
+        <div className="schema-control">
+          <span>温度</span>
+          <Radio.Group
+            options={llmTemperatureOptions.map((value) => ({ label: String(value), value }))}
+            value={field.temperature ?? null}
+            onChange={(event) =>
+              onUpdate((current) =>
+                isLlmTriggerField(current) ? { ...current, temperature: event.target.value } : current,
+              )
+            }
+          />
+        </div>
       </>
     );
   }
@@ -467,20 +552,6 @@ function OptionEditor({
       <button onClick={addOption} type="button">
         新增选项
       </button>
-    </div>
-  );
-}
-
-function LayoutEditor() {
-  return (
-    <div className="layout-disabled" aria-label="布局设置">
-      <Typography.Text strong>布局</Typography.Text>
-      <Select
-        aria-label="布局分组"
-        disabled
-        options={[{ label: "单列布局，分组与条件由 Task 15 接入", value: "single" }]}
-        value="single"
-      />
     </div>
   );
 }

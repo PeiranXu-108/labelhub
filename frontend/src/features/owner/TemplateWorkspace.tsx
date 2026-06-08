@@ -77,6 +77,20 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
     }
   }
 
+  function handleExportSchemaJson() {
+    const blob = new Blob([`${JSON.stringify(schema, null, 2)}\n`], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `template-schema-v${schema.version}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <StudioPanel className="ops-card template-workspace" title="模板设计器">
       <div className="panel-toolbar compact">
@@ -89,6 +103,7 @@ export function TemplateWorkspace({ taskId, template, onSaved }: TemplateWorkspa
           </Space>
         </div>
         <Space>
+          <Button onClick={handleExportSchemaJson}>导出 Schema JSON</Button>
           <Button disabled={publishing || validationIssues.length > 0} loading={saving} onClick={handleSaveDraft}>
             保存草稿
           </Button>

@@ -24,6 +24,7 @@ SUPPORTED_CUSTOM_VALIDATORS = {
 SAFE_REGEX_FLAGS = {"i"}
 SAFE_REGEX_LITERAL_ESCAPES = set(r".^$*+?{}[]\|()-")
 SAFE_REGEX_SHORTHAND_ESCAPES = set("dDsSwW")
+LLM_TEMPERATURE_PRESETS = {0.0, 0.2, 0.7, 1.0}
 
 
 def validate_field_reference(value: str, *, field_name: str = "field reference") -> str:
@@ -241,6 +242,13 @@ class LlmTriggerField(BaseTemplateField):
             raise ValueError("contextFields values must be unique")
         return value
 
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, value: float | None) -> float | None:
+        if value is not None and value not in LLM_TEMPERATURE_PRESETS:
+            raise ValueError("temperature must use an allowed preset")
+        return value
+
 
 class UploadField(BaseTemplateField):
     accepted_mime_types: list[str] = Field(
@@ -411,6 +419,28 @@ class VisibilityRule(BaseModel):
     @classmethod
     def validate_target_field_id(cls, value: str) -> str:
         return validate_field_reference(value, field_name="visibility targetFieldId")
+
+
+def has_visibility_cycle(rules: list[VisibilityRule]) -> bool:
+    edges: dict[str, list[str]] = {}
+    for rule in rules:
+        edges.setdefault(rule.condition.source_field_id, []).append(rule.target_field_id)
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(field_id: str) -> bool:
+        if field_id in visiting:
+            return True
+        if field_id in visited:
+            return False
+        visiting.add(field_id)
+        has_cycle = any(visit(target_field_id) for target_field_id in edges.get(field_id, []))
+        visiting.remove(field_id)
+        visited.add(field_id)
+        return has_cycle
+
+    return any(visit(field_id) for field_id in edges)
 
 
 class BaseAnswerValidation(BaseModel):
@@ -588,6 +618,10 @@ class TemplateDocument(BaseModel):
                 raise ValueError(
                     f"visibility rule sourceFieldId '{rule.condition.source_field_id}' must reference an answerable field"
                 )
+            if rule.target_field_id == rule.condition.source_field_id:
+                raise ValueError("visibility rule targetFieldId cannot reference its sourceFieldId")
+        if has_visibility_cycle(self.visibility_rules):
+            raise ValueError("visibility rules cannot form a cycle")
         for validation in self.validations:
             if validation.field_id not in answerable_field_ids:
                 raise ValueError(f"validation fieldId '{validation.field_id}' must reference an answerable field")

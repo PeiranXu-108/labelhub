@@ -1,11 +1,15 @@
 export { SchemaRenderer, validateAnswers } from "./SchemaRenderer";
 export type {
   AnswerPayload,
+  AnswerValidation,
   BaseTemplateField,
   FileUploadField,
   ImageUploadField,
   JsonField,
+  LayoutGroup,
   LlmTriggerField,
+  LlmOutputSchema,
+  LlmTriggerMode,
   NumberField,
   OptionField,
   RatingField,
@@ -14,8 +18,11 @@ export type {
   ShowItemField,
   TemplateField,
   TemplateFieldType,
+  TemplateLayout,
   TemplateOption,
   TemplateSchemaDocument,
   TextField,
   UploadAssetAnswer,
+  VisibilityCondition,
+  VisibilityRule,
 } from "./types";

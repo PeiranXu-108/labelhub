@@ -1,7 +1,9 @@
 import type {
+  AnswerValidation,
   LlmTriggerField,
   FileUploadField,
   ImageUploadField,
+  LayoutGroup,
   NumberField,
   OptionField,
   RatingField,
@@ -9,9 +11,11 @@ import type {
   ShowItemField,
   TemplateField,
   TemplateFieldType,
+  TemplateLayout,
   TemplateOption,
   TemplateSchemaDocument,
   TextField,
+  VisibilityRule,
 } from "../schema-renderer";
 
 export const FIELD_TYPE_DRAG_DATA = "application/x-labelhub-field-type";
@@ -51,6 +55,201 @@ const mimeTypePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*
 const extensionPattern = /^\.[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
 const safeRegexLiteralEscapes = new Set([".", "^", "$", "*", "+", "?", "{", "}", "[", "]", "\\", "|", "(", ")", "-"]);
 const safeRegexShorthandEscapes = new Set(["d", "D", "s", "S", "w", "W"]);
+
+export const supportedCustomValidatorOptions = [
+  { label: "首尾无空白", value: "no_whitespace_edges" },
+  { label: "非空 JSON 对象", value: "non_empty_json_object" },
+  { label: "HTTPS URL", value: "https_url" },
+] as const;
+
+export const compareOperatorOptions = [
+  { label: "等于", value: "equals" },
+  { label: "不等于", value: "not_equals" },
+  { label: "大于", value: "greater_than" },
+  { label: "大于等于", value: "greater_than_or_equal" },
+  { label: "小于", value: "less_than" },
+  { label: "小于等于", value: "less_than_or_equal" },
+] as const;
+
+export const visibilityOperatorOptions = [
+  { label: "等于", value: "equals" },
+  { label: "不等于", value: "not_equals" },
+  { label: "属于", value: "in" },
+  { label: "不属于", value: "not_in" },
+  { label: "包含", value: "contains" },
+  { label: "不包含", value: "not_contains" },
+  { label: "为空", value: "is_empty" },
+  { label: "不为空", value: "is_not_empty" },
+] as const;
+
+export const llmModeOptions = [
+  { label: "仅建议", value: "suggest" },
+  { label: "自动填入", value: "prefill" },
+  { label: "覆盖前确认", value: "overwrite_with_confirmation" },
+] as const;
+
+export const llmOutputPresetOptions = [
+  { label: "目标字段", value: "target_field" },
+  { label: "文本", value: "text" },
+  { label: "数字", value: "number" },
+  { label: "JSON 对象", value: "json_object" },
+  { label: "JSON 数组", value: "json_array" },
+] as const;
+
+export const llmTemperatureOptions = [0, 0.2, 0.7, 1] as const;
+
+export type AuthorableValidationType = AnswerValidation["type"];
+
+export function answerableFields(fields: TemplateField[]): TemplateField[] {
+  return fields.filter(isAnswerableField);
+}
+
+export function createValidationRule(
+  type: AuthorableValidationType,
+  fieldId: string,
+  fields: TemplateField[],
+): AnswerValidation | null {
+  if (!answerableFields(fields).some((field) => field.id === fieldId)) {
+    return null;
+  }
+  switch (type) {
+    case "required":
+      return { type, fieldId };
+    case "min_length":
+      return { type, fieldId, limit: 1 };
+    case "max_length":
+      return { type, fieldId, limit: 255 };
+    case "min":
+      return { type, fieldId, value: 0 };
+    case "max":
+      return { type, fieldId, value: 100 };
+    case "regex":
+      return { type, fieldId, pattern: "^[A-Za-z0-9_]{1}$", flags: [] };
+    case "compare": {
+      const otherField = answerableFields(fields).find((field) => field.id !== fieldId);
+      if (!otherField) {
+        return null;
+      }
+      return { type, fieldId, operator: "equals", otherFieldId: otherField.id };
+    }
+    case "custom":
+      return { type, fieldId, name: "no_whitespace_edges" };
+    default:
+      return null;
+  }
+}
+
+export function createVisibilityRule(
+  targetFieldId: string,
+  fields: TemplateField[],
+  existingRules: VisibilityRule[],
+): VisibilityRule | null {
+  const sourceField = answerableFields(fields).find((field) => field.id !== targetFieldId);
+  if (!sourceField) {
+    return null;
+  }
+  return {
+    id: uniqueId(`show_${targetFieldId}`, existingRules.map((rule) => rule.id).filter(Boolean) as string[]),
+    targetFieldId,
+    effect: "show",
+    condition: {
+      sourceFieldId: sourceField.id,
+      operator: "equals",
+      value: "",
+    },
+  };
+}
+
+export function createLayoutGroup(
+  layout: TemplateLayout,
+  fields: TemplateField[],
+  preferredFieldId?: string,
+): LayoutGroup | null {
+  const groupedFieldIds = new Set(layout.groups.flatMap((group) => group.fieldIds));
+  const fallbackField = fields.find((field) => !groupedFieldIds.has(field.id)) ?? fields[0];
+  const fieldId = preferredFieldId && !groupedFieldIds.has(preferredFieldId)
+    ? preferredFieldId
+    : fallbackField?.id;
+  if (!fieldId) {
+    return null;
+  }
+  const nextNumber = layout.groups.length + 1;
+  return {
+    id: uniqueId(`group_${nextNumber}`, layout.groups.map((group) => group.id)),
+    title: `分组 ${nextNumber}`,
+    description: null,
+    fieldIds: [fieldId],
+  };
+}
+
+export function replaceSchemaFieldReferences(
+  schema: TemplateSchemaDocument,
+  previousId: string,
+  nextId: string,
+): TemplateSchemaDocument {
+  if (previousId === nextId) {
+    return schema;
+  }
+  return {
+    ...schema,
+    fields: schema.fields.map((field) => replaceFieldReferences(field, previousId, nextId)),
+    llmTools: schema.llmTools.map((tool) => ({
+      ...tool,
+      targetFieldId: tool.targetFieldId === previousId ? nextId : tool.targetFieldId,
+    })),
+    validations: schema.validations.map((validation) => replaceValidationReferences(validation, previousId, nextId)),
+    visibilityRules: schema.visibilityRules.map((rule) => ({
+      ...rule,
+      targetFieldId: rule.targetFieldId === previousId ? nextId : rule.targetFieldId,
+      condition: {
+        ...rule.condition,
+        sourceFieldId: rule.condition.sourceFieldId === previousId ? nextId : rule.condition.sourceFieldId,
+      },
+    })),
+    layout: {
+      ...schema.layout,
+      groups: schema.layout.groups.map((group) => ({
+        ...group,
+        fieldIds: dedupe(group.fieldIds.map((fieldId) => (fieldId === previousId ? nextId : fieldId))),
+      })),
+    },
+  };
+}
+
+export function removeSchemaFieldReferences(
+  schema: TemplateSchemaDocument,
+  removedFieldId: string,
+): TemplateSchemaDocument {
+  const nextFields = schema.fields.map((field) => removeFieldReference(field, removedFieldId, schema.fields));
+  const nextLayoutGroups = schema.layout.groups
+    .map((group) => ({
+      ...group,
+      fieldIds: group.fieldIds.filter((fieldId) => fieldId !== removedFieldId),
+    }))
+    .filter((group) => group.fieldIds.length > 0);
+  const layoutType = schema.layout.type === "single" || nextLayoutGroups.length > 0 ? schema.layout.type : "single";
+  return {
+    ...schema,
+    fields: nextFields,
+    llmTools: schema.llmTools.filter((tool) => tool.targetFieldId !== removedFieldId),
+    validations: schema.validations.filter((validation) => {
+      if (validation.fieldId === removedFieldId) {
+        return false;
+      }
+      if (validation.type === "compare" && validation.otherFieldId === removedFieldId) {
+        return false;
+      }
+      return true;
+    }),
+    visibilityRules: schema.visibilityRules.filter(
+      (rule) => rule.targetFieldId !== removedFieldId && rule.condition.sourceFieldId !== removedFieldId,
+    ),
+    layout: {
+      type: layoutType,
+      groups: layoutType === "single" ? [] : nextLayoutGroups,
+    },
+  };
+}
 
 export function validateTemplateSchema(schema: TemplateSchemaDocument): string[] {
   const issues: string[] = [];
@@ -98,12 +297,17 @@ export function validateTemplateSchema(schema: TemplateSchemaDocument): string[]
   });
 
   const fieldIdSet = new Set(schema.fields.map((field) => field.id));
+  const fieldsById = new Map(schema.fields.map((field) => [field.id, field]));
+  const answerableFieldIdSet = new Set(answerableFields(schema.fields).map((field) => field.id));
   validateRuntimeLayout(schema, fieldIdSet, issues);
-  validateVisibilityRules(schema, fieldIdSet, issues);
-  validateRuntimeValidations(schema, fieldIdSet, issues);
+  validateVisibilityRules(schema, fieldIdSet, answerableFieldIdSet, issues);
+  validateRuntimeValidations(schema, answerableFieldIdSet, issues);
   schema.fields.forEach((field) => {
-    if (field.type === "llm_trigger" && !fieldIdSet.has(field.targetFieldId)) {
-      issues.push(`${field.id} 的目标字段必须引用已有字段`);
+    if (field.type === "llm_trigger") {
+      if (!answerableFieldIdSet.has(field.targetFieldId)) {
+        issues.push(`${field.id} 的目标字段必须引用可填写字段`);
+      }
+      validateLlmTriggerAdvancedSettings(field, fieldIdSet, fieldsById, issues);
     }
   });
   schema.llmTools.forEach((tool) => {
@@ -169,46 +373,102 @@ function validateRuntimeLayout(
       }
       groupedFieldIds.add(fieldId);
     });
+    if (group.fieldIds.length === 0) {
+      issues.push(`${group.id} 至少需要 1 个字段`);
+    }
   });
 }
 
 function validateVisibilityRules(
   schema: TemplateSchemaDocument,
   fieldIdSet: Set<string>,
+  answerableFieldIdSet: Set<string>,
   issues: string[],
 ) {
   schema.visibilityRules.forEach((rule) => {
     if (!fieldIdSet.has(rule.targetFieldId)) {
       issues.push(`${rule.targetFieldId} 的显示规则目标字段不存在`);
     }
-    if (!fieldIdSet.has(rule.condition.sourceFieldId)) {
-      issues.push(`${rule.condition.sourceFieldId} 的显示规则来源字段不存在`);
+    if (!answerableFieldIdSet.has(rule.condition.sourceFieldId)) {
+      issues.push(`${rule.condition.sourceFieldId} 的显示规则来源字段必须是可填写字段`);
+    }
+    if (rule.targetFieldId === rule.condition.sourceFieldId) {
+      issues.push(`${rule.targetFieldId} 的显示规则不能引用自身`);
     }
     if ((rule.condition.operator === "in" || rule.condition.operator === "not_in") && !Array.isArray(rule.condition.value)) {
       issues.push(`${rule.targetFieldId} 的显示规则 in/not_in 值必须是数组`);
     }
+    if (!["is_empty", "is_not_empty"].includes(rule.condition.operator) && rule.condition.value == null) {
+      issues.push(`${rule.targetFieldId} 的显示规则必须填写比较值`);
+    }
   });
+  if (hasVisibilityCycle(schema.visibilityRules)) {
+    issues.push("显示规则不能形成循环依赖");
+  }
 }
 
 function validateRuntimeValidations(
   schema: TemplateSchemaDocument,
-  fieldIdSet: Set<string>,
+  answerableFieldIdSet: Set<string>,
   issues: string[],
 ) {
   schema.validations.forEach((validation) => {
-    if (!fieldIdSet.has(validation.fieldId)) {
-      issues.push(`${validation.fieldId} 的验证规则字段不存在`);
+    if (!answerableFieldIdSet.has(validation.fieldId)) {
+      issues.push(`${validation.fieldId} 的验证规则字段必须是可填写字段`);
     }
-    if (validation.type === "compare" && !fieldIdSet.has(validation.otherFieldId)) {
-      issues.push(`${validation.otherFieldId} 的比较验证字段不存在`);
+    if (validation.type === "compare" && !answerableFieldIdSet.has(validation.otherFieldId)) {
+      issues.push(`${validation.otherFieldId} 的比较验证字段必须是可填写字段`);
     }
     if (validation.type === "custom" && !supportedCustomValidators.has(validation.name)) {
       issues.push(`${validation.fieldId} 使用了不支持的自定义验证器`);
     }
     if (validation.type === "regex") {
       validateRegexPattern(validation.fieldId, validation.pattern, issues);
+      if ((validation.flags ?? []).some((flag) => flag !== "i")) {
+        issues.push(`${validation.fieldId} 的正则标记只支持 i`);
+      }
+      if (new Set(validation.flags ?? []).size !== (validation.flags ?? []).length) {
+        issues.push(`${validation.fieldId} 的正则标记不能重复`);
+      }
     }
   });
+}
+
+function validateLlmTriggerAdvancedSettings(
+  field: LlmTriggerField,
+  fieldIdSet: Set<string>,
+  fieldsById: Map<string, TemplateField>,
+  issues: string[],
+) {
+  if (field.mode && !llmModeOptions.some((option) => option.value === field.mode)) {
+    issues.push(`${field.id} 的 LLM 触发模式无效`);
+  }
+  const preset = field.outputSchema?.preset;
+  if (preset && !llmOutputPresetOptions.some((option) => option.value === preset)) {
+    issues.push(`${field.id} 的 LLM 输出结构无效`);
+  }
+  const contextFields = field.contextFields ?? [];
+  if (contextFields.length > 20) {
+    issues.push(`${field.id} 的上下文字段不能超过 20 个`);
+  }
+  if (new Set(contextFields).size !== contextFields.length) {
+    issues.push(`${field.id} 的上下文字段不能重复`);
+  }
+  contextFields.forEach((fieldId) => {
+    if (!fieldIdSet.has(fieldId)) {
+      issues.push(`${field.id} 的上下文字段 ${fieldId} 不存在`);
+      return;
+    }
+    if (fieldsById.get(fieldId)?.type === "llm_trigger") {
+      issues.push(`${field.id} 的上下文字段不能引用 LLM 触发器`);
+    }
+  });
+  if (
+    field.temperature != null &&
+    !llmTemperatureOptions.some((allowedTemperature) => allowedTemperature === field.temperature)
+  ) {
+    issues.push(`${field.id} 的温度必须使用预设值`);
+  }
 }
 
 function validateRegexPattern(fieldId: string, pattern: string, issues: string[]) {
@@ -570,6 +830,10 @@ export function moveField(fields: TemplateField[], fromIndex: number, toIndex: n
   return nextFields;
 }
 
+export function isAnswerableField(field: TemplateField): boolean {
+  return field.type !== "show_item" && field.type !== "llm_trigger";
+}
+
 export function isTextField(field: TemplateField): field is TextField {
   return field.type === "text" || field.type === "textarea";
 }
@@ -618,6 +882,100 @@ function uniqueFieldId(seed: string, fields: TemplateField[]): string {
     candidate = `${seed}_${suffix}`;
   }
   return candidate;
+}
+
+function uniqueId(seed: string, existingIds: string[]): string {
+  const existing = new Set(existingIds);
+  if (!existing.has(seed)) {
+    return seed;
+  }
+  let suffix = 2;
+  let candidate = `${seed}_${suffix}`;
+  while (existing.has(candidate)) {
+    suffix += 1;
+    candidate = `${seed}_${suffix}`;
+  }
+  return candidate;
+}
+
+function replaceFieldReferences(field: TemplateField, previousId: string, nextId: string): TemplateField {
+  if (isLlmTriggerField(field)) {
+    return {
+      ...field,
+      targetFieldId: field.targetFieldId === previousId ? nextId : field.targetFieldId,
+      contextFields: field.contextFields
+        ? dedupe(field.contextFields.map((fieldId) => (fieldId === previousId ? nextId : fieldId)))
+        : field.contextFields,
+    };
+  }
+  return field;
+}
+
+function removeFieldReference(
+  field: TemplateField,
+  removedFieldId: string,
+  remainingFields: TemplateField[],
+): TemplateField {
+  if (!isLlmTriggerField(field)) {
+    return field;
+  }
+  const fallbackTarget = answerableFields(remainingFields).find((candidate) => candidate.id !== field.id)?.id;
+  return {
+    ...field,
+    targetFieldId: field.targetFieldId === removedFieldId && fallbackTarget
+      ? fallbackTarget
+      : field.targetFieldId,
+    contextFields: field.contextFields?.filter((fieldId) => fieldId !== removedFieldId),
+  };
+}
+
+function replaceValidationReferences(
+  validation: AnswerValidation,
+  previousId: string,
+  nextId: string,
+): AnswerValidation {
+  if (validation.type === "compare") {
+    return {
+      ...validation,
+      fieldId: validation.fieldId === previousId ? nextId : validation.fieldId,
+      otherFieldId: validation.otherFieldId === previousId ? nextId : validation.otherFieldId,
+    };
+  }
+  return {
+    ...validation,
+    fieldId: validation.fieldId === previousId ? nextId : validation.fieldId,
+  } as AnswerValidation;
+}
+
+function dedupe(values: string[]): string[] {
+  return values.filter((value, index) => values.indexOf(value) === index);
+}
+
+function hasVisibilityCycle(rules: VisibilityRule[]): boolean {
+  const edges = new Map<string, string[]>();
+  rules.forEach((rule) => {
+    const targets = edges.get(rule.condition.sourceFieldId) ?? [];
+    targets.push(rule.targetFieldId);
+    edges.set(rule.condition.sourceFieldId, targets);
+  });
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  function visit(fieldId: string): boolean {
+    if (visiting.has(fieldId)) {
+      return true;
+    }
+    if (visited.has(fieldId)) {
+      return false;
+    }
+    visiting.add(fieldId);
+    const hasCycle = (edges.get(fieldId) ?? []).some(visit);
+    visiting.delete(fieldId);
+    visited.add(fieldId);
+    return hasCycle;
+  }
+
+  return Array.from(edges.keys()).some(visit);
 }
 
 function cloneField(field: TemplateField): TemplateField {

@@ -79,4 +79,41 @@ describe("TemplateWorkspace", () => {
     expect(saveTemplateDraft).not.toHaveBeenCalled();
     expect(publishTemplate).not.toHaveBeenCalled();
   });
+
+  it("exports the current schema as formatted JSON without calling backend APIs", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:template-schema");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+
+    render(<TemplateWorkspace taskId="task-1" template={null} onSaved={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "导出 Schema JSON" }));
+
+    expect(saveTemplateDraft).not.toHaveBeenCalled();
+    expect(publishTemplate).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:template-schema");
+
+    const blob = createObjectURL.mock.calls[0]?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    if (!blob) {
+      throw new Error("Expected schema export to create a Blob");
+    }
+    const text = await readBlobText(blob);
+    expect(text).toContain('"title": "基础标注模板"');
+    expect(text).toContain('"visibilityRules": []');
+
+    click.mockRestore();
+  });
 });
+
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
