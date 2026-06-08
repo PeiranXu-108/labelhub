@@ -7,6 +7,9 @@ import type {
   ReviewConfig,
   TaskCreate,
   TaskItemRead,
+  TaskListFilters,
+  TaskListMetricsRead,
+  TaskMetricRead,
   TaskRead,
   TaskUpdate,
   TemplateSchemaRead,
@@ -19,8 +22,12 @@ export type DownloadedFile = {
   filename: string;
 };
 
-export function listTasks() {
-  return apiRequest<TaskRead[]>("/tasks");
+export function listTasks(filters: TaskListFilters = {}) {
+  return apiRequest<TaskRead[]>(`/tasks${buildTaskFilterQuery(filters)}`);
+}
+
+export function getTaskListMetrics(filters: TaskListFilters = {}) {
+  return apiRequest<TaskListMetricsRead>(`/tasks/metrics${buildTaskFilterQuery(filters)}`);
 }
 
 export function createTask(payload: TaskCreate) {
@@ -37,6 +44,10 @@ export function transitionTask(taskId: string, action: "publish" | "pause" | "en
 
 export function getTask(taskId: string) {
   return apiRequest<TaskRead>(`/tasks/${taskId}`);
+}
+
+export function getTaskMetrics(taskId: string) {
+  return apiRequest<TaskMetricRead>(`/tasks/${taskId}/metrics`);
 }
 
 export function listItems(taskId: string) {
@@ -118,4 +129,20 @@ function parseFilename(contentDisposition: string | null) {
     return null;
   }
   return decodeURIComponent(filenameMatch[1].replace(/"$/, ""));
+}
+
+function buildTaskFilterQuery(filters: TaskListFilters) {
+  const query = new URLSearchParams();
+  const search = filters.search?.trim();
+  if (search) {
+    query.set("search", search);
+  }
+  if (filters.status) {
+    query.set("status", filters.status);
+  }
+  if (filters.distribution_strategy) {
+    query.set("distribution_strategy", filters.distribution_strategy);
+  }
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
 }

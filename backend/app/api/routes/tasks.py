@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Actor, api_error, require_role
 from app.db.session import get_db
-from app.domain.enums import TaskAction, UserRole
+from app.domain.enums import TaskAction, TaskStatus, UserRole
 from app.models import ReviewConfig, Task, TaskItem
 from app.schemas.agent_workflow import TaskAgentWorkflowSummaryRead
 from app.schemas.task import (
@@ -15,6 +17,8 @@ from app.schemas.task import (
     ReviewConfigUpsert,
     TaskCreate,
     TaskItemRead,
+    TaskListMetricsRead,
+    TaskMetricRead,
     TaskRead,
     TaskUpdate,
 )
@@ -36,10 +40,32 @@ def _raise_workflow_error(exc: WorkflowError) -> None:
 
 @router.get("", response_model=list[TaskRead])
 def list_tasks(
+    search: str | None = None,
+    task_status: TaskStatus | None = Query(default=None, alias="status"),
+    distribution_strategy: Literal["manual", "auto_claim"] | None = None,
     db: Session = Depends(get_db),
     _actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
 ) -> list[Task]:
-    return list(db.scalars(select(Task).order_by(Task.created_at.desc())))
+    return TaskService(db).list_tasks(
+        search=search,
+        status=task_status.value if task_status else None,
+        distribution_strategy=distribution_strategy,
+    )
+
+
+@router.get("/metrics", response_model=TaskListMetricsRead)
+def get_task_list_metrics(
+    search: str | None = None,
+    task_status: TaskStatus | None = Query(default=None, alias="status"),
+    distribution_strategy: Literal["manual", "auto_claim"] | None = None,
+    db: Session = Depends(get_db),
+    _actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
+) -> dict:
+    return TaskService(db).task_list_metrics(
+        search=search,
+        status=task_status.value if task_status else None,
+        distribution_strategy=distribution_strategy,
+    )
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -61,6 +87,18 @@ def get_task(
     if task is None:
         raise api_error("TASK_NOT_FOUND", "Task was not found", status.HTTP_404_NOT_FOUND)
     return task
+
+
+@router.get("/{task_id}/metrics", response_model=TaskMetricRead)
+def get_task_metrics(
+    task_id: str,
+    db: Session = Depends(get_db),
+    _actor: Actor = Depends(require_role(UserRole.OWNER, UserRole.REVIEWER)),
+) -> dict:
+    try:
+        return TaskService(db).task_metrics(task_id)
+    except WorkflowError as exc:
+        _raise_workflow_error(exc)
 
 
 @router.get("/{task_id}/agent-workflow", response_model=TaskAgentWorkflowSummaryRead)

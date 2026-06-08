@@ -31,8 +31,8 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | complete | `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md` | approved |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | complete | `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md` | approved with documented blockers |
 | Final Readiness Fixes Agent | `docs/tasks/20-final-readiness-fixes-agent.md` | complete | `docs/handoffs/2026-05-31-task20-final-readiness-fixes-handoff.md` | approved |
-| Owner Task Operations Agent | `docs/tasks/21-owner-task-operations-agent.md` | requirements drafted | none | ready to dispatch |
-| Template Advanced Authoring Agent | `docs/tasks/22-template-advanced-authoring-agent.md` | requirements drafted | none | pending Task21 conflict check |
+| Owner Task Operations Agent | `docs/tasks/21-owner-task-operations-agent.md` | ready for review | `docs/handoffs/2026-06-08-task21-owner-task-operations-handoff.md` | pending supervisor review |
+| Template Advanced Authoring Agent | `docs/tasks/22-template-advanced-authoring-agent.md` | requirements drafted | none | pending Task21 supervisor review |
 | Labeler Productivity Workbench Agent | `docs/tasks/23-labeler-productivity-workbench-agent.md` | requirements drafted | none | pending dispatch |
 | AI Pre-Review Operations Agent | `docs/tasks/24-ai-prereview-operations-agent.md` | requirements drafted | none | pending dispatch |
 | Human Review Operations Agent | `docs/tasks/25-human-review-operations-agent.md` | requirements drafted | none | pending Task24 conflict check |
@@ -155,7 +155,7 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 | 18 Multistage Human Review | Multistage Human Review Agent | complete | Tasks 09, 10 | Approved; initial/re-review/final stages, stage-aware review contracts, round diff views, timestamp-safe migration backfill, WorkflowService-mediated transitions, OpenAPI, handoff, and regression tests verified. |
 | 19 Production Readiness | Production Readiness Agent | complete | Tasks 08, 10, Task 16 for live field LLM checks | Approved with blockers documented; Docker runtime startup, healthchecks, storage sharing, missing-key AI fallback, docs, preflight, tests, and build verified; Docker-mode E2E/live AI/static frontend/non-root worker/durable storage remain open. |
 | 20 Final Readiness Fixes | Final Readiness Fixes Agent | complete | Final Supervisor integration review | Approved; localized E2E selectors, demo-user seed race, Redis-absent export enqueue behavior, docs, handoff, and local E2E verified. |
-| 21 Owner Task Operations | Owner Task Operations Agent | requirements drafted | Tasks 06, 11, 12, 13, 18, 20 | Adds owner task search/filter, real progress, aggregate metrics, and richer create/publish flow while preserving current Studio layout. |
+| 21 Owner Task Operations | Owner Task Operations Agent | ready for review | Tasks 06, 11, 12, 13, 18, 20 | Owner task search/filter, server-backed progress/aggregates, and richer create/publish flow implemented; handoff awaits Supervisor review. |
 | 22 Template Advanced Authoring | Template Advanced Authoring Agent | requirements drafted | Tasks 13, 15, 16 | Exposes validation, linkage, group/tab layout, LLM trigger settings, and Schema JSON export through the existing designer. |
 | 23 Labeler Productivity Workbench | Labeler Productivity Workbench Agent | requirements drafted | Tasks 07, 16, 17, 18 | Adds question navigation list, contribution summary, history, report-problem flow, and shortcuts without changing form runtime semantics. |
 | 24 AI Pre-Review Operations | AI Pre-Review Operations Agent | requirements drafted | Tasks 04, 09, 18, 20 | Adds AI operations queue/detail/retry surfaces and backend read contracts while preserving structured AI output and idempotency. |
@@ -212,6 +212,16 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 
 ## Latest Verification
 
+- 2026-06-08 Task21 review fixes: task progress now counts only current submitted/active/completed submission statuses, excluding reopened drafts with stale `submitted_at`; `distribution_strategy` create/update is constrained to `manual` or `auto_claim`.
+- 2026-06-08 Task21 handoff written to `docs/handoffs/2026-06-08-task21-owner-task-operations-handoff.md`; Task21 status board rows updated to `ready for review`.
+- Task21 verification: `cd backend && ./.venv313/bin/pytest tests/test_tasks_api.py tests/test_tasks.py -q` passed, 23 tests, with existing passlib `crypt` deprecation warning.
+- Task21 verification: `cd backend && ./.venv313/bin/pytest -q` passed, 126 tests, with existing passlib `crypt` deprecation warning and existing Pydantic alias warning.
+- Task21 verification: `cd backend && ./.venv313/bin/python scripts/export_openapi.py` passed and regenerated `frontend/src/api/openapi.json`.
+- Task21 verification: `python3 -m json.tool frontend/src/api/openapi.json >/tmp/labelhub-task21-review-fix-openapi.json` passed.
+- Task21 verification: `cd frontend && npm test -- --run src/features/owner` passed, 16 tests.
+- Task21 verification: `cd frontend && npm test -- --run` passed, 79 tests, with existing React Router future-flag warnings.
+- Task21 verification: `cd frontend && npm run build` passed, with existing Vite chunk-size warning.
+- Task21 verification: `git diff --check` passed.
 - 2026-06-08 Supervisor product-gap review note written to `docs/reviews/2026-06-08-product-gap-requirements-review.md`.
 - 2026-06-08 task docs drafted: `docs/tasks/21-owner-task-operations-agent.md` through `docs/tasks/26-production-policy-readiness-agent.md`.
 - 2026-06-08 dispatch docs updated: `docs/agent-prompts.md`, `docs/agent-coordination.md`, and `docs/status-board.md` now include Task21-26 ownership, sequencing, conflict rules, risks, and prompts.
@@ -519,4 +529,4 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 
 ## Next Recommended Action
 
-Dispatch Task21 first for owner task operations, then Task22 or Task23 depending on whether template authoring or labeler productivity is the higher-priority product gap. Do not start Task24 and Task25 in parallel if both will edit reviewer routes/types.
+Supervisor should review Task21, then dispatch Task22 or Task23 depending on whether template authoring or labeler productivity is the higher-priority product gap. Do not start Task24 and Task25 in parallel if both will edit reviewer routes/types.

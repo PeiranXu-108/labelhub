@@ -1,4 +1,4 @@
-import { Button, Drawer, Form, Input, InputNumber, Select } from "antd";
+import { Alert, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Typography } from "antd";
 import { useEffect } from "react";
 
 import type { QualityRule, RewardRule, TaskCreate, TaskRead } from "./types";
@@ -8,7 +8,7 @@ type TaskDrawerProps = {
   task?: TaskRead | null;
   submitting?: boolean;
   onClose: () => void;
-  onSubmit: (payload: TaskCreate) => Promise<void>;
+  onSubmit: (payload: TaskCreate, intent: "save" | "continue") => Promise<void>;
 };
 
 type TaskFormValues = {
@@ -51,7 +51,8 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
     });
   }, [form, open, task]);
 
-  async function handleFinish(values: TaskFormValues) {
+  async function submitWithIntent(intent: "save" | "continue") {
+    const values = await form.validateFields();
     const instructionContent = normalizeOptional(values.instruction_content);
     await onSubmit({
       name: values.name.trim(),
@@ -66,7 +67,7 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
       distribution_strategy: values.distribution_strategy ?? "manual",
       quota_per_labeler: values.quota_per_labeler ?? null,
       deadline_at: values.deadline_at ? new Date(values.deadline_at).toISOString() : null,
-    });
+    }, intent);
   }
 
   return (
@@ -77,7 +78,7 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
       width={420}
       onClose={onClose}
     >
-      <Form form={form} layout="vertical" onFinish={handleFinish}>
+      <Form form={form} layout="vertical">
         <Form.Item label="名称" name="name" rules={[{ required: true, message: "请输入名称" }]}>
           <Input autoFocus />
         </Form.Item>
@@ -107,6 +108,27 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
         <Form.Item label="截止时间" name="deadline_at">
           <Input type="datetime-local" />
         </Form.Item>
+        <Form.Item label="标注模板">
+          <Space direction="vertical" size={8}>
+            <Select
+              disabled
+              placeholder={isEditing ? "在任务详情的模板标签页发布模板" : "创建任务后进入模板标签页配置"}
+            />
+            <Typography.Text type="secondary">
+              {isEditing
+                ? "保存后进入配置页，可在模板标签页选择、保存并发布模板。"
+                : "模板字段高级编排由 Task22 接管；当前流程先保存草稿，再进入任务详情配置。"}
+            </Typography.Text>
+          </Space>
+        </Form.Item>
+        <Form.Item label="AI 预审">
+          <Space direction="vertical" size={8}>
+            <Switch checked disabled />
+            <Typography.Text type="secondary">
+              AI 预审阈值和模型在任务详情的审核配置中维护；任务级启停开关依赖后端配置合同。
+            </Typography.Text>
+          </Space>
+        </Form.Item>
         <Form.Item label="奖励模式" name="reward_mode">
           <Select
             options={[
@@ -131,10 +153,19 @@ export function TaskDrawer({ open, task, submitting, onClose, onSubmit }: TaskDr
             </Form.Item>
           </>
         ) : null}
+        <Alert
+          className="section-alert"
+          message="发布任务仍需在详情页完成数据导入和模板发布，发布按钮会继续使用后端 WorkflowService 校验。"
+          type="info"
+          showIcon
+        />
         <div className="drawer-actions">
           <Button onClick={onClose}>取消</Button>
-          <Button htmlType="submit" loading={submitting} type="primary">
-            {isEditing ? "保存任务" : "创建任务"}
+          <Button loading={submitting} onClick={() => void submitWithIntent("save")}>
+            {isEditing ? "保存修改" : "保存草稿"}
+          </Button>
+          <Button loading={submitting} type="primary" onClick={() => void submitWithIntent("continue")}>
+            {isEditing ? "保存并进入配置" : "创建并配置"}
           </Button>
         </div>
       </Form>

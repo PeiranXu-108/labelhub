@@ -55,8 +55,7 @@ export function LabelerMarketplace() {
       const deadlineTime = task.deadline_at ? new Date(task.deadline_at).getTime() : null;
       const matchesDeadline =
         deadlineFilter === "all" ||
-        (deadlineFilter === "open" && (!deadlineTime || deadlineTime >= now)) ||
-        (deadlineFilter === "overdue" && deadlineTime !== null && deadlineTime < now);
+        (deadlineFilter === "open" && (!deadlineTime || deadlineTime >= now)) || (deadlineFilter === "overdue" && deadlineTime !== null && deadlineTime < now);
       return matchesQuery && matchesDeadline;
     });
   }, [deadlineFilter, query, tasks]);

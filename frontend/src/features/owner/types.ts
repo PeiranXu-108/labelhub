@@ -50,7 +50,36 @@ export type TaskCreate = {
   deadline_at: string | null;
 };
 
-export type TaskUpdate = Partial<Omit<TaskCreate, "distribution_strategy">>;
+export type TaskUpdate = Partial<TaskCreate>;
+
+export type TaskListFilters = {
+  search?: string;
+  status?: TaskStatus;
+  distribution_strategy?: "manual" | "auto_claim";
+};
+
+export type TaskMetricRead = {
+  task_id: string;
+  item_count: number;
+  submitted_count: number;
+  current_week_submitted_count: number;
+  progress_percent: number;
+  submission_status_counts: Record<string, number>;
+  ai_decision_counts: Record<string, number>;
+};
+
+export type TaskListMetricsRead = {
+  summary: {
+    total_task_count: number;
+    published_task_count: number;
+    draft_task_count: number;
+    item_count: number;
+    submitted_count: number;
+    current_week_submitted_count: number;
+    average_progress_percent: number;
+  };
+  task_metrics: TaskMetricRead[];
+};
 
 export type TaskItemRead = {
   id: string;

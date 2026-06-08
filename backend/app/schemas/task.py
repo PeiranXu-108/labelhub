@@ -153,7 +153,7 @@ class TaskCreate(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=20)
     reward_rule: RewardRule = Field(default_factory=default_reward_rule)
     quality_rules: list[QualityRule] = Field(default_factory=list, max_length=20)
-    distribution_strategy: str = "manual"
+    distribution_strategy: Literal["manual", "auto_claim"] = "manual"
     quota_per_labeler: int | None = Field(default=None, ge=1)
     deadline_at: datetime | None = None
 
@@ -186,6 +186,7 @@ class TaskUpdate(BaseModel):
     tags: list[str] | None = Field(default=None, max_length=20)
     reward_rule: RewardRule | None = None
     quality_rules: list[QualityRule] | None = Field(default=None, max_length=20)
+    distribution_strategy: Literal["manual", "auto_claim"] | None = None
     quota_per_labeler: int | None = Field(default=None, ge=1)
     deadline_at: datetime | None = None
 
@@ -226,6 +227,31 @@ class TaskRead(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
+
+
+class TaskMetricRead(BaseModel):
+    task_id: str
+    item_count: int
+    submitted_count: int
+    current_week_submitted_count: int
+    progress_percent: int
+    submission_status_counts: dict[str, int] = Field(default_factory=dict)
+    ai_decision_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class TaskListMetricsSummaryRead(BaseModel):
+    total_task_count: int
+    published_task_count: int
+    draft_task_count: int
+    item_count: int
+    submitted_count: int
+    current_week_submitted_count: int
+    average_progress_percent: int
+
+
+class TaskListMetricsRead(BaseModel):
+    summary: TaskListMetricsSummaryRead
+    task_metrics: list[TaskMetricRead]
 
 
 class ItemImportEntry(BaseModel):

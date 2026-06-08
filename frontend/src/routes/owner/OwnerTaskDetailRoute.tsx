@@ -10,6 +10,7 @@ import {
   getReviewConfig,
   getTask,
   getTaskAgentWorkflow,
+  getTaskMetrics,
   getTemplate,
   listExportJobs,
   listItems,
@@ -24,6 +25,7 @@ import type {
   ExportJobRead,
   ReviewConfig,
   TaskItemRead,
+  TaskMetricRead,
   TaskRead,
   TemplateSchemaRead,
 } from "../../features/owner/types";
@@ -48,6 +50,7 @@ export function OwnerTaskDetailRoute() {
   const [template, setTemplate] = useState<TemplateSchemaRead | null>(null);
   const [exports, setExports] = useState<ExportJobRead[]>([]);
   const [agentWorkflow, setAgentWorkflow] = useState<TaskAgentWorkflowSummaryRead | null>(null);
+  const [metrics, setMetrics] = useState<TaskMetricRead | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
@@ -62,13 +65,14 @@ export function OwnerTaskDetailRoute() {
     setLoading(true);
     setError(null);
     try {
-      const [taskResult, itemResult, configResult, templateResult, exportResult, workflowResult] = await Promise.all([
+      const [taskResult, itemResult, configResult, templateResult, exportResult, workflowResult, metricsResult] = await Promise.all([
         getTask(taskId),
         listItems(taskId),
         getReviewConfig(taskId).catch(() => defaultReviewConfig),
         getTemplate(taskId).catch(() => null),
         listExportJobs(taskId).catch(() => []),
         getTaskAgentWorkflow(taskId).catch(() => null),
+        getTaskMetrics(taskId).catch(() => null),
       ]);
       setTask(taskResult);
       setItems(itemResult);
@@ -76,6 +80,7 @@ export function OwnerTaskDetailRoute() {
       setTemplate(templateResult);
       setExports(exportResult);
       setAgentWorkflow(workflowResult);
+      setMetrics(metricsResult);
     } catch (err) {
       setError(normalizeError(err, "加载任务运营数据失败。"));
     } finally {
@@ -166,6 +171,7 @@ export function OwnerTaskDetailRoute() {
               <Space wrap>
                 <StatusPill status={task.status}>{formatLabel(task.status)}</StatusPill>
                 <Typography.Text type="secondary">数据项 {items.length}</Typography.Text>
+                <Typography.Text type="secondary">进度 {metrics?.progress_percent ?? 0}%</Typography.Text>
                 <Typography.Text type="secondary">
                   模板 {template?.is_published ? `已发布 v${template.version}` : "未发布"}
                 </Typography.Text>
@@ -193,6 +199,7 @@ export function OwnerTaskDetailRoute() {
                     agentWorkflow={agentWorkflow}
                     exports={exports}
                     items={items}
+                    metrics={metrics}
                     task={task}
                     template={template}
                   />
@@ -204,7 +211,10 @@ export function OwnerTaskDetailRoute() {
                 children: (
                   <DatasetImportPanel
                     taskId={taskId}
-                    onImported={(imported) => setItems((current) => [...imported, ...current])}
+                    onImported={(imported) => {
+                      setItems((current) => [...imported, ...current]);
+                      void load();
+                    }}
                   />
                 ),
               },

@@ -105,27 +105,91 @@
         ],
         "summary": "List Tasks",
         "operationId": "list_tasks_tasks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "distribution_strategy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "manual",
+                    "auto_claim"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Distribution Strategy"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/TaskRead"
                   },
-                  "type": "array",
                   "title": "Response List Tasks Tasks Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -133,15 +197,20 @@
         ],
         "summary": "Create Task",
         "operationId": "create_task_tasks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TaskCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -164,12 +233,97 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/tasks/metrics": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Get Task List Metrics",
+        "operationId": "get_task_list_metrics_tasks_metrics_get",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "distribution_strategy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "manual",
+                    "auto_claim"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Distribution Strategy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListMetricsRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/tasks/{task_id}": {
@@ -257,6 +411,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}/metrics": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Get Task Metrics",
+        "operationId": "get_task_metrics_tasks__task_id__metrics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskMetricRead"
                 }
               }
             }
@@ -5381,6 +5582,10 @@
           },
           "distribution_strategy": {
             "type": "string",
+            "enum": [
+              "manual",
+              "auto_claim"
+            ],
             "title": "Distribution Strategy",
             "default": "manual"
           },
@@ -5462,6 +5667,116 @@
           "created_at"
         ],
         "title": "TaskItemRead"
+      },
+      "TaskListMetricsRead": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/TaskListMetricsSummaryRead"
+          },
+          "task_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/TaskMetricRead"
+            },
+            "type": "array",
+            "title": "Task Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "task_metrics"
+        ],
+        "title": "TaskListMetricsRead"
+      },
+      "TaskListMetricsSummaryRead": {
+        "properties": {
+          "total_task_count": {
+            "type": "integer",
+            "title": "Total Task Count"
+          },
+          "published_task_count": {
+            "type": "integer",
+            "title": "Published Task Count"
+          },
+          "draft_task_count": {
+            "type": "integer",
+            "title": "Draft Task Count"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          },
+          "submitted_count": {
+            "type": "integer",
+            "title": "Submitted Count"
+          },
+          "current_week_submitted_count": {
+            "type": "integer",
+            "title": "Current Week Submitted Count"
+          },
+          "average_progress_percent": {
+            "type": "integer",
+            "title": "Average Progress Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_task_count",
+          "published_task_count",
+          "draft_task_count",
+          "item_count",
+          "submitted_count",
+          "current_week_submitted_count",
+          "average_progress_percent"
+        ],
+        "title": "TaskListMetricsSummaryRead"
+      },
+      "TaskMetricRead": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count"
+          },
+          "submitted_count": {
+            "type": "integer",
+            "title": "Submitted Count"
+          },
+          "current_week_submitted_count": {
+            "type": "integer",
+            "title": "Current Week Submitted Count"
+          },
+          "progress_percent": {
+            "type": "integer",
+            "title": "Progress Percent"
+          },
+          "submission_status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Submission Status Counts"
+          },
+          "ai_decision_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Ai Decision Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "item_count",
+          "submitted_count",
+          "current_week_submitted_count",
+          "progress_percent"
+        ],
+        "title": "TaskMetricRead"
       },
       "TaskRead": {
         "properties": {
@@ -5679,6 +5994,21 @@
               }
             ],
             "title": "Quality Rules"
+          },
+          "distribution_strategy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "auto_claim"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distribution Strategy"
           },
           "quota_per_labeler": {
             "anyOf": [
