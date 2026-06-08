@@ -6,6 +6,7 @@ import { Link, useLocation } from "react-router-dom";
 import type { UserSummary } from "../auth/types";
 import { listMarketplaceTasks, listOwnSubmissions } from "../labeler/api";
 import { listTasks } from "../owner/api";
+import { listAIOperationRuns } from "../agent-workflow/api";
 import { listReviewQueue } from "../reviewer/api";
 
 type RouteNavItem = {
@@ -44,6 +45,12 @@ function getRouteNavigation(pathname: string): RouteNavItem[] {
   }
   if (pathname === "/owner/tasks") {
     return [{ label: "首页", path: "/" }, { label: "任务列表" }];
+  }
+  if (pathname === "/ai-operations") {
+    return [{ label: "首页", path: "/" }, { label: "AI 预审运维" }];
+  }
+  if (pathname.startsWith("/ai-operations/runs/")) {
+    return [{ label: "首页", path: "/" }, { label: "AI 预审运维", path: "/ai-operations" }, { label: "运行详情" }];
   }
   if (pathname.startsWith("/owner/tasks/")) {
     return [{ label: "首页", path: "/" }, { label: "任务列表", path: "/owner/tasks" }, { label: "任务详情" }];
@@ -91,12 +98,12 @@ async function loadAccountMetrics(user: UserSummary): Promise<AccountDashboardMe
   }
 
   if (user.role === "reviewer") {
-    const queueItems = await listReviewQueue();
+    const [queueItems, aiRuns] = await Promise.all([listReviewQueue(), listAIOperationRuns({ run_status: "failed" })]);
     return [
       { label: "队列总数", value: queueItems.length },
       { label: "待人工", value: queueItems.filter((item) => item.submission.status === "needs_human_review").length },
       { label: "AI 通过", value: queueItems.filter((item) => item.submission.status === "ai_passed").length },
-      { label: "最终复核", value: queueItems.filter((item) => item.current_stage === "final_review").length },
+      { label: "AI 失败", value: aiRuns.length },
     ];
   }
 
@@ -327,6 +334,7 @@ const statusTone: Record<string, string> = {
   active: "blue",
   failed: "red",
   pending: "default",
+  passed: "green",
 };
 
 export function StatusPill({ status, children }: { status: string; children: ReactNode }) {

@@ -2072,6 +2072,190 @@
         ]
       }
     },
+    "/ai-operations/runs": {
+      "get": {
+        "tags": [
+          "ai-operations"
+        ],
+        "summary": "List Ai Operation Runs",
+        "operationId": "list_ai_operation_runs_ai_operations_runs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AIOperationRunStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Status"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "ai_decision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AIReviewDecision"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Decision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AIOperationRunListItemRead"
+                  },
+                  "title": "Response List Ai Operation Runs Ai Operations Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai-operations/runs/{submission_id}": {
+      "get": {
+        "tags": [
+          "ai-operations"
+        ],
+        "summary": "Get Ai Operation Run",
+        "operationId": "get_ai_operation_run_ai_operations_runs__submission_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIOperationRunDetailRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai-operations/runs/{submission_id}/retry": {
+      "post": {
+        "tags": [
+          "ai-operations"
+        ],
+        "summary": "Retry Ai Operation Run",
+        "operationId": "retry_ai_operation_run_ai_operations_runs__submission_id__retry_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Submission Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIOperationRetryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tasks/{task_id}/exports": {
       "post": {
         "tags": [
@@ -2402,6 +2586,646 @@
   },
   "components": {
     "schemas": {
+      "AIOperationRetryResponse": {
+        "properties": {
+          "retry_performed": {
+            "type": "boolean",
+            "title": "Retry Performed"
+          },
+          "detail": {
+            "$ref": "#/components/schemas/AIOperationRunDetailRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retry_performed",
+          "detail"
+        ],
+        "title": "AIOperationRetryResponse"
+      },
+      "AIOperationReviewConfigRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "prompt_template": {
+            "type": "string",
+            "title": "Prompt Template"
+          },
+          "criteria": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Criteria"
+          },
+          "pass_threshold": {
+            "type": "integer",
+            "title": "Pass Threshold"
+          },
+          "return_threshold": {
+            "type": "integer",
+            "title": "Return Threshold"
+          },
+          "manual_review_threshold": {
+            "type": "integer",
+            "title": "Manual Review Threshold"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          },
+          "temperature": {
+            "type": "number",
+            "title": "Temperature"
+          },
+          "max_retries": {
+            "type": "integer",
+            "title": "Max Retries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_id",
+          "prompt_template",
+          "pass_threshold",
+          "return_threshold",
+          "manual_review_threshold",
+          "model_name",
+          "temperature",
+          "max_retries"
+        ],
+        "title": "AIOperationReviewConfigRead"
+      },
+      "AIOperationReviewRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/AIReviewDecision"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "structured_response": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Structured Response"
+          },
+          "prompt_snapshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Snapshot"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "raw_provider_response": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Provider Response"
+          },
+          "error_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Metadata"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "title": "Idempotency Key"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "submission_id",
+          "decision",
+          "overall_score",
+          "status",
+          "structured_response",
+          "prompt_snapshot",
+          "model_name",
+          "raw_provider_response",
+          "error_metadata",
+          "retry_count",
+          "idempotency_key",
+          "created_at"
+        ],
+        "title": "AIOperationReviewRead"
+      },
+      "AIOperationRunDetailRead": {
+        "properties": {
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "task_name": {
+            "type": "string",
+            "title": "Task Name"
+          },
+          "labeler_id": {
+            "type": "string",
+            "title": "Labeler Id"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "run_status": {
+            "$ref": "#/components/schemas/AIOperationRunStatus"
+          },
+          "workflow_status": {
+            "type": "string",
+            "title": "Workflow Status"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ai_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIReviewDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Score"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          },
+          "operator_retry_count": {
+            "type": "integer",
+            "title": "Operator Retry Count"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "title": "Idempotency Key"
+          },
+          "latest_ai_review_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Ai Review Id"
+          },
+          "latest_ai_review_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Ai Review Status"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "submission": {
+            "$ref": "#/components/schemas/SubmissionRead"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskRead"
+          },
+          "item": {
+            "$ref": "#/components/schemas/TaskItemRead"
+          },
+          "template_schema": {
+            "$ref": "#/components/schemas/TemplateSchemaRead"
+          },
+          "review_config": {
+            "$ref": "#/components/schemas/AIOperationReviewConfigRead"
+          },
+          "agent_workflow": {
+            "$ref": "#/components/schemas/AgentWorkflowRead"
+          },
+          "latest_ai_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIOperationReviewRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ai_reviews": {
+            "items": {
+              "$ref": "#/components/schemas/AIOperationReviewRead"
+            },
+            "type": "array",
+            "title": "Ai Reviews"
+          },
+          "audit_logs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogRead"
+            },
+            "type": "array",
+            "title": "Audit Logs"
+          },
+          "processing_logs": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogRead"
+            },
+            "type": "array",
+            "title": "Processing Logs"
+          },
+          "item_payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Item Payload"
+          },
+          "answer_payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Answer Payload"
+          },
+          "score_dimensions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Score Dimensions"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/AIOperationVerdictRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submission_id",
+          "task_id",
+          "task_name",
+          "labeler_id",
+          "attempt",
+          "run_status",
+          "workflow_status",
+          "current_stage",
+          "ai_decision",
+          "overall_score",
+          "model_name",
+          "retry_count",
+          "operator_retry_count",
+          "idempotency_key",
+          "latest_ai_review_id",
+          "latest_ai_review_status",
+          "submitted_at",
+          "last_run_at",
+          "updated_at",
+          "submission",
+          "task",
+          "item",
+          "template_schema",
+          "review_config",
+          "agent_workflow",
+          "latest_ai_review",
+          "ai_reviews",
+          "audit_logs",
+          "processing_logs",
+          "item_payload",
+          "answer_payload",
+          "score_dimensions",
+          "verdict"
+        ],
+        "title": "AIOperationRunDetailRead"
+      },
+      "AIOperationRunListItemRead": {
+        "properties": {
+          "submission_id": {
+            "type": "string",
+            "title": "Submission Id"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "task_name": {
+            "type": "string",
+            "title": "Task Name"
+          },
+          "labeler_id": {
+            "type": "string",
+            "title": "Labeler Id"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "run_status": {
+            "$ref": "#/components/schemas/AIOperationRunStatus"
+          },
+          "workflow_status": {
+            "type": "string",
+            "title": "Workflow Status"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewStage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ai_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIReviewDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overall_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Score"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          },
+          "operator_retry_count": {
+            "type": "integer",
+            "title": "Operator Retry Count"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "title": "Idempotency Key"
+          },
+          "latest_ai_review_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Ai Review Id"
+          },
+          "latest_ai_review_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Ai Review Status"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submission_id",
+          "task_id",
+          "task_name",
+          "labeler_id",
+          "attempt",
+          "run_status",
+          "workflow_status",
+          "current_stage",
+          "ai_decision",
+          "overall_score",
+          "model_name",
+          "retry_count",
+          "operator_retry_count",
+          "idempotency_key",
+          "latest_ai_review_id",
+          "latest_ai_review_status",
+          "submitted_at",
+          "last_run_at",
+          "updated_at"
+        ],
+        "title": "AIOperationRunListItemRead"
+      },
+      "AIOperationRunStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "running",
+          "passed",
+          "returned",
+          "human_review",
+          "failed"
+        ],
+        "title": "AIOperationRunStatus"
+      },
+      "AIOperationVerdictRead": {
+        "properties": {
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AIReviewDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "return_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Return Reasons"
+          },
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "AIOperationVerdictRead"
+      },
       "AIReviewDecision": {
         "type": "string",
         "enum": [

@@ -50,6 +50,7 @@ class ExportFormat(StrEnum):
 class SubmissionAction(StrEnum):
     SUBMIT = "submit"
     START_AI_REVIEW = "start_ai_review"
+    RETRY_AI_REVIEW = "retry_ai_review"
     AI_PASS = "ai_pass"
     AI_RETURN = "ai_return"
     REQUIRE_HUMAN_REVIEW = "require_human_review"

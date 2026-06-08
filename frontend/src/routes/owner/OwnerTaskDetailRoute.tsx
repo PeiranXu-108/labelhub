@@ -164,8 +164,11 @@ export function OwnerTaskDetailRoute() {
                   >
                     发布任务
                   </Button>
+                  <Button href={`/ai-operations?task_id=${taskId}`}>AI 预审运维</Button>
                 </Space>
-              ) : null
+              ) : (
+                <Button href={`/ai-operations?task_id=${taskId}`}>AI 预审运维</Button>
+              )
             }
             meta={
               <Space wrap>

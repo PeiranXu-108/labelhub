@@ -8,6 +8,8 @@ import { defaultRouteForRole, getCurrentUser } from "./features/auth/api";
 import { clearAccessToken, getAccessToken } from "./features/auth/token";
 import type { UserRole, UserSummary } from "./features/auth/types";
 import { LoginPage } from "./routes/LoginPage";
+import { AIOperationDetailRoute } from "./routes/ai-operations/AIOperationDetailRoute";
+import { AIOperationsRoute } from "./routes/ai-operations/AIOperationsRoute";
 import { LabelerAssignmentRoute } from "./routes/labeler/LabelerAssignmentRoute";
 import { LabelerTasksRoute } from "./routes/labeler/LabelerTasksRoute";
 import { OwnerTaskDetailRoute } from "./routes/owner/OwnerTaskDetailRoute";
@@ -175,6 +177,22 @@ export default function App() {
                 element={
                   <RequireRole authState={authState} roles={["owner"]}>
                     <OwnerTaskDetailRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/ai-operations"
+                element={
+                  <RequireRole authState={authState} roles={["owner", "reviewer"]}>
+                    <AIOperationsRoute />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/ai-operations/runs/:submissionId"
+                element={
+                  <RequireRole authState={authState} roles={["owner", "reviewer"]}>
+                    <AIOperationDetailRoute />
                   </RequireRole>
                 }
               />

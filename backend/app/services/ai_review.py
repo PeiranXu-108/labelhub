@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -68,6 +69,51 @@ class AIReviewService:
         )
         return self.db.get(AIReview, state["review_id"])
 
+    def retry_failed_submission(
+        self, submission_id: str, actor: ActorContext
+    ) -> tuple[AIReview, bool]:
+        submission = self._get_submission(submission_id)
+        idempotency_key = self._idempotency_key(submission)
+        completed = self._find_existing_review(
+            submission.id,
+            idempotency_key,
+            statuses={"completed"},
+        )
+        if completed is not None:
+            return completed, False
+
+        failed = self._find_existing_review(
+            submission.id,
+            idempotency_key,
+            statuses={"failed"},
+        )
+        if failed is None:
+            raise ValueError("FAILED_AI_REVIEW_NOT_FOUND")
+
+        self.workflow.transition_submission(
+            submission.id,
+            SubmissionAction.RETRY_AI_REVIEW,
+            actor,
+            reason="Operator retried failed AI review.",
+            metadata={
+                "idempotency_key": idempotency_key,
+                "superseded_ai_review_id": failed.id,
+            },
+        )
+        error_metadata = dict(failed.error_metadata or {})
+        error_metadata.update(
+            {
+                "superseded_by_retry": True,
+                "superseded_at": datetime.now(UTC).isoformat(),
+                "superseded_by": actor.user_id,
+            }
+        )
+        failed.error_metadata = error_metadata
+        failed.status = "superseded"
+        self.db.add(failed)
+        self.db.flush()
+        return self.review_submission(submission.id), True
+
     def _get_submission(self, submission_id: str) -> Submission:
         submission = self.db.get(Submission, submission_id)
         if submission is None:
@@ -95,7 +141,14 @@ class AIReviewService:
     def _idempotency_key(self, submission: Submission) -> str:
         return f"{submission.id}:{submission.attempt}"
 
-    def _find_existing_review(self, submission_id: str, idempotency_key: str) -> AIReview | None:
+    def _find_existing_review(
+        self,
+        submission_id: str,
+        idempotency_key: str,
+        *,
+        statuses: set[str] | None = None,
+    ) -> AIReview | None:
+        terminal_statuses = statuses or {"completed", "failed"}
         reviews = self.db.scalars(
             select(AIReview)
             .where(AIReview.submission_id == submission_id)
@@ -104,7 +157,7 @@ class AIReviewService:
         for review in reviews:
             structured_key = (review.structured_response or {}).get("idempotency_key")
             error_key = (review.error_metadata or {}).get("idempotency_key")
-            if review.status in {"completed", "failed"} and idempotency_key in {
+            if review.status in terminal_statuses and idempotency_key in {
                 structured_key,
                 error_key,
             }:

@@ -34,6 +34,10 @@ class WorkflowService:
     TRANSITIONS: dict[tuple[SubmissionStatus, SubmissionAction], SubmissionStatus] = {
         (SubmissionStatus.DRAFT, SubmissionAction.SUBMIT): SubmissionStatus.SUBMITTED,
         (SubmissionStatus.SUBMITTED, SubmissionAction.START_AI_REVIEW): SubmissionStatus.AI_REVIEWING,
+        (
+            SubmissionStatus.NEEDS_HUMAN_REVIEW,
+            SubmissionAction.RETRY_AI_REVIEW,
+        ): SubmissionStatus.AI_REVIEWING,
         (SubmissionStatus.AI_REVIEWING, SubmissionAction.AI_PASS): SubmissionStatus.AI_PASSED,
         (SubmissionStatus.AI_REVIEWING, SubmissionAction.AI_RETURN): SubmissionStatus.AI_RETURNED,
         (
@@ -54,6 +58,7 @@ class WorkflowService:
     ROLE_ACTIONS: dict[SubmissionAction, set[UserRole]] = {
         SubmissionAction.SUBMIT: {UserRole.LABELER},
         SubmissionAction.START_AI_REVIEW: {UserRole.AI_AGENT},
+        SubmissionAction.RETRY_AI_REVIEW: {UserRole.OWNER, UserRole.REVIEWER},
         SubmissionAction.AI_PASS: {UserRole.AI_AGENT},
         SubmissionAction.AI_RETURN: {UserRole.AI_AGENT},
         SubmissionAction.REQUIRE_HUMAN_REVIEW: {UserRole.AI_AGENT, UserRole.REVIEWER},

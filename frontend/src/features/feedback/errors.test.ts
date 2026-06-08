@@ -11,6 +11,9 @@ describe("normalizeError", () => {
     expect(normalizeError(new Error("Save a template draft before publishing"), "发布失败")).toBe(
       "请先保存模板草稿再发布。",
     );
+    expect(normalizeError(new Error("Only failed AI review runs can be retried"), "重试失败")).toBe(
+      "只有失败的 AI 审核运行可以重试。",
+    );
   });
 
   it("translates backend detail codes", () => {

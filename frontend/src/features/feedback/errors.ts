@@ -7,6 +7,7 @@ const knownMessages: Record<string, string> = {
   InvalidEmailOrPassword: "邮箱或密码不正确。",
   "Invalid email or password": "邮箱或密码不正确。",
   "Only draft submissions can be edited": "只有草稿状态的提交可以编辑。",
+  "Only failed AI review runs can be retried": "只有失败的 AI 审核运行可以重试。",
   "Save a template draft before publishing": "请先保存模板草稿再发布。",
   TEMPLATE_DRAFT_REQUIRED: "请先保存模板草稿再发布。",
 };

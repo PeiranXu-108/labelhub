@@ -224,7 +224,7 @@ class AgentWorkflowService:
         return list(
             self.db.scalars(
                 select(AIReview)
-                .where(AIReview.submission_id == submission_id)
+                .where(AIReview.submission_id == submission_id, AIReview.status != "superseded")
                 .order_by(AIReview.created_at.desc(), AIReview.id.desc())
             )
         )
