@@ -28,6 +28,7 @@ Every implementation agent must read:
 9. Start Auth Login Agent after Task08 approval if the placeholder `/login` limitation must be closed before final integration review.
 10. Start follow-up Tasks 11-19 only after Supervisor confirms the expanded requirements remain in scope.
 11. Start Task20 only if final Supervisor integration review returns `not ready` with concrete verification blockers to fix.
+12. Start Tasks 21-26 only after the 2026-06-08 Supervisor product-gap triage confirms these six requirement docs remain in scope.
 
 ## Recommended Call Order
 
@@ -62,6 +63,13 @@ Every implementation agent must read:
 27. Final Supervisor integration review
 28. Final Readiness Fixes Agent if final review is `not ready`
 29. Supervisor re-review of Task20
+30. Supervisor product-gap triage for Tasks 21-26
+31. Owner Task Operations Agent
+32. Template Advanced Authoring Agent
+33. Labeler Productivity Workbench Agent
+34. AI Pre-Review Operations Agent
+35. Human Review Operations Agent
+36. Production Policy and Readiness Agent
 ```
 
 Parallelizable groups:
@@ -74,6 +82,9 @@ Parallelizable groups:
 - After Task10 approval: Task11 may start as the first expanded-scope metadata task.
 - Tasks 12 and 13 may run in parallel only when they do not edit the same owner page container.
 - Tasks 17 and 18 may run in parallel after Task09/Task10 if their backend schemas/types do not overlap in the same files during the same handoff window.
+- Tasks 22 and 23 may run in parallel only when Task23 does not edit schema-renderer/template shared contracts.
+- Tasks 21 and 23 may run in parallel only when Task21 does not change shared task metadata or owner/labeler aggregate contracts needed by Task23.
+- Tasks 24 and 25 may run in parallel only when Task25 does not edit reviewer routes/types or review detail contracts touched by Task24.
 
 Do not parallelize:
 
@@ -87,6 +98,10 @@ Do not parallelize:
 - Task18 workflow-stage changes with any other task editing `WorkflowService`.
 - Task19 production readiness before the feature set to be claimed as ready is approved or explicitly descoped.
 - Task20 with any other agent touching E2E tests, export enqueue behavior, or demo seed helpers.
+- Task21 with another agent editing `frontend/src/features/owner/` task containers or task aggregate backend contracts.
+- Task22 with another agent editing `frontend/src/features/template/` or template/schema-renderer authoring contracts.
+- Task24 with Task25 when both touch reviewer APIs/types or AI/human review detail contracts.
+- Task26 policy implementation before the user approves the specific production policy decision.
 
 ---
 
@@ -1284,6 +1299,345 @@ End with the Agent Handoff format, including:
 - Docker-mode E2E status
 - backend/frontend tests/build/OpenAPI/Compose results
 - remaining readiness blockers, if any
+```
+
+---
+
+## Prompt 21: Owner Task Operations Agent
+
+```text
+You are the Owner Task Operations Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/21-owner-task-operations-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/21-owner-task-operations-agent.md
+5. frontend/src/features/owner/OwnerTaskList.tsx
+6. frontend/src/features/owner/TaskDrawer.tsx
+7. frontend/src/features/owner/TaskDashboard.tsx
+8. frontend/src/routes/owner/OwnerTaskDetailRoute.tsx
+9. backend/app/api/routes/tasks.py
+10. backend/app/services/tasks.py
+11. backend/app/services/agent_workflow.py
+
+Mission:
+Close the owner task-management gaps from the 2026-06-08 Supervisor audit: task search, status/distribution filters, real progress, aggregate metrics, and a more complete create/publish workflow.
+
+Hard constraints:
+- Keep the existing Studio/Ant Design visual system and layout coherence.
+- Do not hardcode progress, submission counts, or AI metrics.
+- Backend-derived metrics must use backend contracts when they depend on submission or AI review state.
+- Do not bypass task publish blockers or WorkflowService transitions.
+- Do not implement template advanced authoring; that belongs to Task22.
+
+Deliver:
+- owner task list search and filters
+- real progress and task-list summary metrics
+- backend aggregate/filter contracts if local derivation is not accurate
+- enriched task create/edit/publish flow
+- focused backend/frontend tests
+- regenerated OpenAPI snapshot if contracts change
+- Task21 handoff
+
+Verification:
+Run the commands listed in docs/tasks/21-owner-task-operations-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- final filter/search behavior
+- metric definitions and whether each is server-backed or locally derived
+- final task create/publish flow
+- disabled/deferred controls and dependencies
+- UI consistency notes
+```
+
+---
+
+## Prompt 22: Template Advanced Authoring Agent
+
+```text
+You are the Template Advanced Authoring Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/22-template-advanced-authoring-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/22-template-advanced-authoring-agent.md
+5. docs/tasks/13-template-designer-builder-agent.md
+6. docs/tasks/15-dynamic-form-runtime-agent.md
+7. docs/tasks/16-llm-field-loop-agent.md
+8. frontend/src/features/template/
+9. frontend/src/features/schema-renderer/
+10. frontend/src/features/owner/TemplateWorkspace.tsx
+11. backend/app/schemas/template.py
+12. backend/app/services/templates.py
+
+Mission:
+Expose advanced template runtime behavior through authoring controls: validation rules, field linkage/visibility, group/tab layouts, LLM trigger settings, and Schema JSON export.
+
+Hard constraints:
+- Keep the current designer layout and visual language; this is not a redesign.
+- Preserve published schema immutability.
+- Emit only backend-valid template JSON.
+- Do not expose arbitrary JavaScript/Python validators.
+- Do not expose provider credentials or model secrets in frontend code.
+
+Deliver:
+- property inspector tabs for basic, validation, and linkage settings
+- validation rule editor for supported runtime validations
+- visibility/linkage rule editor
+- group/tab layout authoring
+- LLM trigger mode/output/context/temperature controls
+- Schema JSON export action
+- focused frontend/backend tests
+- Task22 handoff
+
+Verification:
+Run the commands listed in docs/tasks/22-template-advanced-authoring-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- authorable validation types
+- authorable visibility operators
+- layout behavior
+- LLM trigger authoring coverage
+- Schema JSON export behavior
+- UI consistency notes
+```
+
+---
+
+## Prompt 23: Labeler Productivity Workbench Agent
+
+```text
+You are the Labeler Productivity Workbench Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/23-labeler-productivity-workbench-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/23-labeler-productivity-workbench-agent.md
+5. docs/tasks/17-labeler-navigation-agent.md
+6. frontend/src/features/labeler/LabelerWorkbench.tsx
+7. frontend/src/features/labeler/api.ts
+8. frontend/src/features/labeler/types.ts
+9. backend/app/api/routes/labeler.py
+10. backend/app/services/submissions.py
+11. backend/app/schemas/labeler.py
+
+Mission:
+Add the missing productivity features for labelers: assignment navigation list, current-task progress, contribution summary, submission history, report-problem flow, and keyboard shortcuts.
+
+Hard constraints:
+- Keep labeler data scoped to the authenticated labeler.
+- Do not expose another labeler's assignments or private submission status.
+- Do not change SchemaRenderer validation semantics.
+- Report-problem must not submit an annotation or change workflow status unless skip is explicitly chosen.
+- Keep the current workbench layout coherent.
+
+Deliver:
+- assignment navigation panel/list
+- progress and contribution summary
+- current-assignment history from persisted workflow/audit data
+- report-problem route and UI
+- keyboard shortcuts for existing actions
+- focused backend/frontend tests
+- Task23 handoff
+
+Verification:
+Run the commands listed in docs/tasks/23-labeler-productivity-workbench-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- navigation data shape and privacy behavior
+- contribution metric definitions
+- report-problem route and persistence behavior
+- keyboard shortcut list and conflict prevention
+- UI consistency notes
+```
+
+---
+
+## Prompt 24: AI Pre-Review Operations Agent
+
+```text
+You are the AI Pre-Review Operations Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/24-ai-prereview-operations-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/24-ai-prereview-operations-agent.md
+5. docs/tasks/04-ai-review-langgraph-agent.md
+6. backend/app/services/ai_review.py
+7. backend/app/services/agent_workflow.py
+8. backend/app/workers/ai_review.py
+9. backend/app/api/routes/review.py
+10. frontend/src/features/agent-workflow/
+11. frontend/src/features/reviewer/
+
+Mission:
+Add an operations-facing AI pre-review queue and detail surface for inspecting AI runs, monitoring failures, viewing structured logs, and safely retrying failed AI review jobs.
+
+Hard constraints:
+- Preserve structured AI output and persisted prompt/response audit data.
+- Preserve AI review idempotency; do not create duplicate completed reviews for the same submission attempt.
+- Do not expose provider credentials in frontend code.
+- Status transitions must use WorkflowService.
+- Missing provider credentials must remain a controlled fallback.
+
+Deliver:
+- AI operations queue/detail/retry backend contracts
+- owner/reviewer-visible AI operations frontend route or surface
+- run filters for pending/running/passed/returned/human-review/failed
+- prompt snapshot, structured response, model metadata, retry count, and idempotency display
+- safe retry action and tests
+- Task24 handoff
+
+Verification:
+Run the commands listed in docs/tasks/24-ai-prereview-operations-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- AI operations route list and filters
+- detail payload shape
+- retry/idempotency policy
+- missing-provider behavior
+- permissions
+- UI consistency notes
+```
+
+---
+
+## Prompt 25: Human Review Operations Agent
+
+```text
+You are the Human Review Operations Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/25-human-review-operations-agent.md
+
+Required reading before coding:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/25-human-review-operations-agent.md
+5. docs/tasks/18-multistage-human-review-agent.md
+6. frontend/src/features/reviewer/ReviewQueue.tsx
+7. frontend/src/features/reviewer/ReviewSubmissionDetail.tsx
+8. backend/app/api/routes/review.py
+9. backend/app/services/submissions.py
+10. backend/app/services/review_stages.py
+11. backend/app/services/workflow.py
+
+Mission:
+Close reviewer operations gaps: reviewer metrics, SLA context, assignment/ownership controls, audit-log export, and clearer final decision actions. Direct reviewer revision is policy-gated.
+
+Hard constraints:
+- Preserve stage-aware approve/return semantics.
+- Workflow status changes must use WorkflowService.
+- Direct reviewer revision must not be implemented unless the policy is explicit and audit/attempt preservation is implemented.
+- Do not change AI review decision logic.
+- Keep the current review layout coherent.
+
+Deliver:
+- reviewer metrics and SLA context
+- assignment/self-claim controls only if backed by a clear backend contract
+- audit export route and UI
+- direct revision support only if policy is approved
+- focused backend/frontend tests
+- Task25 handoff
+
+Verification:
+Run the commands listed in docs/tasks/25-human-review-operations-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- reviewer metric definitions
+- SLA source and behavior
+- assignment/claim policy
+- direct revision policy or deferral reason
+- audit export format/permissions
+- UI consistency notes
+```
+
+---
+
+## Prompt 26: Production Policy and Readiness Agent
+
+```text
+You are the Production Policy and Readiness Agent for LabelHub.
+
+Workspace:
+/Users/peiranxu/labelhub
+
+Your task file:
+docs/tasks/26-production-policy-readiness-agent.md
+
+Required reading before action:
+1. docs/technical-solution.md
+2. docs/agent-coordination.md
+3. docs/status-board.md
+4. docs/tasks/26-production-policy-readiness-agent.md
+5. docs/tasks/19-production-readiness-agent.md
+6. README.md
+7. docs/deployment.md
+8. docs/demo-script.md
+9. docs/known-limitations.md
+10. docker-compose.yml
+11. scripts/production_preflight.sh
+
+Mission:
+Convert remaining production blockers into explicit policy and readiness requirements, and implement only approved, testable policy hooks.
+
+Hard constraints:
+- Do not implement production identity, object storage, live AI, scanning, retention automation, or payout execution without explicit user approval.
+- Do not write secrets to the repository.
+- Do not claim Docker-mode E2E or live AI readiness unless actually verified.
+- Keep missing-key AI fallback intact.
+- Keep reward rules metadata-only unless payout execution is explicitly approved as a separate scope.
+
+Deliver:
+- updated readiness stance for identity, live AI, storage/scanning/retention, Docker E2E, worker hardening, and reward policy
+- safe preflight checks only for approved scope
+- docs updates for known limitations/deployment/demo
+- targeted tests for any implemented policy hooks
+- Task26 handoff
+
+Verification:
+Run the commands listed in docs/tasks/26-production-policy-readiness-agent.md, or explain exactly why any command cannot run.
+
+End with the Agent Handoff format, including:
+- production identity decision status
+- live AI verification status
+- storage/scanning/retention decision status
+- Docker-mode E2E status
+- worker hardening status
+- reward/payout policy status
+- accepted limitations still documented
 ```
 
 ---

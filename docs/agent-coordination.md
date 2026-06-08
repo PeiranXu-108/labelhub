@@ -48,6 +48,12 @@ The system must preserve these non-negotiable boundaries:
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | Initial/re-review/final review stages and round diff views | After Tasks 09 and 10 |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | Docker runtime verification, live-AI preflight, production limitation docs | After Task 08 and Task 10; after Task 16 for live field-assist checks |
 | Final Readiness Fixes Agent | `docs/tasks/20-final-readiness-fixes-agent.md` | E2E selector/seed stability, export enqueue resilience, readiness docs | After final Supervisor review returns `not ready` for concrete verification blockers |
+| Owner Task Operations Agent | `docs/tasks/21-owner-task-operations-agent.md` | Owner task search/filter, real progress, aggregate metrics, create/publish workflow completion | After Task20 and 2026-06-08 Supervisor gap triage |
+| Template Advanced Authoring Agent | `docs/tasks/22-template-advanced-authoring-agent.md` | Template validation/linkage/layout/LLM-trigger authoring and Schema JSON export | After Tasks 13, 15, and 16 |
+| Labeler Productivity Workbench Agent | `docs/tasks/23-labeler-productivity-workbench-agent.md` | Labeler assignment navigator, contribution summary, history, report-problem flow, shortcuts | After Task17 and 2026-06-08 Supervisor gap triage |
+| AI Pre-Review Operations Agent | `docs/tasks/24-ai-prereview-operations-agent.md` | AI pre-review operations queue, detail, logs, and safe retry controls | After Tasks 04, 09, 18, and 20 |
+| Human Review Operations Agent | `docs/tasks/25-human-review-operations-agent.md` | Reviewer metrics, SLA context, assignment/audit export, direct revision policy surface | After Task18; coordinate with Task24 if reviewer routes/types overlap |
+| Production Policy and Readiness Agent | `docs/tasks/26-production-policy-readiness-agent.md` | Production identity/storage/live-AI/scanning/retention policy readiness and preflight checks | After Tasks 19 and 20 plus user policy decisions |
 | QA Docs Deploy Agent | `docs/tasks/08-qa-docs-deploy-agent.md` | E2E tests, README, API docs, Docker Compose, demo script | After first vertical slice and Task 09 if dispatched |
 
 ## Recommended Execution Order
@@ -61,7 +67,7 @@ The system must preserve these non-negotiable boundaries:
 7. QA Docs Deploy Agent starts smoke tests once the first vertical slice works and Task09 integration contracts are approved if dispatched.
 8. Auth Login Agent runs after QA if the remaining placeholder `/login` limitation must be closed before final integration review.
 9. Follow-up Tasks 11-19 run only if the expanded requirements remain in scope after Supervisor triage.
-10. Recommended follow-up order:
+10. Recommended follow-up order for Tasks 11-20:
    - Task 11 first for expanded task metadata.
    - Tasks 12 and 13 may run in parallel only if they avoid the same owner page container.
    - Task 14 after Task 13 if designer controls are needed.
@@ -70,6 +76,13 @@ The system must preserve these non-negotiable boundaries:
    - Tasks 17 and 18 can run after Task 09/10, but should not overlap on reviewer/labeler shared API types without coordination.
    - Task 19 closes production readiness evidence after the desired feature follow-ups are approved or explicitly descoped.
    - Task 20 runs only after final Supervisor integration review identifies concrete readiness blockers that must be fixed before another readiness verdict.
+11. Recommended follow-up order for Tasks 21-26:
+   - Task 21 first, because owner aggregate contracts influence dashboards and navigation into later operations surfaces.
+   - Task 22 can run after Task 21 if no owner/template workspace conflicts are active.
+   - Task 23 can run in parallel with Task 22 only if it does not edit schema-renderer or shared task metadata contracts.
+   - Task 24 should run before Task 25 if both need reviewer route/type changes.
+   - Task 25 may run after Task 24 or independently if it only touches human-review metrics and audit export.
+   - Task 26 should run after the user confirms which production policy decisions are in scope.
 
 ## Shared Files and Conflict Rules
 
@@ -95,6 +108,12 @@ High-conflict files owned by one agent at a time:
 - Task18 may update review-stage contracts and `WorkflowService` only with focused tests and Supervisor review; it must not bypass `WorkflowService` for stage/status changes.
 - Task19 may update deployment/docs/runtime verification scripts. It must not claim Docker runtime verification unless Docker startup actually succeeds in the environment.
 - Task20 may update Playwright E2E tests, demo seeding helpers, export enqueue error handling, and readiness docs. It must not change workflow state semantics, assignment claiming, AI review decisions, or published template immutability.
+- Task21 may update owner task pages and backend owner aggregate read contracts. It must not hardcode progress/AI metrics or redesign the Studio layout.
+- Task22 owns advanced template authoring controls. It must preserve Task15 runtime schema semantics, must not expose arbitrary code validators, and must not weaken published schema immutability.
+- Task23 may update labeler productivity panels and scoped labeler read/report endpoints. It must not expose other labelers' assignments or alter SchemaRenderer validation semantics.
+- Task24 may add AI operations read/retry contracts. It must preserve AI review idempotency, structured output, and `WorkflowService` transitions.
+- Task25 may add human-review operations metrics, SLA context, assignment controls, and audit export. Direct reviewer revision is policy-gated and must preserve original attempts and audit records if implemented.
+- Task26 may update readiness docs, preflight checks, and approved policy hooks. It must not implement production identity, object storage, live AI, scanning, retention automation, or payout execution without explicit user approval.
 
 If another agent needs a change in an owned file, they must write a request in their handoff summary and stop rather than making an opportunistic edit.
 

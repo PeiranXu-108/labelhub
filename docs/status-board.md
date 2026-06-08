@@ -4,7 +4,7 @@ This board is owned by the Supervisor Agent. Other agents may read it, but shoul
 
 ## Current Phase
 
-Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite E2E/export smoke blockers from final integration review are fixed; Docker-mode E2E, live-AI verification, and production hardening limitations remain documented rather than claimed complete.
+Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite E2E/export smoke blockers from final integration review are fixed. The 2026-06-08 Supervisor product-gap audit split the six remaining functional/readiness gaps into Tasks 21-26; those requirements are drafted and not yet implemented.
 
 ## Active Agents
 
@@ -31,6 +31,12 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 | Multistage Human Review Agent | `docs/tasks/18-multistage-human-review-agent.md` | complete | `docs/handoffs/2026-05-31-task18-multistage-human-review-handoff.md` | approved |
 | Production Readiness Agent | `docs/tasks/19-production-readiness-agent.md` | complete | `docs/handoffs/2026-05-31-task19-production-readiness-handoff.md` | approved with documented blockers |
 | Final Readiness Fixes Agent | `docs/tasks/20-final-readiness-fixes-agent.md` | complete | `docs/handoffs/2026-05-31-task20-final-readiness-fixes-handoff.md` | approved |
+| Owner Task Operations Agent | `docs/tasks/21-owner-task-operations-agent.md` | requirements drafted | none | ready to dispatch |
+| Template Advanced Authoring Agent | `docs/tasks/22-template-advanced-authoring-agent.md` | requirements drafted | none | pending Task21 conflict check |
+| Labeler Productivity Workbench Agent | `docs/tasks/23-labeler-productivity-workbench-agent.md` | requirements drafted | none | pending dispatch |
+| AI Pre-Review Operations Agent | `docs/tasks/24-ai-prereview-operations-agent.md` | requirements drafted | none | pending dispatch |
+| Human Review Operations Agent | `docs/tasks/25-human-review-operations-agent.md` | requirements drafted | none | pending Task24 conflict check |
+| Production Policy and Readiness Agent | `docs/tasks/26-production-policy-readiness-agent.md` | requirements drafted | none | pending user policy decisions |
 
 ## Frozen Contracts
 
@@ -120,6 +126,9 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 | Field-level LLM assist | server-side provider config, mocked/fallback behavior without credentials | yes before live provider calls | defaulted |
 | Multistage review policy | initial review, re-review, final review implemented; staffing/escalation policy still product-defined | yes before staffing/escalation policy changes | defaulted |
 | Docker runtime validation | `docker compose up --build` verified on Docker Desktop 29.5.2 / Compose v5.1.3; Docker-mode E2E remains blocked | no for local evidence; yes if external host proof is required | verified with blockers |
+| AI operations retry policy | preserve idempotency and avoid duplicate completed reviews | yes if retries should supersede failed reviews or create explicit retry attempts | open for Task24 |
+| Reviewer direct revision policy | defer unless reviewer-authored answer edits are explicitly approved and audited | yes | open for Task25 |
+| Production identity/storage/live-AI policy | keep demo-only auth, local MVP storage, and missing-key fallback until approved | yes | open for Task26 |
 
 ## Task Status
 
@@ -146,6 +155,12 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 | 18 Multistage Human Review | Multistage Human Review Agent | complete | Tasks 09, 10 | Approved; initial/re-review/final stages, stage-aware review contracts, round diff views, timestamp-safe migration backfill, WorkflowService-mediated transitions, OpenAPI, handoff, and regression tests verified. |
 | 19 Production Readiness | Production Readiness Agent | complete | Tasks 08, 10, Task 16 for live field LLM checks | Approved with blockers documented; Docker runtime startup, healthchecks, storage sharing, missing-key AI fallback, docs, preflight, tests, and build verified; Docker-mode E2E/live AI/static frontend/non-root worker/durable storage remain open. |
 | 20 Final Readiness Fixes | Final Readiness Fixes Agent | complete | Final Supervisor integration review | Approved; localized E2E selectors, demo-user seed race, Redis-absent export enqueue behavior, docs, handoff, and local E2E verified. |
+| 21 Owner Task Operations | Owner Task Operations Agent | requirements drafted | Tasks 06, 11, 12, 13, 18, 20 | Adds owner task search/filter, real progress, aggregate metrics, and richer create/publish flow while preserving current Studio layout. |
+| 22 Template Advanced Authoring | Template Advanced Authoring Agent | requirements drafted | Tasks 13, 15, 16 | Exposes validation, linkage, group/tab layout, LLM trigger settings, and Schema JSON export through the existing designer. |
+| 23 Labeler Productivity Workbench | Labeler Productivity Workbench Agent | requirements drafted | Tasks 07, 16, 17, 18 | Adds question navigation list, contribution summary, history, report-problem flow, and shortcuts without changing form runtime semantics. |
+| 24 AI Pre-Review Operations | AI Pre-Review Operations Agent | requirements drafted | Tasks 04, 09, 18, 20 | Adds AI operations queue/detail/retry surfaces and backend read contracts while preserving structured AI output and idempotency. |
+| 25 Human Review Operations | Human Review Operations Agent | requirements drafted | Tasks 18, 24 if shared reviewer routes are active | Adds reviewer metrics, SLA context, assignment/audit export, and direct revision only if policy is approved. |
+| 26 Production Policy and Readiness | Production Policy and Readiness Agent | requirements drafted | Tasks 19, 20; user policy decisions | Converts remaining production blockers into explicit policy/engineering readiness requirements and safe preflight checks. |
 
 ## Integration Risks
 
@@ -188,9 +203,21 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 - Task 18 migration backfill intentionally derives historical human review rounds from persisted attempt snapshot timestamps; do not replace this with mutable current-submission attempt inference.
 - Task 19 approved runtime evidence, but Docker-mode E2E, live provider verification, production static frontend serving, non-root worker, durable/object storage, scanning, retention, backups, and production identity policy remain blockers.
 - Task20 resolved the local E2E blockers from final integration review. Docker-mode E2E, live provider verification, and production hardening remain separate documented limitations; do not convert the local deterministic helper smoke into a live Docker-worker readiness claim.
+- Task21 must not hardcode owner progress or dashboard metrics; aggregate values that depend on submissions or AI reviews need backend contracts.
+- Task22 must preserve Task15 runtime schema semantics and may not expose arbitrary code validators.
+- Task23 must keep labeler navigation and contribution data scoped to the authenticated labeler.
+- Task24 retry behavior must preserve AI review idempotency and must not create duplicate completed reviews for the same submission attempt.
+- Task25 direct reviewer revision is policy-gated; do not add answer-editing controls unless audit and previous-attempt preservation are implemented.
+- Task26 is policy/readiness scope; do not implement production identity, object storage, live AI, scanning, or payout execution without explicit user approval.
 
 ## Latest Verification
 
+- 2026-06-08 Supervisor product-gap review note written to `docs/reviews/2026-06-08-product-gap-requirements-review.md`.
+- 2026-06-08 task docs drafted: `docs/tasks/21-owner-task-operations-agent.md` through `docs/tasks/26-production-policy-readiness-agent.md`.
+- 2026-06-08 dispatch docs updated: `docs/agent-prompts.md`, `docs/agent-coordination.md`, and `docs/status-board.md` now include Task21-26 ownership, sequencing, conflict rules, risks, and prompts.
+- 2026-06-08 verification: `rg -n "Task 21|Task 22|Task 23|Task 24|Task 25|Task 26|Prompt 21|Prompt 22|Prompt 23|Prompt 24|Prompt 25|Prompt 26" ...` confirmed the new task and prompt references are present.
+- 2026-06-08 verification: `git diff --check` passed.
+- 2026-06-08 docs-only update completed; no backend/frontend tests were run because no feature code changed.
 - Task20 handoff reviewed from `docs/handoffs/2026-05-31-task20-final-readiness-fixes-handoff.md`.
 - Task20 approval note written to `docs/reviews/2026-06-01-task20-final-readiness-fixes-review.md`.
 - Task20 verification: `cd backend && ./.venv313/bin/pytest tests/test_auth_api.py tests/test_exports.py tests/test_export_worker.py -q` passed, 15 tests, with existing passlib `crypt` deprecation warning.
@@ -492,4 +519,4 @@ Tasks 11-20 are approved expanded-scope/final-readiness follow-ups. Local SQLite
 
 ## Next Recommended Action
 
-Rerun final Supervisor integration review now that Task20 fixed the local E2E/export smoke blockers.
+Dispatch Task21 first for owner task operations, then Task22 or Task23 depending on whether template authoring or labeler productivity is the higher-priority product gap. Do not start Task24 and Task25 in parallel if both will edit reviewer routes/types.
