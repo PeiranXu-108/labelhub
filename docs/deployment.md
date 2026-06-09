@@ -173,7 +173,9 @@ FRONTEND_URL=http://127.0.0.1:5173 \
 npm run e2e
 ```
 
-Task20 verified this local SQLite smoke path with `LABELHUB_REDIS_URL=redis://127.0.0.1:6399/0` and no Redis process listening. In that mode export creation returns `202` with a `pending` job if Celery publish fails; the Playwright helper then runs `backend/scripts/seed_e2e_data.py run-export <export_job_id>` synchronously and downloads the generated file.
+Task20 previously verified this local SQLite smoke path with `LABELHUB_REDIS_URL=redis://127.0.0.1:6399/0` and no Redis process listening. In that mode export creation returns `202` with a `pending` job if Celery publish fails; the Playwright helper then runs `backend/scripts/seed_e2e_data.py run-export <export_job_id>` synchronously and downloads the generated file.
+
+The latest local SQLite smoke rerun on 2026-06-09 passed with the default `npm run e2e` command after aligning `e2e/auth-login.spec.ts` with the current `当前用户` popover logout UI and running Playwright workers serially.
 
 ## Production Notes
 
@@ -188,4 +190,4 @@ Task20 verified this local SQLite smoke path with `LABELHUB_REDIS_URL=redis://12
 - Define data retention/privacy policy before handling sensitive datasets.
 - The frontend container runs the Vite development server for MVP demonstration; replace it with a static production server or platform build before internet exposure.
 - The current worker image runs Celery as root and emits Celery's `ROOT_DISCOURAGED` security warning; use a non-root image/user for production hardening.
-- Full Playwright E2E against the local SQLite smoke setup is green as of Task20. Full Playwright E2E against the live Docker worker is not green yet because the deterministic E2E helper flow is separate from the live worker runtime. See `docs/known-limitations.md`.
+- Full Playwright E2E against the local SQLite smoke setup is green as of the 2026-06-09 rerun. Full Playwright E2E against the live Docker worker is not green yet because the deterministic E2E helper flow is separate from the live worker runtime. See `docs/known-limitations.md`.

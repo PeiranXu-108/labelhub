@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.domain.enums import UserRole
-from app.models import TemplateSchema
+from app.models import TemplateSchema, User
 from tests.conftest import auth_headers
 
 
@@ -117,6 +117,46 @@ def test_radio_without_options_is_rejected(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert "at least 1 item" in response.text
+
+
+def test_other_owner_cannot_save_or_publish_task_template(client: TestClient, db_session: Session) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    other_owner_headers = _other_owner_headers(db_session)
+    task = _create_task(client, owner_headers, name="Owner A template")
+
+    blocked_save = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=other_owner_headers,
+        json={"schema": _schema_payload(title="Owner B draft")},
+    )
+    owner_save = client.post(
+        f"/tasks/{task['id']}/template/draft",
+        headers=owner_headers,
+        json={"schema": _schema_payload(title="Owner A draft")},
+    )
+    blocked_publish = client.post(
+        f"/tasks/{task['id']}/template/publish",
+        headers=other_owner_headers,
+    )
+
+    assert blocked_save.status_code == 403
+    assert blocked_publish.status_code == 403
+    assert owner_save.status_code == 201
+    db_session.refresh(db_session.get(TemplateSchema, owner_save.json()["id"]))
+    assert db_session.get(TemplateSchema, owner_save.json()["id"]).is_published is False
+
+
+def _other_owner_headers(db_session: Session) -> dict[str, str]:
+    db_session.add(
+        User(
+            id="owner-b",
+            email="owner-b@example.com",
+            name="Owner B",
+            role=UserRole.OWNER,
+        )
+    )
+    db_session.commit()
+    return auth_headers(UserRole.OWNER, user_id="owner-b")
 
 
 def test_full_mvp_designer_schema_is_accepted_by_backend_validation(client: TestClient) -> None:

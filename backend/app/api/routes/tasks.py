@@ -34,7 +34,10 @@ def _actor_context(actor: Actor) -> ActorContext:
 
 
 def _raise_workflow_error(exc: WorkflowError) -> None:
-    status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") else status.HTTP_400_BAD_REQUEST
+    if exc.code == "PERMISSION_DENIED":
+        status_code = status.HTTP_403_FORBIDDEN
+    else:
+        status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") else status.HTTP_400_BAD_REQUEST
     raise api_error(exc.code, exc.message, status_code, extra=exc.details)
 
 
@@ -193,10 +196,10 @@ def preview_import_items(
     task_id: str,
     payload: ItemImportPreviewRequest,
     db: Session = Depends(get_db),
-    _actor: Actor = Depends(require_role(UserRole.OWNER)),
+    actor: Actor = Depends(require_role(UserRole.OWNER)),
 ) -> dict:
     try:
-        return TaskService(db).preview_import(task_id, payload.model_dump())
+        return TaskService(db).preview_import(task_id, _actor_context(actor), payload.model_dump())
     except WorkflowError as exc:
         _raise_workflow_error(exc)
 

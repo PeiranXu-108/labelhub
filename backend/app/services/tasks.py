@@ -97,9 +97,7 @@ class TaskService:
         return self._task_metrics_for([task])[0]
 
     def update_task(self, task_id: str, actor: ActorContext, data: dict[str, Any]) -> Task:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        task = self._get_owned_task(task_id, actor)
         for key, value in data.items():
             setattr(task, key, value)
         self.db.add(task)
@@ -109,9 +107,7 @@ class TaskService:
         return task
 
     def import_items(self, task_id: str, actor: ActorContext, items: list[dict[str, Any]]) -> list[TaskItem]:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        self._get_owned_task(task_id, actor)
 
         settings = get_settings()
         external_ids = {
@@ -143,10 +139,8 @@ class TaskService:
         self.db.commit()
         return created
 
-    def preview_import(self, task_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+    def preview_import(self, task_id: str, actor: ActorContext, data: dict[str, Any]) -> dict[str, Any]:
+        self._get_owned_task(task_id, actor)
 
         settings = get_settings()
         existing_external_ids = set(
@@ -176,9 +170,7 @@ class TaskService:
     def upsert_review_config(
         self, task_id: str, actor: ActorContext, data: dict[str, Any]
     ) -> ReviewConfig:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        self._get_owned_task(task_id, actor)
 
         config = self.db.scalar(select(ReviewConfig).where(ReviewConfig.task_id == task_id))
         if config is None:
@@ -194,6 +186,14 @@ class TaskService:
         self.db.commit()
         self.db.refresh(config)
         return config
+
+    def _get_owned_task(self, task_id: str, actor: ActorContext) -> Task:
+        task = self.db.get(Task, task_id)
+        if task is None:
+            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        if task.created_by != actor.user_id:
+            raise WorkflowError("PERMISSION_DENIED", "Only the task owner can modify this task")
+        return task
 
     def _audit(
         self,

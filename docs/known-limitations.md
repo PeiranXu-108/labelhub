@@ -17,7 +17,7 @@
 - No live AI provider call was verified in Task19 because no safe `LABELHUB_LLM_API_KEY` was provided. Live review and field-level assist remain credential- and policy-gated.
 - Without `LABELHUB_LLM_API_KEY`, AI review uses a controlled missing-credentials fallback and routes to human review; field-level assist returns a controlled `LLM_PROVIDER_UNAVAILABLE` path.
 - Plain `docker compose config` expands local `.env` values and can print secrets. Use `env LABELHUB_LLM_API_KEY= docker compose config --quiet` for safe validation logs.
-- Full Playwright E2E against the local SQLite smoke setup is green as of Task20, including Redis-absent export creation plus synchronous export helper completion. Full Playwright E2E against the live Docker worker is still not green because the deterministic helper flow is separate from the live worker runtime.
+- Full Playwright E2E against the local SQLite smoke setup is green as of the 2026-06-09 rerun, including Redis-absent export creation plus synchronous export helper completion. The smoke now runs Playwright workers serially because both specs share one seeded SQLite backend. Full Playwright E2E against the live Docker worker is still not green because the deterministic helper flow is separate from the live worker runtime.
 
 ## Production Policy Gaps
 

@@ -150,6 +150,8 @@ class WorkflowService:
         task = self.db.get(Task, task_id)
         if task is None:
             raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        if task.created_by != actor.user_id:
+            raise WorkflowError("PERMISSION_DENIED", "Only the task owner can change task status")
 
         current_status = TaskStatus(task.status)
         next_status = self.TASK_TRANSITIONS.get((current_status, action))

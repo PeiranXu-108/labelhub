@@ -17,7 +17,10 @@ def _actor_context(actor: Actor) -> ActorContext:
 
 
 def _raise_workflow_error(exc: WorkflowError) -> None:
-    status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") else status.HTTP_400_BAD_REQUEST
+    if exc.code == "PERMISSION_DENIED":
+        status_code = status.HTTP_403_FORBIDDEN
+    else:
+        status_code = status.HTTP_404_NOT_FOUND if exc.code.endswith("_NOT_FOUND") else status.HTTP_400_BAD_REQUEST
     raise api_error(exc.code, exc.message, status_code)
 
 

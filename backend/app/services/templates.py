@@ -53,9 +53,7 @@ class TemplateService:
     def save_draft(
         self, task_id: str, actor: ActorContext, schema_document: TemplateDocument
     ) -> TemplateSchema:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        self._get_owned_task(task_id, actor)
 
         latest_published = self._latest_published(task_id)
         latest_draft = self._latest_draft(task_id)
@@ -92,9 +90,7 @@ class TemplateService:
         return draft
 
     def publish_draft(self, task_id: str, actor: ActorContext) -> TemplateSchema:
-        task = self.db.get(Task, task_id)
-        if task is None:
-            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        self._get_owned_task(task_id, actor)
 
         draft = self._latest_draft(task_id)
         if draft is None:
@@ -529,6 +525,14 @@ class TemplateService:
 
     def _is_empty(self, value: Any) -> bool:
         return value is None or value == "" or value == []
+
+    def _get_owned_task(self, task_id: str, actor: ActorContext) -> Task:
+        task = self.db.get(Task, task_id)
+        if task is None:
+            raise WorkflowError("TASK_NOT_FOUND", "Task was not found")
+        if task.created_by != actor.user_id:
+            raise WorkflowError("PERMISSION_DENIED", "Only the task owner can modify this template")
+        return task
 
     def _audit(
         self,

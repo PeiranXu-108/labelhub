@@ -54,6 +54,7 @@ test("seeded demo users can sign in and reach their role home", async ({ page })
     await page.getByRole("button", { name: /登\s*录/ }).click();
 
     await expect(page.getByRole("heading", { name: user.heading })).toBeVisible();
+    await page.getByRole("button", { name: "当前用户" }).click();
     await expect(page.getByRole("button", { name: "退出登录" })).toBeVisible();
   }
 });

@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.enums import AIReviewDecision, SubmissionAction, SubmissionStatus, TaskStatus, UserRole
-from app.models import AIReview, Submission, Task, TaskItem, TemplateSchema
+from app.models import AIReview, Submission, Task, TaskItem, TemplateSchema, User
 from app.services.workflow import ActorContext, WorkflowService
 from tests.conftest import auth_headers
 
@@ -18,6 +19,78 @@ def test_reviewer_cannot_create_tasks(client: TestClient) -> None:
 
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "PERMISSION_DENIED"
+
+
+def test_other_owner_cannot_mutate_task_operations(client: TestClient, db_session: Session) -> None:
+    owner_headers = auth_headers(UserRole.OWNER)
+    other_owner_headers = _other_owner_headers(db_session)
+    created = client.post("/tasks", headers=owner_headers, json={"name": "Owner A task"})
+    task = created.json()
+    task_id = task["id"]
+
+    update_response = client.patch(
+        f"/tasks/{task_id}",
+        headers=other_owner_headers,
+        json={"name": "Owner B edit"},
+    )
+    preview_response = client.post(
+        f"/tasks/{task_id}/items/import/preview",
+        headers=other_owner_headers,
+        json={
+            "format": "json_array",
+            "content": '[{"external_id":"row-x","payload":{"text":"blocked"}}]',
+        },
+    )
+    import_response = client.post(
+        f"/tasks/{task_id}/items/import",
+        headers=other_owner_headers,
+        json={"items": [{"external_id": "row-x", "payload": {"text": "blocked"}}]},
+    )
+    review_config_response = client.put(
+        f"/tasks/{task_id}/review-config",
+        headers=other_owner_headers,
+        json={
+            "prompt_template": "Review annotation quality.",
+            "criteria": [{"key": "accuracy", "label": "Accuracy", "maxScore": 5}],
+            "pass_threshold": 80,
+            "return_threshold": 40,
+            "manual_review_threshold": 60,
+            "model_name": "static-test-model",
+            "temperature": 0,
+            "max_retries": 1,
+        },
+    )
+
+    client.post(
+        f"/tasks/{task_id}/items/import",
+        headers=owner_headers,
+        json={"items": [{"external_id": "row-1", "payload": {"text": "one"}}]},
+    )
+    db_session.add(
+        TemplateSchema(
+            task_id=task_id,
+            version=1,
+            title="Ready schema",
+            schema_payload={"version": 1, "fields": []},
+            is_published=True,
+            created_by=task["created_by"],
+        )
+    )
+    db_session.commit()
+    publish_response = client.post(f"/tasks/{task_id}/publish", headers=other_owner_headers)
+
+    assert update_response.status_code == 403
+    assert preview_response.status_code == 403
+    assert import_response.status_code == 403
+    assert review_config_response.status_code == 403
+    assert publish_response.status_code == 403
+    assert db_session.get(Task, task_id).name == "Owner A task"
+    persisted_item_ids = [
+        item.external_id
+        for item in db_session.scalars(select(TaskItem).where(TaskItem.task_id == task_id)).all()
+    ]
+    assert persisted_item_ids == ["row-1"]
+    assert db_session.get(Task, task_id).status == TaskStatus.DRAFT
 
 
 def test_invalid_task_transition_is_rejected(client: TestClient, db_session: Session) -> None:
@@ -106,6 +179,19 @@ def test_publish_requires_published_template(client: TestClient) -> None:
 
 def test_task_created_by_is_not_nullable() -> None:
     assert Task.__table__.c.created_by.nullable is False
+
+
+def _other_owner_headers(db_session: Session) -> dict[str, str]:
+    db_session.add(
+        User(
+            id="owner-b",
+            email="owner-b@example.com",
+            name="Owner B",
+            role=UserRole.OWNER,
+        )
+    )
+    db_session.commit()
+    return auth_headers(UserRole.OWNER, user_id="owner-b")
 
 
 def test_list_tasks_filters_by_status_distribution_and_search(

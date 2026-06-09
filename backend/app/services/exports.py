@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
-from app.domain.enums import ExportFormat, SubmissionStatus
-from app.models import ExportJob, Submission, Task, TaskItem
+from app.domain.enums import ExportFormat, SubmissionStatus, UserRole
+from app.models import AuditLog, ExportJob, Submission, Task, TaskItem
 from app.storage import LocalExportStorage
 
 
@@ -55,6 +55,20 @@ class ExportService:
             status="pending",
         )
         self.db.add(job)
+        self.db.flush()
+        self._audit_job(
+            job,
+            "create",
+            actor_id=actor_id,
+            from_status=None,
+            to_status="pending",
+            details={
+                "task_id": task_id,
+                "format": export_format.value,
+                "field_mapping": field_mapping or {},
+                "include_review_metadata": include_review_metadata,
+            },
+        )
         self.db.commit()
         self.db.refresh(job)
         return job
@@ -80,8 +94,17 @@ class ExportService:
         if job is None:
             raise ExportError("Export job was not found")
 
+        previous_status = job.status
         job.status = "running"
         job.error_message = None
+        self._audit_job(
+            job,
+            "start",
+            actor_id=job.created_by,
+            from_status=previous_status,
+            to_status="running",
+            details={"task_id": job.task_id},
+        )
         self.db.commit()
 
         try:
@@ -89,18 +112,64 @@ class ExportService:
             if not records:
                 raise ExportError("No exportable submissions found for this task")
             output_path = self._write_records(job, records)
+            previous_status = job.status
             job.status = "succeeded"
             job.file_path = str(output_path)
             job.error_message = None
+            self._audit_job(
+                job,
+                "succeed",
+                actor_id=job.created_by,
+                from_status=previous_status,
+                to_status="succeeded",
+                details={
+                    "task_id": job.task_id,
+                    "file_path": str(output_path),
+                    "record_count": len(records),
+                },
+            )
             self.db.commit()
             self.db.refresh(job)
             return job
         except Exception as exc:
+            previous_status = job.status
             job.status = "failed"
             job.error_message = str(exc)
+            self._audit_job(
+                job,
+                "fail",
+                actor_id=job.created_by,
+                from_status=previous_status,
+                to_status="failed",
+                details={"task_id": job.task_id, "error_message": str(exc)},
+            )
             self.db.commit()
             self.db.refresh(job)
             raise
+
+    def _audit_job(
+        self,
+        job: ExportJob,
+        action: str,
+        *,
+        actor_id: str,
+        from_status: str | None,
+        to_status: str,
+        details: dict[str, Any],
+    ) -> None:
+        self.db.add(
+            AuditLog(
+                entity_type="export_job",
+                entity_id=job.id,
+                action=action,
+                actor_id=actor_id,
+                actor_role=UserRole.OWNER.value,
+                from_status=from_status,
+                to_status=to_status,
+                details=details,
+            )
+        )
+        self.db.flush()
 
     def _load_records(self, job: ExportJob) -> list[dict[str, Any]]:
         submissions = list(

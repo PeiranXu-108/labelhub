@@ -5,10 +5,11 @@ from io import StringIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.enums import ExportFormat, SubmissionStatus, TaskStatus, UserRole
-from app.models import AIReview, ExportJob, HumanReview, Submission, Task, TaskItem, TemplateSchema, User
+from app.models import AIReview, AuditLog, ExportJob, HumanReview, Submission, Task, TaskItem, TemplateSchema, User
 from app.services.exports import ExportService
 from tests.conftest import auth_headers
 
@@ -156,6 +157,42 @@ def test_excel_export_creates_workbook_with_expected_sheet(db_session: Session, 
     with zipfile.ZipFile(completed.file_path) as workbook:
         workbook_xml = workbook.read("xl/workbook.xml").decode("utf-8")
         assert 'name="Submissions"' in workbook_xml
+
+
+def test_export_job_creation_and_run_status_changes_are_audited(
+    db_session: Session, tmp_path: Path
+) -> None:
+    task, owner, _labeler, _submissions = _seed_exportable_submissions(db_session)
+    service = ExportService(db_session, storage_root=tmp_path)
+
+    job = service.create_job(
+        task_id=task.id,
+        actor_id=owner.id,
+        export_format=ExportFormat.JSON,
+        field_mapping={},
+    )
+    completed = service.run_export(job.id)
+
+    audit_rows = db_session.scalars(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "export_job", AuditLog.entity_id == job.id)
+        .order_by(AuditLog.created_at, AuditLog.id)
+    ).all()
+
+    audit_by_action = {row.action: row for row in audit_rows}
+
+    assert completed.status == "succeeded"
+    assert set(audit_by_action) == {"create", "start", "succeed"}
+    assert (audit_by_action["create"].from_status, audit_by_action["create"].to_status) == (None, "pending")
+    assert (audit_by_action["start"].from_status, audit_by_action["start"].to_status) == ("pending", "running")
+    assert (audit_by_action["succeed"].from_status, audit_by_action["succeed"].to_status) == (
+        "running",
+        "succeeded",
+    )
+    assert all(row.actor_id == owner.id for row in audit_rows)
+    assert all(row.actor_role == UserRole.OWNER.value for row in audit_rows)
+    assert audit_by_action["create"].details["task_id"] == task.id
+    assert audit_by_action["succeed"].details["file_path"] == completed.file_path
 
 
 def test_owner_can_create_and_list_export_job_asynchronous_contract(
