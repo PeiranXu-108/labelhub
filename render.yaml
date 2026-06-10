@@ -5,9 +5,7 @@ services:
     rootDir: backend
     plan: free
     healthCheckPath: /health
-    dockerCommand: >
-      sh -c "alembic upgrade head &&
-      uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+    dockerCommand: ./scripts/start_render.sh
     envVars:
       - key: LABELHUB_ENVIRONMENT
         value: render
@@ -24,39 +22,6 @@ services:
         value: '["https://labelhub-demo-frontend.onrender.com"]'
       - key: LABELHUB_JWT_SECRET_KEY
         generateValue: true
-      - key: LABELHUB_LLM_PROVIDER
-        value: deepseek
-      - key: LABELHUB_LLM_MODEL
-        value: deepseek-chat
-      - key: LABELHUB_LLM_BASE_URL
-        value: https://api.deepseek.com
-      - key: LABELHUB_LLM_API_KEY
-        value: ""
-      - key: LABELHUB_LLM_TEMPERATURE
-        value: "0"
-      - key: LABELHUB_EXPORT_STORAGE_PATH
-        value: storage/exports
-      - key: LABELHUB_UPLOAD_STORAGE_PATH
-        value: storage/uploads
-
-  - type: worker
-    name: labelhub-demo-worker
-    runtime: docker
-    rootDir: backend
-    plan: free
-    dockerCommand: celery -A app.workers.celery_app.celery_app worker --loglevel=info
-    envVars:
-      - key: LABELHUB_ENVIRONMENT
-        value: render
-      - key: LABELHUB_DATABASE_URL
-        fromDatabase:
-          name: labelhub-demo-db
-          property: connectionString
-      - key: LABELHUB_REDIS_URL
-        fromService:
-          type: keyvalue
-          name: labelhub-demo-redis
-          property: connectionString
       - key: LABELHUB_LLM_PROVIDER
         value: deepseek
       - key: LABELHUB_LLM_MODEL
