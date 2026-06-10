@@ -1,0 +1,1 @@
+{"external_id": "Q0007", "prompt": "翻译为中文：The quick brown fox jumps over the lazy dog.", "model_answer": "那只敏捷的棕色狐狸跳过了那只懒狗。", "reference": "敏捷的棕色狐狸跳过懒狗（常用全字母句）。", "quality_level": "accepted", "quality_score": 95, "review_summary": "模型回答准确传达了原文含义，与参考答案基本一致，表达清晰，质量可接受。"}

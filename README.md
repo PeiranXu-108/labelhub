@@ -157,9 +157,11 @@ docker compose exec api python scripts/seed_e2e_data.py demo-users
 
 ## 文档
 
+- 基础技术文档：`docs/basic-technical-doc.md`
 - API：`docs/api.md`
 - 架构：`docs/architecture.md`
 - Demo 脚本：`docs/demo-script.md`
 - 部署：`docs/deployment.md`
+- Render 演示部署：`docs/render-demo-deployment.md`
 - 已知限制：`docs/known-limitations.md`
 - 协作与任务状态：`docs/agent-coordination.md`、`docs/status-board.md`

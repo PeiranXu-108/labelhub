@@ -1,0 +1,1 @@
+{"external_id": "Q0002", "prompt": "用 Python 写一个函数，判断一个字符串是否为回文，忽略大小写和空格。", "model_answer": "def is_palindrome(s):\n    s = ''.join(c.lower() for c in s if c.isalnum())\n    return s == s[::-1]", "reference": "需归一化大小写并剔除非字母数字字符后比较正反序。", "quality_level": "accepted", "quality_score": 95, "review_summary": "模型回答准确实现了回文判断，代码简洁且符合参考答案要求，质量合格。"}
