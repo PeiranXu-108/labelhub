@@ -63,12 +63,15 @@ redeploy.
 
 ## Seed Demo Users
 
-Open the `labelhub-demo-api` service in Render, then use **Shell** or a
-one-off job to run:
+The Render demo sets `LABELHUB_SEED_DEMO_USERS=true` on `labelhub-demo-api`.
+On every API deploy, `backend/scripts/start_render.sh` runs:
 
 ```bash
 python scripts/seed_e2e_data.py demo-users
 ```
+
+The seed command is idempotent, so repeated deploys keep the same deterministic
+demo accounts available.
 
 Demo accounts:
 
@@ -78,7 +81,8 @@ Demo accounts:
 
 ## Demo Limitations On This Plan
 
-- There is no always-on Celery worker on the current Render plan.
+- There is no always-on Celery worker, Shell, or One-Off Jobs on the current
+  Render free instance type.
 - Labeler submissions can enqueue AI review tasks, but no worker will consume
   them unless a worker service is added on a plan that supports background
   workers.

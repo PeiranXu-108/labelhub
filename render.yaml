@@ -36,6 +36,8 @@ services:
         value: storage/exports
       - key: LABELHUB_UPLOAD_STORAGE_PATH
         value: storage/uploads
+      - key: LABELHUB_SEED_DEMO_USERS
+        value: "true"
 
   - type: web
     name: labelhub-demo-frontend
